@@ -41,6 +41,11 @@ if [ -s "$C/pstack-manifest.sha256" ]; then
   [ "${edited:-0}" = "0" ] && ok "no hand-edited pstack skills (manifest clean)" || bad "$edited generated file(s) hand-edited → they are protected but drifting; sync-pstack.sh reports which, --force discards"
 else bad "pstack manifest missing → run sync-pstack.sh --no-pull to create the clobber guard"; fi
 
+# 5c. node reachable by plugin hooks (they get a minimal PATH; ~/.claude/bin is injected via settings env.PATH).
+if [ -x "$C/bin/node" ] && "$C/bin/node" --version >/dev/null 2>&1; then
+  case "$(jq -r '.env.PATH // ""' "$C/settings.json")" in *"$C/bin"*) ok "node linked for hooks ($("$C/bin/node" --version)) and on session PATH";; *) bad "~/.claude/bin exists but is not in settings env.PATH";; esac
+else bad "node not linked for plugin hooks → scripts/link-node.sh"; fi
+
 # 6. Agents present.
 [ -f "$C/agents/poteto-agent.md" ] && [ -f "$C/agents/comment-sicko.md" ] && ok "pstack agents present" || bad "pstack agents missing"
 

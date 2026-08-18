@@ -8,7 +8,7 @@
 #      fortnight for a biweekly job, so a bare call is never good enough here.
 
 _node_bin=$(ls -td "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | head -1)
-export PATH="$HOME/.local/bin${_node_bin:+:$_node_bin}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+export PATH="$HOME/.claude/bin:$HOME/.local/bin${_node_bin:+:$_node_bin}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 unset _node_bin
 
 # claude_retry <attempts> <base-delay-seconds> -- <claude args...>
