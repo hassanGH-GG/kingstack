@@ -17,7 +17,7 @@ The thesis in one line: **pstack tells the agent what to do; kingstack makes it 
 | Generic. The same behavior for every user. | A personal layer mined from evidence. `king-mode` was distilled from about 1,000 real prompts, is refreshed biweekly, and is kept apart from the engine so neither clobbers the other. |
 | A model table. Roles map to models, statically. | A cost policy that runs. Every subagent is routed by class of work, cheapest tier first; polling is never an LLM turn; bulk never enters the main thread; two nightly ledgers survive transcript expiry. |
 | The port is maintained by hand. | Scripted absorption. `sync-pstack.sh` pulls upstream, re-applies every Cursor-to-Claude adaptation, installs pstack's declared cross-plugin dependencies, refuses to overwrite anything hand-edited, and refuses to finish if a Cursor-ism survives. |
-| Prose the model reads. | Mechanisms that verify. A 22-check health script, a test suite for the memory pipeline, three launchd schedules, and a git history of the framework itself. |
+| Prose the model reads. | Mechanisms that verify. A 23-check health script, a test suite for the memory pipeline, three launchd schedules, and a git history of the framework itself. |
 
 What a person gains, in practice: the same rigor pstack promises, but on every session without remembering to ask for it; an agent that starts each session already knowing the project; a working style encoded from how they actually work rather than how they describe it; and a token bill that is routed and measured instead of inherited. Fork it, run `/automate-me` for your own `-mode`, and the engine plus mechanisms are yours. Only `king-mode` and the identity section of `CLAUDE.md` are specific to me.
 
@@ -56,7 +56,7 @@ hooks/
   memory_inbox.py            the inbox format and CLI: list, show, promote, reject
   test_memory_inbox.py       9 cases; run after touching either memory file
 scripts/
-  check-setup.sh       claude-check: 22 checks, exit 1 on drift
+  check-setup.sh       claude-check: 23 checks, exit 1 on drift
   sync-pstack.sh       upstream to installed, with adaptations and the clobber guard
   refresh-king-mode.sh biweekly personal-layer refresh, with backup and rollback
   usage-report.py      claude-usage: tokens and cost, ad hoc
@@ -81,7 +81,7 @@ Everything else under `~/.claude` (the other 63 skills, `projects/`, transcripts
 
 | Command | Does |
 |---|---|
-| `claude-check` (`scripts/check-setup.sh`) | 22 checks in about two seconds: profile symlinks, both hooks, contract emission, the routing ruler, effort setting, critical skills, hand-edited skills, agents, pstack sync stamp, Cursor-ism leak, memory tests, three launchd jobs, both ledgers, repo hygiene. Exit 1 on drift. |
+| `claude-check` (`scripts/check-setup.sh`) | 23 checks in about two seconds: profile symlinks, both hooks, contract emission, the routing ruler, effort setting, critical skills, hand-edited skills, agents, pstack sync stamp, Cursor-ism leak, memory tests, three launchd jobs, both ledgers, repo hygiene. Exit 1 on drift. |
 | `scripts/sync-pstack.sh` | Pull the cursor/plugins checkout, mirror pstack plus dependencies plus extras into `skills/`, reapply every Cursor-to-Claude adaptation, skip anything hand-edited, refuse to finish if a Cursor-ism survives. Idempotent. `--no-pull`, `--force`. |
 | `claude-usage` (`scripts/usage-report.py`) | Tokens and estimated cost from transcripts: `--today`, `--days N`, `--by model\|project`. |
 | `scripts/rework-report.py` | Correction-shaped prompts per 10 typed, by week or project. `--samples` to audit what matched, `--snapshot` to write the ledger. |

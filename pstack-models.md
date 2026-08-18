@@ -19,6 +19,6 @@ Notes:
 - Upstream's "different model family for review" diversity is approximated here
   by using a different Claude tier (e.g. reviewer on `opus` when the author ran
   on `fable`), since only Claude models are available in this harness.
-- Omitting `model` on an Agent call inherits the session model — usually right;
+- Omitting `model` on an Agent call inherits the session model, which is usually right;
   set a role model only where a skill explicitly prescribes one.
 - To retune: edit this table; skills reference this file as the source of truth.
