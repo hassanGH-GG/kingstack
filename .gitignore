@@ -24,6 +24,10 @@
 !skills/memory-review/**
 skills/king-mode/.history/
 
+# docs (proposals, design notes)
+!docs/
+!docs/**
+
 # sweeps registry (one md per unattended check)
 !sweeps/
 !sweeps/**
