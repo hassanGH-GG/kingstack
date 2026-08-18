@@ -7,9 +7,11 @@ ok(){ printf "✓ %s\n" "$1"; }
 bad(){ printf "✗ %s\n" "$1"; fail=1; }
 
 # 1. Profile symlinks: every shared layer resolves to the work profile.
+links_ok=1
 for f in CLAUDE.md skills agents settings.json projects plugins history.jsonl; do
-  if [ -L "$P/$f" ] && [ "$(readlink "$P/$f")" = "$C/$f" ] && [ -e "$P/$f" ]; then :; else bad "personal/$f not a symlink to work profile"; fi
-done && [ $fail = 0 ] && ok "personal profile: 7 layers symlinked to ~/.claude"
+  if [ -L "$P/$f" ] && [ "$(readlink "$P/$f")" = "$C/$f" ] && [ -e "$P/$f" ]; then :; else bad "personal/$f not a symlink to work profile"; links_ok=0; fi
+done
+[ "$links_ok" = 1 ] && ok "personal profile: 7 layers symlinked to ~/.claude"
 
 # 2. No stray config in the work dir (a headless run with CLAUDE_CONFIG_DIR set creates it → 'not logged in').
 [ -e "$C/.claude.json" ] && bad "stray $C/.claude.json exists (breaks headless login) → rm it" || ok "no stray ~/.claude/.claude.json"
@@ -89,8 +91,12 @@ if git -C "$C" rev-parse --git-dir >/dev/null 2>&1; then
 fi
 
 # 10. Scripts executable.
-for s in sync-pstack.sh refresh-king-mode.sh measure.ts usage-report.py usage-snapshot.py; do [ -x "$C/scripts/$s" ] || bad "$C/scripts/$s not executable"; done
-[ $fail = 0 ] && ok "helper scripts executable" 
+exec_ok=1
+for s in sync-pstack.sh refresh-king-mode.sh measure.ts usage-report.py usage-snapshot.py \
+         rework-report.py nightly.sh run-sweeps.sh beam.sh box-task.sh install-launchd.sh link-node.sh; do
+  [ -x "$C/scripts/$s" ] || { bad "$C/scripts/$s not executable"; exec_ok=0; }
+done
+[ "$exec_ok" = 1 ] && ok "all 12 helper scripts executable"
 
 # 11. Pending memory review nudge (informational, never fails).
 pend=$(grep -c '^- \[ \]' "$C/memory-review.md" 2>/dev/null | head -1 || true); pend=${pend:-0}
