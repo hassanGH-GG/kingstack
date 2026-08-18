@@ -22,7 +22,14 @@ claude_retry() {
     if [ "$rc" = 0 ] && ! printf '%s' "$out" | grep -qiE 'api error: (429|500|502|503|529)|overloaded|rate limit|temporarily unavailable'; then
       printf '%s\n' "$out"; return 0
     fi
-    if printf '%s' "$out" | grep -qiE 'api error: (429|500|502|503|529)|overloaded|rate limit|temporarily unavailable|usage credits'; then
+    # Credit exhaustion resets on the plan's schedule, not on a backoff timer. Retrying
+    # burns minutes and the last attempt still fails, so fail fast and say what to do.
+    if printf '%s' "$out" | grep -qi 'usage credits'; then
+      printf '%s\n' "$out"
+      echo "claude_retry: model tier out of credits; not retrying. Rerun with a different model (e.g. KINGSTACK_REFRESH_MODEL=opus) or after the reset." >&2
+      return 75
+    fi
+    if printf '%s' "$out" | grep -qiE 'api error: (429|500|502|503|529)|overloaded|rate limit|temporarily unavailable'; then
       if [ "$n" -ge "$attempts" ]; then
         printf '%s\n' "$out"
         echo "claude_retry: gave up after $n attempt(s) on a transient error" >&2

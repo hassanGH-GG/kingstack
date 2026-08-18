@@ -10,7 +10,7 @@ values the Agent tool accepts (`fable`, `opus`, `sonnet`, `haiku`).
 
 | Role | Upstream default | Here |
 |---|---|---|
-| Prose, judgment, synthesis, review | claude-fable-5-thinking-max | `fable` |
+| Prose, judgment, synthesis, review | claude-fable-5-thinking-max | `opus` (temporarily; see availability note) |
 | Precisely-specified code | gpt-5.6-sol-max | `opus` |
 | Fast mechanical code, bulk edits | grok-4.6-fast-xhigh | `haiku` |
 | Heavy reasoning fallback | claude-opus-5-thinking-xhigh | `opus` |
@@ -22,3 +22,10 @@ Notes:
 - Omitting `model` on an Agent call inherits the session model, which is usually right;
   set a role model only where a skill explicitly prescribes one.
 - To retune: edit this table; skills reference this file as the source of truth.
+
+## Availability
+
+Fable ran out of usage credits on 2026-08-18 and killed a subagent mid-task in overclock.
+Until credits reset, every role above that would pick `fable` runs `opus` instead. When
+Fable is back, flip the table back and delete this section. A pinned model is a default,
+not a promise the account can always keep; a spawn must never die because its pin ran dry.

@@ -24,6 +24,11 @@ The main thread cannot change its own model; everything below it can, and must.
 | Judgment | design, ambiguity, review, root cause on a subtle bug, prose people will read, anything worth a second opinion | `fable` or `opus`, effort high |
 | Escalation | a lower tier failed, returned INCONCLUSIVE, or produced something you would not ship | one tier up, once; say why in the reply |
 
+A pin is a default, not a suicide pact. If a pinned tier is unavailable (credits,
+outage), fall back one adjacent tier for that spawn, say so in one clause, and never
+blanket-override every spawn because one tier died; that is how pins stop meaning
+anything. Set effort explicitly on every spawn and report it with the model.
+
 Start cheap and escalate on evidence. Do not pre-escalate because the task "seems
 important"; importance is a reason to verify, not to overspend.
 
