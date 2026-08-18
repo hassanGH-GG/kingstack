@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.hassan.claude-usage-snapshot</string>
+  <key>ProgramArguments</key>
+  <array><string>/usr/bin/python3</string><string>/Users/mac/.claude/scripts/usage-snapshot.py</string></array>
+  <key>StartCalendarInterval</key>
+  <dict><key>Hour</key><integer>0</integer><key>Minute</key><integer>23</integer></dict>
+  <key>StandardOutPath</key><string>/Users/mac/.claude/logs/usage-snapshot.log</string>
+  <key>StandardErrorPath</key><string>/Users/mac/.claude/logs/usage-snapshot.log</string>
+  <key>RunAtLoad</key><false/>
+</dict>
+</plist>
