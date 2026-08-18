@@ -38,3 +38,7 @@ skills/king-mode/.history/
 *.log
 *.bak
 *.tmp
+
+# python bytecode
+__pycache__/
+*.pyc
