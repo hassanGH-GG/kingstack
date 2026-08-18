@@ -68,6 +68,14 @@ if git -C "$C" rev-parse --git-dir >/dev/null 2>&1; then
   git -C "$C" ls-files | grep -qE "credentials|\.claude\.json|history\.jsonl|usage\.db|/projects/" && bad "SECRET/RUNTIME FILE TRACKED IN GIT" || ok "no secrets or runtime state tracked"
 else bad "~/.claude is not a git repo"; fi
 
+# 9d. kingstack behind its own remote? (verify.sh pattern from minions: check installed vs git ls-remote)
+if git -C "$C" rev-parse --git-dir >/dev/null 2>&1; then
+  local_head=$(git -C "$C" rev-parse HEAD 2>/dev/null); remote_head=$(git -C "$C" ls-remote origin main 2>/dev/null | cut -f1)
+  if [ -n "$remote_head" ]; then
+    [ "$local_head" = "$remote_head" ] && ok "kingstack in sync with origin/main" || bad "kingstack differs from origin/main → git -C ~/.claude pull (or push)"
+  fi
+fi
+
 # 10. Scripts executable.
 for s in sync-pstack.sh refresh-king-mode.sh measure.ts usage-report.py usage-snapshot.py; do [ -x "$C/scripts/$s" ] || bad "$C/scripts/$s not executable"; done
 [ $fail = 0 ] && ok "helper scripts executable" 

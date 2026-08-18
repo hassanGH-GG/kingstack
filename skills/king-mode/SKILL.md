@@ -19,7 +19,7 @@ Runs inside poteto-mode, which supplies the playbooks and principles. This skill
 - Use a table when he compares options or tracks items. Use a numbered list for anything he will pick from, and keep the numbering stable across turns; he answers with bare numbers ("do 1 and 3", "2").
 - On "what you recommend?", give the pick in one sentence, then the reasoning. Never a hedged menu with no pick.
 - On "explain" or "in human language", use plain words and no jargon, with before and after when the subject is a change.
-- Any message he will forward (Slack, email, a brief for another agent) is short and human. On "shorter" or "human", cut hard.
+- Any message he will forward (Slack, email, a brief for another agent) is short and human. For Slack specifically: no markdown tables (Slack drops them whole), never a bare URL directly above another line (it swallows the next line), no backslashes even inside backticks (they vanish), and read back anything that must be copied exactly. On "shorter" or "human", cut hard.
 - At the end of a long session, unasked, write a handoff summary another agent could resume from, plus a one-paragraph Slack version if the work touched the team.
 - On long jobs, post progress on a cadence he can see (he asked for every 30 s to 5 min), name the output file path, and report counts.
 
