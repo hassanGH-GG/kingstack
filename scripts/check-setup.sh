@@ -88,7 +88,7 @@ for s in sync-pstack.sh refresh-king-mode.sh measure.ts usage-report.py usage-sn
 [ $fail = 0 ] && ok "helper scripts executable" 
 
 # 11. Pending memory review nudge (informational, never fails).
-pend=$(grep -c '^- \[ \]' "$C/memory-review.md" 2>/dev/null || echo 0)
+pend=$(grep -c '^- \[ \]' "$C/memory-review.md" 2>/dev/null | head -1 || true); pend=${pend:-0}
 [ "$pend" -gt 0 ] && printf "ℹ %s pending memory candidate(s): run /memory-review\n" "$pend"
 
 [ $fail = 0 ] && echo "SETUP HEALTHY" || echo "SETUP DRIFT DETECTED"
