@@ -61,6 +61,13 @@ if [ -f "$C/usage-ledger.csv" ]; then
   [ "$last" \> "$cutoff" ] || [ "$last" = "$cutoff" ] && ok "usage ledger fresh (last day $last)" || bad "usage ledger stale (last day $last)"
 else bad "usage ledger missing"; fi
 
+# 9c. kingstack repo: is a git repo, no untracked-but-allowlisted files, no secrets tracked.
+if git -C "$C" rev-parse --git-dir >/dev/null 2>&1; then
+  dirty=$(git -C "$C" status --short | wc -l | tr -d ' ')
+  [ "$dirty" = "0" ] && ok "kingstack repo clean" || bad "kingstack repo has $dirty uncommitted change(s): commit them"
+  git -C "$C" ls-files | grep -qE "credentials|\.claude\.json|history\.jsonl|usage\.db|/projects/" && bad "SECRET/RUNTIME FILE TRACKED IN GIT" || ok "no secrets or runtime state tracked"
+else bad "~/.claude is not a git repo"; fi
+
 # 10. Scripts executable.
 for s in sync-pstack.sh refresh-king-mode.sh measure.ts usage-report.py usage-snapshot.py; do [ -x "$C/scripts/$s" ] || bad "$C/scripts/$s not executable"; done
 [ $fail = 0 ] && ok "helper scripts executable" 
