@@ -1,41 +1,74 @@
 #!/bin/bash
-# Biweekly king-mode refresh. Runs headless via launchd (com.hassan.king-mode-refresh).
-# Mines transcripts since the last refresh and updates ~/.claude/skills/king-mode/SKILL.md
-# via the automate-me procedure. Backs up the previous version first; logs to ~/.claude/logs.
+# Biweekly king-mode refresh. Runs headless via launchd (com.hassan.king-mode-refresh) on the
+# 1st and 15th. Mines transcripts since the last refresh and revises ~/.claude/skills/king-mode
+# through the automate-me update flow. Backs up first and rolls back an invalid result.
+#
+#   refresh-king-mode.sh              # mine and write
+#   refresh-king-mode.sh --dry-run    # mine and print the changelog, write nothing
+#
+# Model: the synthesis session does judgment work, so it runs on KINGSTACK_REFRESH_MODEL
+# (default opus). Its miner subagents do bulk extraction, which is haiku work per
+# ~/.claude/model-routing.md. Do not hardcode a model here: an unattended job must not die
+# because one tier ran out of credits.
 set -uo pipefail
-export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
-# Do NOT set CLAUDE_CONFIG_DIR: the work login lives in ~/.claude.json and the default resolves it.
+# PATH (including node for plugin hooks) and claude_retry come from the shared library.
+# Do NOT set CLAUDE_CONFIG_DIR: the login lives in ~/.claude.json and the default resolves it.
+. "$HOME/.claude/scripts/lib-headless.sh"
 
 SKILL="$HOME/.claude/skills/king-mode/SKILL.md"
 STAMP="$HOME/.claude/king-mode-last-refresh.txt"
 LOG="$HOME/.claude/logs/king-mode-refresh.log"
 BACKUP_DIR="$HOME/.claude/skills/king-mode/.history"
-mkdir -p "$BACKUP_DIR"
+MODEL="${KINGSTACK_REFRESH_MODEL:-opus}"
+dry=0
+[ "${1:-}" = "--dry-run" ] && dry=1
+mkdir -p "$BACKUP_DIR" "$(dirname "$LOG")"
 
 since=$(cat "$STAMP" 2>/dev/null || date -v-14d +%Y-%m-%d)
 now=$(date +%Y-%m-%d)
-cp "$SKILL" "$BACKUP_DIR/SKILL.$now.md"
+
+if [ "$dry" = 0 ]; then
+  cp "$SKILL" "$BACKUP_DIR/SKILL.$now.md"
+  write_clause="Then edit $SKILL in place: preserve sections he has not contradicted, revise ones with new evidence, add a section only for a genuinely new recurring rule, and remove a rule the new evidence contradicts. Apply the unslop skill to every line you change. Preserve the frontmatter exactly (name king-mode, description as a single YAML scalar)."
+else
+  write_clause="Do NOT edit any file. This is a dry run: report only."
+fi
 
 {
-echo "=== king-mode refresh $now (transcripts since $since) ==="
+echo "=== king-mode refresh $now (transcripts since $since, model $MODEL, dry=$dry) ==="
 cd "$HOME"
-claude -p --model fable --permission-mode acceptEdits --max-turns 60 \
-"You are running the scheduled biweekly refresh of Hassan's personal king-mode skill. Follow the automate-me skill's UPDATE flow (invoke the Skill tool with 'automate-me' first and follow it), in update mode against the existing skill at $SKILL. Do NOT start fresh.
+claude_retry 4 30 -- -p --model "$MODEL" --permission-mode acceptEdits --max-turns 60 \
+"You are running the scheduled refresh of Hassan's personal king-mode skill. Follow the automate-me skill's UPDATE flow (invoke the Skill tool with 'automate-me' first and follow it) against the existing skill at $SKILL. Do NOT start fresh.
 
-Evidence: mine ONLY Hassan's typed prompts from transcripts modified since $since under $HOME/.claude/projects/*/ (all his projects; he owns them all and asked for cross-project mining). Extract only records with promptSource typed or suggestion_accepted; skip agent-to-agent prompts, skill injections, and anything starting 'You are a'. Split into slices and run parallel miner subagents (model fable) hunting the same signals automate-me lists; keep only patterns seen in 2+ slices or that clearly extend an existing king-mode rule.
+Evidence: mine ONLY Hassan's own typed prompts from transcripts modified since $since under $HOME/.claude/projects/*/ (he owns every project there and asked for cross-project mining). Take only records whose promptSource is typed or suggestion_accepted; skip agent-to-agent prompts, skill injections, and any prompt that opens by assigning a role. Split the transcripts into slices and run parallel miner subagents on model haiku, since extraction is mechanical work; keep only patterns that appear in two or more slices or that clearly extend a rule king-mode already has.
 
-Then edit $SKILL in place: preserve sections he has not contradicted, revise ones with new evidence, add sections only for genuinely new recurring rules, remove rules the new evidence contradicts. Keep it operational and dense. Apply the unslop skill to every changed line. Never duplicate anything already in $HOME/.claude/CLAUDE.md (read it). Never echo any secret from transcripts into the file. Preserve the frontmatter (name king-mode, description a single YAML scalar).
+Weight recent evidence by what it says about how he works, not what he happened to be working on. A fortnight spent on one subject is not a preference.
 
-There is no human to ask, so skip automate-me's AskQuestion step and proceed on evidence alone. When done, print a short changelog: rules added / revised / removed with the session evidence behind each. If the evidence since $since is too thin to justify any change, say so and leave the file untouched." 2>&1
+$write_clause
+
+Never duplicate anything already in $HOME/.claude/CLAUDE.md; read it first. Never copy a secret out of a transcript. There is no human to ask, so skip automate-me's question step and proceed on the evidence. Finish by printing a changelog: rules added, revised and removed, each with the sessions behind it. If the evidence since $since is too thin to justify a change, say exactly that and change nothing." 2>&1
 rc=$?
 echo "=== exit $rc ==="
 } >> "$LOG" 2>&1
 
-if [ "$rc" = "0" ]; then
+if [ "$dry" = 1 ]; then
+  echo "dry run complete; changelog in $LOG (nothing written)"
+  exit ${rc:-0}
+fi
+
+if [ "${rc:-1}" = "0" ]; then
   echo "$now" > "$STAMP"
-  # Sanity: frontmatter still valid, file non-empty; else roll back.
-  if ! head -1 "$SKILL" | grep -q '^---$' || [ "$(wc -l < "$SKILL")" -lt 20 ]; then
+  # Roll back anything that is not a valid skill: missing frontmatter fence, no name or
+  # description key, or implausibly short. A bad refresh must never survive to a session.
+  bad=""
+  head -1 "$SKILL" | grep -q '^---$' || bad="no opening frontmatter fence"
+  grep -q '^name: king-mode' "$SKILL" || bad="${bad:-missing name key}"
+  grep -q '^description:' "$SKILL" || bad="${bad:-missing description key}"
+  [ "$(wc -l < "$SKILL")" -ge 20 ] || bad="${bad:-file too short}"
+  if [ -n "$bad" ]; then
     cp "$BACKUP_DIR/SKILL.$now.md" "$SKILL"
-    echo "ROLLED BACK: refresh produced an invalid file" >> "$LOG"
+    echo "ROLLED BACK ($bad); restored $BACKUP_DIR/SKILL.$now.md" | tee -a "$LOG"
+    exit 4
   fi
+  echo "refresh applied; diff with: git -C $HOME/.claude diff skills/king-mode"
 fi

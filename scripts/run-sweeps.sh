@@ -2,7 +2,7 @@
 # Run every enabled sweep in ~/.claude/sweeps/*.md, one headless session each, isolated.
 # Usage: run-sweeps.sh [--only <name>] [--dry-run]
 set -uo pipefail
-export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+. "$HOME/.claude/scripts/lib-headless.sh"
 S="$HOME/.claude/sweeps"; LOG="$HOME/.claude/logs/sweeps.log"; mkdir -p "$HOME/.claude/logs"
 only=""; dry=0
 while [ $# -gt 0 ]; do case "$1" in --only) only="$2"; shift 2;; --dry-run) dry=1; shift;; *) shift;; esac; done
@@ -23,7 +23,7 @@ for f in "$S"/*.md; do
   # Unattended: allow read-only tools + the sweep's own declared commands; never bypassPermissions.
   allow=$(fm "$f" allow); allow_flags=(--allowedTools "Read" "Glob" "Grep" "Bash(cat *)" "Bash(ls *)" "Bash(git status*)" "Bash(git log*)")
   [ -n "$allow" ] && IFS=',' read -ra extra <<< "$allow" && for a in "${extra[@]}"; do allow_flags+=("$(echo "$a" | xargs)"); done
-  out=$(cd "$cwd" && body "$f" | claude -p --model "${model:-haiku}" --max-turns "$mt" "${allow_flags[@]}" 2>&1); rc=$?
+  out=$(cd "$cwd" && body "$f" > "$S/.brief.$n" && claude_retry 3 20 -- -p --model "${model:-haiku}" --max-turns "$mt" "${allow_flags[@]}" < "$S/.brief.$n" 2>&1); rc=$?; rm -f "$S/.brief.$n"
   echo "$out"; echo "=== exit $rc ==="
   case "$rep" in
     memory-inbox) echo "- [ ] $(date '+%F %H:%M') | sweep:$n | $(echo "$out" | head -1 | cut -c1-200)" >> "$HOME/.claude/memory-review.md";;
