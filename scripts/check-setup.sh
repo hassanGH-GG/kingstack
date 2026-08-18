@@ -35,6 +35,12 @@ missing=""; for s in poteto-mode king-mode memory-review deslop control-cli cont
   head -3 "$C/skills/$s/SKILL.md" 2>/dev/null | grep -q '^name:' || missing="$missing $s"; done
 [ -z "$missing" ] && ok "critical skills present ($(ls "$C/skills" | wc -l | tr -d ' ') total)" || bad "missing skills:$missing"
 
+# 5b. No hand-edited generated skills (the next sync would skip them and exit 3).
+if [ -s "$C/pstack-manifest.sha256" ]; then
+  edited=$( (cd "$C/skills" && shasum -a 256 -c "$C/pstack-manifest.sha256" 2>/dev/null || true) | grep -c "FAILED" || true )
+  [ "${edited:-0}" = "0" ] && ok "no hand-edited pstack skills (manifest clean)" || bad "$edited generated file(s) hand-edited → they are protected but drifting; sync-pstack.sh reports which, --force discards"
+else bad "pstack manifest missing → run sync-pstack.sh --no-pull to create the clobber guard"; fi
+
 # 6. Agents present.
 [ -f "$C/agents/poteto-agent.md" ] && [ -f "$C/agents/comment-sicko.md" ] && ok "pstack agents present" || bad "pstack agents missing"
 

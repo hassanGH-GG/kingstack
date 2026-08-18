@@ -45,3 +45,8 @@ why
 deslop
 control-cli
 control-ui
+verify-this
+make-pr-easy-to-review
+cli-for-agents
+thermo-nuclear-review
+thermo-nuclear-code-quality-review

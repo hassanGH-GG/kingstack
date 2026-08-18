@@ -51,12 +51,15 @@ Both profiles (`claude`, `claude-personal`) read this same tree through symlinks
 | `scripts/usage-snapshot.py` | nightly rollup into `usage-ledger.csv` (permanent; transcripts expire in ~30 days) and `usage-summary.md`. |
 | `scripts/refresh-king-mode.sh` | biweekly `/automate-me update king-mode` over recent transcripts; backs up, rolls back if malformed. |
 | `bun scripts/measure.ts check ...` | rerun a subagent's quantitative claims on its real branch; flag drift. |
+| `scripts/beam.sh` | move a live session to another directory or machine and resume it there with memory intact; the transcript is the transfer. `list`, `to-dir`, `to-host`, `fetch`. |
+| `echo "brief" \| scripts/box-task.sh run <name>` | fire-and-forget an unattended run; completion is an exit file, never process presence. `status`, `wait`, `result`, `list`. |
+| `scripts/run-sweeps.sh` | run every enabled sweep in `sweeps/`, one isolated headless session each. |
 | `scripts/install-launchd.sh` | (re)load the two schedules from `launchd/`. |
 | `/memory-review` | promote or reject inbox candidates. |
 
 ## Rules that keep it alive
 
-- **Never hand-edit a pstack skill.** The next sync overwrites it. Anything of mine goes in `king-mode` or `CLAUDE.md`.
+- **Never hand-edit a pstack skill.** The sync now refuses to overwrite one and exits 3 (clobber guard, `pstack-manifest.sha256`), but the file then drifts from upstream forever. `claude-check` reports hand edits; `sync-pstack.sh --force` discards them. Anything of mine goes in `king-mode` or `CLAUDE.md`.
 - **Every correction is a design defect.** Eliminate it structurally, else a test, else a rule; human review is the floor.
 - **One home per fact.** Facts in memory, identity in `CLAUDE.md`, process in pstack, taste in king-mode. Nothing lives twice.
 - **Cheapest tier that can succeed.** Main thread Fable at effort medium, set once; everything below routed by `model-routing.md`, escalated on evidence.
