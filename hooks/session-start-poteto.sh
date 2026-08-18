@@ -4,7 +4,9 @@
 ctx=$(cat "$HOME/.claude/hooks/poteto-mode-context.md")
 inbox="$HOME/.claude/memory-review.md"
 if [ -f "$inbox" ]; then
-  pending=$(grep -c '^- \[ \]' "$inbox" 2>/dev/null || echo 0)
+  # `grep -c` prints 0 AND exits 1 when nothing matches, so a `|| echo 0` fallback yields
+  # "0\n0" and every later numeric test errors. Take the first line and default it instead.
+  pending=$(grep -c '^- \[ \]' "$inbox" 2>/dev/null | head -1); pending=${pending:-0}
   if [ "${pending:-0}" -gt 0 ]; then
     last=$(stat -f %Sm -t %Y-%m-%d "$inbox")
     ctx="$ctx

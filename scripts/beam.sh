@@ -57,7 +57,7 @@ case "$cmd" in
     echo "sessions for $from:"
     ls -t "$d"/*.jsonl 2>/dev/null | while read -r f; do
       printf '  %s  %s  %sKB  %s turns\n' "$(basename "$f" .jsonl | cut -c1-8)" \
-        "$(stat -f %Sm -t '%m-%d %H:%M' "$f")" "$(( $(stat -f %z "$f") / 1024 ))" "$(grep -c '"type":"user"' "$f" 2>/dev/null || echo ?)"
+        "$(stat -f %Sm -t '%m-%d %H:%M' "$f")" "$(( $(stat -f %z "$f") / 1024 ))" "$(grep -c '"type":"user"' "$f" 2>/dev/null | head -1)"
     done
     ;;
   to-dir)
