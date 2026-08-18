@@ -66,6 +66,7 @@ if [ -f "$C/usage-ledger.csv" ]; then
   last=$(tail -1 "$C/usage-ledger.csv" | cut -d, -f1); cutoff=$(date -v-2d +%Y-%m-%d)
   [ "$last" \> "$cutoff" ] || [ "$last" = "$cutoff" ] && ok "usage ledger fresh (last day $last)" || bad "usage ledger stale (last day $last)"
 else bad "usage ledger missing"; fi
+if [ -f "$C/rework-ledger.csv" ]; then ok "rework ledger present ($(( $(wc -l < "$C/rework-ledger.csv") - 1 )) rows)"; else bad "rework ledger missing → scripts/rework-report.py --snapshot"; fi
 
 # 9c. kingstack repo: is a git repo, no untracked-but-allowlisted files, no secrets tracked.
 if git -C "$C" rev-parse --git-dir >/dev/null 2>&1; then

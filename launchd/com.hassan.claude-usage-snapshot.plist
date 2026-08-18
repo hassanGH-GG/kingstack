@@ -4,7 +4,7 @@
 <dict>
   <key>Label</key><string>com.hassan.claude-usage-snapshot</string>
   <key>ProgramArguments</key>
-  <array><string>/usr/bin/python3</string><string>/Users/mac/.claude/scripts/usage-snapshot.py</string></array>
+  <array><string>/bin/bash</string><string>/Users/mac/.claude/scripts/nightly.sh</string></array>
   <key>StartCalendarInterval</key>
   <dict><key>Hour</key><integer>0</integer><key>Minute</key><integer>23</integer></dict>
   <key>StandardOutPath</key><string>/Users/mac/.claude/logs/usage-snapshot.log</string>

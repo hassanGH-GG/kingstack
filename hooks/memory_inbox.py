@@ -47,12 +47,18 @@ FIELD_SEP = " | "
 # typed interactively, accepted from a suggestion, or passed to `claude -p`.
 # Anything else in a `user` row is a tool result, a system reminder, a skill body,
 # or an interrupt notice, none of which is worth remembering.
-HUMAN_PROMPT_SOURCES = {"typed", "suggestion_accepted", "sdk"}
+# Only prompts a human typed into a session. `sdk` was included when headless runs were
+# rare and human-initiated; it now covers sweeps, box-task, probes and agent-to-agent calls,
+# which the framework fires constantly, so it produces noise rather than memory. Dropped.
+HUMAN_PROMPT_SOURCES = {"typed", "suggestion_accepted"}
 
-# `sdk` also covers one agent prompting another. A role assignment is the tell:
-# nobody types "You are an expert code reviewer" at their own session.
+# Belt and braces for anything that still arrives looking like an instruction to an agent
+# rather than a request from a person. A role assignment or a standing-order opener is the
+# tell: nobody types "You are an expert code reviewer" at their own session.
 AGENT_PREAMBLE = re.compile(
-    r"^(?:you are (?:a|an|the)\b|your (?:job|task) is\b|act as\b)", re.IGNORECASE
+    r"^(?:you are (?:a|an|the)\b|you are (?:working|running)\b|your (?:job|task) is\b"
+    r"|act as\b|remember this fact for later\b)",
+    re.IGNORECASE,
 )
 
 
