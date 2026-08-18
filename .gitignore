@@ -24,6 +24,10 @@
 !skills/memory-review/**
 skills/king-mode/.history/
 
+# sweeps registry (one md per unattended check)
+!sweeps/
+!sweeps/**
+
 # schedules (copied in from ~/Library/LaunchAgents by scripts/install-launchd.sh)
 !launchd/
 !launchd/**
