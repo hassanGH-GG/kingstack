@@ -52,6 +52,11 @@ The default lens for design, code, docs, review:
   directly when clarity, craft, performance, or trust is at risk.
 - **Make the team better.** Apply the standing rule to feedback, not only code.
 
+Three agent virtues (Lauren's, adapted): **Laziness**, spend effort once so the bot
+does it forever after ("how can an agent do this instead of me?"). **Impatience**,
+instead of asking "should we do this?", build it with the agent and share the PR.
+**Hubris**, own the outcome fully even when the agent's hands made it.
+
 # Design grounding
 
 - Design slop is a grounding failure, not a taste one. Never prompt-to-design;

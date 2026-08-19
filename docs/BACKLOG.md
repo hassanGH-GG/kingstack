@@ -10,7 +10,14 @@ finish condition. One item per sitting beats five half-done.
 
 ## Ideas (Hassan's, undecided)
 
-- (drop new ideas here, one line each, date them)
+- 2026-08-19 **Colleague-ready.** A teammate should be able to adopt the stack (fork kingstack, run /automate-me for their own -mode). Overlaps the team track below; the personal-vs-shared split already exists, what is missing is a tested fork path.
+- 2026-08-19 **Effort control, verified not assumed.** Medium default and the ruler exist; nothing yet PROVES effort is set per spawn. Partly answered by the SubagentStart visibility hook (built 2026-08-19); a periodic audit of spawn calls in transcripts would close it.
+- 2026-08-19 **Use /loop more.** Polling and recurring checks should default to /loop or Monitor, never manual turns. Candidate king-mode rule at the Sept 1 refresh; the evidence for it is in the overclock ledgers.
+- 2026-08-19 **Usage-aware agent.** DONE same day: SessionStart now injects yesterday's ctx/turn and cost, and a daily usage-watch sweep raises ATTENTION when the trend is bad.
+- 2026-08-19 **Cloud-capable, not laptop-bound.** Cloud sessions and routines should be able to run with the stack. kingstack is already a clonable repo with a bootstrap; untested in a cloud env. Test: one cloud routine that clones kingstack and passes claude-check.
+- 2026-08-19 **Not married to Claude.** Audit what is Claude-specific (hooks format, Agent tool, skill frontmatter) vs portable (scripts, ledgers, memory files, backlog, pstack content, which began as Cursor files). Deliverable: a PORTABILITY.md naming the seams and an AGENTS.md mirror so another harness can read the same brain.
+- 2026-08-19 **Grok-bot-level on Slack.** The minions gateway hardened is exactly this (thread=session, team-visible). Needs the host + the injection fixes named in docs/sadiestack-proposal.html. Team track, not personal.
+- 2026-08-19 **Subagent visibility, enforced.** Every spawn reports model+effort to the parent. DONE same day via a SubagentStart hook; "inherit" is flagged so a lazy spawn is visible.
 
 ## Ready (decided, not started)
 

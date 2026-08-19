@@ -20,6 +20,7 @@ done
 if jq -e . "$C/settings.json" >/dev/null 2>&1; then
   jq -e '.hooks.SessionStart[0].hooks[0].command' "$C/settings.json" >/dev/null 2>&1 && ok "SessionStart hook registered" || bad "SessionStart hook missing"
   jq -e '.hooks.Stop[0].hooks[0].command' "$C/settings.json" >/dev/null 2>&1 && ok "Stop hook registered" || bad "Stop hook missing"
+  jq -e '.hooks.SubagentStart[0].hooks[0].command' "$C/settings.json" >/dev/null 2>&1 && ok "SubagentStart visibility hook registered" || bad "SubagentStart visibility hook missing"
   [ "$(jq -r '.enabledPlugins["superpowers@claude-plugins-official"]' "$C/settings.json")" = "false" ] && ok "superpowers disabled (one front door)" || bad "superpowers enabled: conflicts with pstack"
 else bad "settings.json is not valid JSON (ALL settings silently disabled)"; fi
 
