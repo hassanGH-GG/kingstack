@@ -1,0 +1,16 @@
+#!/bin/bash
+# kingstack pre-commit gate: a commit may not contain a file that does not parse.
+# Born from a real incident (2026-08-19): an edit silently failed on a bad anchor and the
+# commit describing it was already pushed. Syntax cannot catch a wrong claim, but it
+# catches the broken-file half of the class, and it runs in under a second.
+fail=0
+while IFS= read -r f; do
+  [ -f "$f" ] || continue
+  case "$f" in
+    *.sh)   bash -n "$f" 2>/dev/null || { echo "pre-commit: bash syntax error in $f"; fail=1; };;
+    *.py)   python3 -m py_compile "$f" 2>/dev/null || { echo "pre-commit: python syntax error in $f"; fail=1; };;
+    *.json) jq -e . "$f" >/dev/null 2>&1 || { echo "pre-commit: invalid JSON in $f"; fail=1; };;
+  esac
+done < <(git diff --cached --name-only --diff-filter=ACM)
+[ $fail = 1 ] && echo "pre-commit: refusing the commit; fix the file(s) above" && exit 1
+exit 0

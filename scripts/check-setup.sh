@@ -35,6 +35,8 @@ echo "$out" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null 2>&1 && e
 acw=$(jq -r '.autoCompactWindow // 0' "$C/settings.json")
 [ "$acw" -ge 100000 ] && [ "$acw" -le 250000 ] && ok "context ceiling: auto-compact at ${acw} tokens" || bad "autoCompactWindow not a 100-250k ceiling (found: $acw)"
 jq -e '.hooks.PostToolUse[0].hooks[0].command' "$C/settings.json" >/dev/null 2>&1 && ok "bulk-in-context flag hook registered" || bad "bulk-in-context hook missing"
+jq -e '.hooks.PreCompact[0].hooks[0].command' "$C/settings.json" >/dev/null 2>&1 && ok "PreCompact preserve+checkpoint hook registered" || bad "PreCompact hook missing"
+[ -x "$C/.git/hooks/pre-commit" ] && cmp -s "$C/scripts/git-hooks/pre-commit" "$C/.git/hooks/pre-commit" && ok "git pre-commit gate installed and current" || bad "git pre-commit gate missing or stale → scripts/install-git-hooks.sh"
 
 # 5. Critical skills present with frontmatter.
 missing=""; for s in poteto-mode king-mode memory-review deslop control-cli control-ui verify-this unslop; do
