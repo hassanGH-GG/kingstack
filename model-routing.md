@@ -46,6 +46,11 @@ When the conversation is past roughly 150k tokens of context, or when most recen
 turns are status checks, say so once and propose `/clear` (memory and `/recall`
 make it free). A 400k-token turn costs 4x a 100k one and reasons worse.
 
+This has a mechanical backstop: `autoCompactWindow` is 200k, so the harness compacts
+any session that ignores the advice, and a PostToolUse hook flags any tool result
+over ~30KB the moment it lands in the main thread. Prefer `/clear` over riding into
+the compactor; a fresh session with memory beats a summarized one.
+
 ## Effort
 
 Effort scales thinking on every turn. Default medium in the main thread. Bump a
