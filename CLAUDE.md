@@ -131,6 +131,10 @@ a pstack skill in place, the next sync overwrites it. Anything of mine goes in
 `king-mode` (my layer, mined from my transcripts, refreshed with
 `/automate-me update king-mode`) or in this file. Her guide is the manual:
 `plugins/pstack/docs/guide/`, read it in order once.
+Stack iteration is a standing thread, not a standing session: ideas and open items live
+in `~/.claude/docs/BACKLOG.md` (tracked). When Hassan shares an idea for the stack in any
+session, append it to the backlog's Ideas section (dated) so no session has to stay alive
+to remember it. A "stack session" starts by reading the backlog.
 `~/.claude/scripts/check-setup.sh` (alias `claude-check`) verifies the whole setup in
 2 s: run it after any hook, skill, or profile change, or when a session behaves oddly.
 `~/.claude/scripts/usage-report.py` (alias `claude-usage`, `--today`, `--days N`, `--by
