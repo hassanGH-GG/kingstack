@@ -46,6 +46,11 @@ finish condition. One item per sitting beats five half-done.
 
 ## Review dates
 
+- **Aug 26:** one week of post-enforcement ledger data. Test the four predictions in
+  `docs/token-projection-2026-08.md` (no day >250k ctx/turn; 7-day average in 120-180k;
+  cost per turn falls proportionally; no weight-attributable credit death). Verdict via
+  the verify-this protocol: VERIFIED / NOT VERIFIED / INCONCLUSIVE, against the ledger.
+
 - **Sept 1:** first live king-mode refresh fires. Read the changelog and the diff.
 - **~Sept 1:** two weeks of ledger data. Read `usage-summary.md` ctx/turn trend and
   `rework-report.py --days 14` against the 0.4 baseline. This answers "was it worth it".
