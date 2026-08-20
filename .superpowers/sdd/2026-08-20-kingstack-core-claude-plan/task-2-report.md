@@ -62,3 +62,68 @@ Base: `fa7a2fc`
 
 None. The Codex appendix intentionally remains empty in Task 2; vendor-neutral
 model prose and the first non-identical Codex render belong to Task 3.
+
+## Independent review fix round 1
+
+Base: `f363592`
+
+### Findings reproduced
+
+- A late rename of `.staging/claude` followed by an external directory symlink
+  could redirect the path-based `open("xb")` after the preflight checks.
+- Source checks were path-based, so symlinked order, fragment, and appendix
+  files, plus a late instruction-directory swap, could evade the earlier
+  checks.
+- CRLF and mixed `LF + CRLF` endings satisfied the earlier last-byte check.
+- A regular file at `.staging` leaked `FileExistsError` rather than the CLI's
+  stable `RenderError` / exit-2 contract.
+
+The focused RED run contained eight assertion failures and one raw-error case
+covering those exact categories. A further cleanup RED proved that refusing a
+pre-existing `.staging/claude/CLAUDE.md` collision removed that pre-existing
+file; this was fixed before completion.
+
+### Fix
+
+- All render sources are opened relative to held root/core/instructions/
+  capabilities/adapters directory descriptors with `O_NOFOLLOW`. Directories,
+  regular files, and their device/inode/size/timestamp identities are
+  revalidated before a render returns.
+- Adapter declarations and the capability catalog now expose in-memory loaders,
+  so a securely read document is validated without reopening its pathname.
+  Render-time declarations require inline fields instead of falling back to an
+  unanchored reference read.
+- Staging directories are created and opened relative to held descriptors. The
+  instruction file uses descriptor-relative `O_CREAT | O_EXCL | O_NOFOLLOW`,
+  then root/staging/adapter/file identities are revalidated.
+- A forced late staging swap writes only through the held original descriptor;
+  identity validation rejects the result and cleanup unlinks only the partial
+  file created by that invocation. The external target remains empty.
+- Cleanup is ownership-aware: pre-existing collisions are never unlinked.
+- Canonical instruction text allows zero bytes only for an empty appendix;
+  otherwise it rejects every carriage return and requires exactly one terminal
+  LF byte.
+- Regular-file and symlink staging collisions are normalized to `RenderError`;
+  a real subprocess CLI test proves exit 2 with no traceback and no mutation.
+
+### Evidence
+
+- Focused: `PYTHONPATH=lib python3 -m unittest tests.test_instruction_render -v`
+  -> 20/20 passing.
+- Full: `PYTHONPATH=lib python3 -m unittest discover -s tests -v`
+  -> 78/78 passing.
+- Deterministic forced-race tests prove late source replacement is detected and
+  late staged replacement publishes zero bytes to the external directory.
+- Real CLI render remains 9,525 bytes with SHA-256
+  `7a6f34e0ff3777279053bb63713dfc109761d508f18fef0316279e9a74fdab2e`;
+  it is byte-identical to root, golden fixture, and live Claude guidance.
+- A second real CLI render exits 2 without a traceback and preserves the first
+  staged file byte-for-byte.
+- `python3 -m py_compile`, JSON parsing, and `git diff --check` pass.
+- Live Claude guidance/settings and Codex config hashes stayed unchanged;
+  `~/.claude` and `~/.codex` remain real directories.
+
+### Concerns
+
+None. Descriptor no-follow guards are intentionally mandatory; rendering fails
+closed on platforms that do not expose `O_DIRECTORY` and `O_NOFOLLOW`.

@@ -285,13 +285,23 @@ def _load_matrix(source: Path, value: Any) -> CapabilityMatrix:
     return CapabilityMatrix(adapter_id=value["adapter_id"], states=states)
 
 
-def load_adapter(path: Path) -> AdapterDeclaration:
-    """Load an adapter and every referenced contract document without importing it."""
-    source = Path(path)
-    if source.is_dir():
-        source = source / "adapter.json"
-    raw = _load_json(source)
+def _build_adapter(
+    raw: Mapping[str, Any], source: Path, allow_references: bool
+) -> AdapterDeclaration:
     _require_schema(raw, ADAPTER_SCHEMA, "adapter")
+
+    if not allow_references:
+        referenced = [
+            name
+            for name in ("owned_paths", "model_tiers", "capability_matrix")
+            if isinstance(raw[name], str)
+        ]
+        if referenced:
+            raise AdapterContractError(
+                "in-memory adapter documents require inline fields: {}".format(
+                    ", ".join(referenced)
+                )
+            )
 
     owned_paths = _load_owned_paths(source, raw["owned_paths"])
     model_tiers = _load_model_tiers(source, raw["model_tiers"])
@@ -315,8 +325,25 @@ def load_adapter(path: Path) -> AdapterDeclaration:
     )
 
 
-def load_capability_catalog(path: Path) -> CapabilityCatalog:
-    document = _load_json(path)
+def load_adapter_document(
+    document: Mapping[str, Any], source: Path
+) -> AdapterDeclaration:
+    """Validate an already-read inline adapter document without reopening its path."""
+    if not isinstance(document, dict):
+        raise AdapterContractError("adapter document must be an object")
+    return _build_adapter(document, Path(source), allow_references=False)
+
+
+def load_adapter(path: Path) -> AdapterDeclaration:
+    """Load an adapter and every referenced contract document without importing it."""
+    source = Path(path)
+    if source.is_dir():
+        source = source / "adapter.json"
+    return _build_adapter(_load_json(source), source, allow_references=True)
+
+
+def load_capability_catalog_document(document: Mapping[str, Any]) -> CapabilityCatalog:
+    """Validate an already-read capability catalog without reopening its path."""
     if not isinstance(document, dict) or set(document) != {
         "contract_version", "model_tiers", "capabilities"
     }:
@@ -347,6 +374,10 @@ def load_capability_catalog(path: Path) -> CapabilityCatalog:
     if len(capabilities) != len(set(capabilities)) or len(tiers) != len(set(tiers)):
         raise AdapterContractError("capability catalog contains duplicate IDs")
     return CapabilityCatalog(frozenset(capabilities), frozenset(tiers))
+
+
+def load_capability_catalog(path: Path) -> CapabilityCatalog:
+    return load_capability_catalog_document(_load_json(path))
 
 
 def validate_adapter(
