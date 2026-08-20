@@ -38,4 +38,4 @@ class CliSurfaceTest(TestCase):
         self.assertNotIn("archive", production_module_names())
         self.assertNotIn("snapshot", cli_command_names())
         self.assertNotIn("archive", cli_command_names())
-        self.assertEqual(cli_command_names(), {"inventory"})
+        self.assertEqual(cli_command_names(), {"bootstrap", "inventory"})
