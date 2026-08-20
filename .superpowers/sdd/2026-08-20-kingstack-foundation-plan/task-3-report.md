@@ -474,3 +474,119 @@ archive-20260820-122621
 No live `~/.claude` or `~/.codex` path was modified. The before and after
 snapshot ID lists are identical; both pre-existing and Fix Round 1 archive IDs
 remain intact.
+
+## Fix Round 2
+
+### Finding addressed
+
+`Path.resolve()` followed a requested archive-destination symlink before the
+private-directory chmod. Archive destinations are now made lexically absolute
+without resolving links, and every existing path component is inspected with
+`lstat` before any destination create, chmod, or publication. A symlink or
+non-directory component returns a controlled `ValueError`.
+
+### Focused RED evidence
+
+Command:
+
+```sh
+PYTHONPATH=lib python3 -m unittest tests.test_archive.ArchiveTest.test_symlinked_archive_destination_is_rejected_without_touching_target tests.test_archive.ArchiveTest.test_symlinked_destination_parent_is_rejected_without_creation -v
+```
+
+Exact output:
+
+```text
+test_symlinked_archive_destination_is_rejected_without_touching_target (tests.test_archive.ArchiveTest)
+Resolving a destination symlink and chmodding its target must fail this test. ... FAIL
+test_symlinked_destination_parent_is_rejected_without_creation (tests.test_archive.ArchiveTest)
+Traversing a symlinked parent before making an archive directory must fail this test. ... FAIL
+
+======================================================================
+FAIL: test_symlinked_archive_destination_is_rejected_without_touching_target (tests.test_archive.ArchiveTest)
+Resolving a destination symlink and chmodding its target must fail this test.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/mac/.claude/.worktrees/agent-neutral-kingstack/tests/test_archive.py", line 145, in test_symlinked_archive_destination_is_rejected_without_touching_target
+    create_archive(Paths.for_home(self.home), requested, "destination-link")
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_symlinked_destination_parent_is_rejected_without_creation (tests.test_archive.ArchiveTest)
+Traversing a symlinked parent before making an archive directory must fail this test.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/mac/.claude/.worktrees/agent-neutral-kingstack/tests/test_archive.py", line 167, in test_symlinked_destination_parent_is_rejected_without_creation
+    create_archive(Paths.for_home(self.home), requested, "parent-link")
+AssertionError: ValueError not raised
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.153s
+
+FAILED (failures=2)
+```
+
+### Focused GREEN evidence
+
+Command:
+
+```sh
+PYTHONPATH=lib python3 -m py_compile lib/kingstack/archive.py && PYTHONPATH=lib python3 -m unittest tests.test_archive.ArchiveTest.test_symlinked_archive_destination_is_rejected_without_touching_target tests.test_archive.ArchiveTest.test_symlinked_destination_parent_is_rejected_without_creation -v
+```
+
+Exact output:
+
+```text
+test_symlinked_archive_destination_is_rejected_without_touching_target (tests.test_archive.ArchiveTest)
+Resolving a destination symlink and chmodding its target must fail this test. ... ok
+test_symlinked_destination_parent_is_rejected_without_creation (tests.test_archive.ArchiveTest)
+Traversing a symlinked parent before making an archive directory must fail this test. ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.415s
+
+OK
+```
+
+### Full explicit archive suite and diff check
+
+Command:
+
+```sh
+git diff --check && PYTHONPATH=lib python3 -m unittest tests.test_archive -v
+```
+
+Exact output:
+
+```text
+test_archive_cli_has_no_apply_or_restore_command (tests.test_archive.ArchiveTest)
+Adding a mutating archive subcommand must fail this test. ... ok
+test_capture_makes_every_intermediate_directory_private_under_a_broad_umask (tests.test_archive.ArchiveTest)
+Leaving an intermediate directory group-readable must fail this test. ... ok
+test_capture_preserves_selected_bytes_relative_links_and_private_modes (tests.test_archive.ArchiveTest)
+Changing copied bytes, link text, or private mode must fail this test. ... ok
+test_denied_auth_path_is_rejected (tests.test_archive.ArchiveTest)
+Allowing auth material into an archive must fail this test. ... ok
+test_existing_archive_id_is_never_replaced (tests.test_archive.ArchiveTest)
+Replacing a matching timestamp directory must fail this test. ... ok
+test_nested_sensitive_component_variants_are_rejected (tests.test_archive.ArchiveTest)
+Missing a sensitive component or prefix variant must fail this test. ... ok
+test_source_change_aborts_without_publication (tests.test_archive.ArchiveTest)
+Publishing an archive after its source changes must fail this test. ... ok
+test_source_swap_to_symlink_never_changes_its_target (tests.test_archive.ArchiveTest)
+Following a raced source link and chmodding its target must fail this test. ... ok
+test_symlinked_archive_destination_is_rejected_without_touching_target (tests.test_archive.ArchiveTest)
+Resolving a destination symlink and chmodding its target must fail this test. ... ok
+test_symlinked_destination_parent_is_rejected_without_creation (tests.test_archive.ArchiveTest)
+Traversing a symlinked parent before making an archive directory must fail this test. ... ok
+test_verify_reports_a_non_object_manifest (tests.test_archive.ArchiveTest)
+Calling dict methods on a JSON array must fail this test. ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.387s
+
+OK
+```
+
+The direct destination and symlinked-parent tests both assert unchanged external
+sentinel bytes and mode (`0640`), unchanged external directory mode (`0750`),
+and no archive publication or child-directory creation in the external target.

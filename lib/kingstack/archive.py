@@ -45,7 +45,7 @@ def create_archive(paths: Paths, destination: Path, label: str,
 
     pre_inventory = _source_inventory(paths)
     archive_name = "archive-" + datetime.utcnow().strftime("%Y%m%d-%H%M%S")
-    destination = Path(destination).expanduser().resolve()
+    destination = _archive_destination(Path(destination).expanduser())
     final = destination / archive_name
     if final.exists() or final.is_symlink():
         raise ValueError("archive directory already exists")
@@ -398,6 +398,25 @@ def _private_directory(path: Path) -> None:
     if path.is_symlink() or not path.is_dir():
         raise ValueError("refusing non-directory archive path: " + str(path))
     path.chmod(0o700)
+
+
+def _archive_destination(destination: Path) -> Path:
+    """Reject any existing symlink in the requested archive-root path."""
+    destination = Path(os.path.abspath(os.fspath(destination)))
+    current = Path(destination.anchor)
+    for part in destination.parts[1:]:
+        current = current / part
+        try:
+            details = current.lstat()
+        except FileNotFoundError:
+            return destination
+        except OSError as error:
+            raise ValueError("could not inspect archive destination") from error
+        if stat.S_ISLNK(details.st_mode):
+            raise ValueError("refusing symlinked archive destination")
+        if not stat.S_ISDIR(details.st_mode):
+            raise ValueError("archive destination component is not a directory")
+    return destination
 
 
 def _private_directory_chain(root: Path, leaf: Path) -> None:

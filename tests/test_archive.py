@@ -14,7 +14,7 @@ from kingstack.paths import Paths
 
 class ArchiveTest(TestCase):
     def setUp(self):
-        self.tempdir = Path(tempfile.mkdtemp())
+        self.tempdir = Path(tempfile.mkdtemp()).resolve()
         self.home = self.tempdir / "source-home"
         self.archive_root = self.tempdir / "private-archives"
         self._write(self.home / ".claude" / "settings.json", b'{"theme":"dark"}\n', 0o644)
@@ -128,6 +128,48 @@ class ArchiveTest(TestCase):
         manifest.chmod(0o600)
 
         self.assertEqual(verify_archive(archive), ["invalid archive manifest"])
+
+    def test_symlinked_archive_destination_is_rejected_without_touching_target(self):
+        """Resolving a destination symlink and chmodding its target must fail this test."""
+        from kingstack.archive import create_archive
+
+        external = self.tempdir / "external-destination"
+        external.mkdir(mode=0o750)
+        external.chmod(0o750)
+        sentinel = external / "sentinel"
+        self._write(sentinel, b"outside bytes\n", 0o640)
+        requested = self.tempdir / "requested-archives"
+        requested.symlink_to(external, target_is_directory=True)
+
+        with self.assertRaisesRegex(ValueError, "symlinked archive destination"):
+            create_archive(Paths.for_home(self.home), requested, "destination-link")
+
+        self.assertEqual(sentinel.read_bytes(), b"outside bytes\n")
+        self.assertEqual(stat.S_IMODE(sentinel.stat().st_mode), 0o640)
+        self.assertEqual(stat.S_IMODE(external.stat().st_mode), 0o750)
+        self.assertTrue(requested.is_symlink())
+        self.assertEqual(list(external.glob("archive-*")), [])
+
+    def test_symlinked_destination_parent_is_rejected_without_creation(self):
+        """Traversing a symlinked parent before making an archive directory must fail this test."""
+        from kingstack.archive import create_archive
+
+        external = self.tempdir / "external-parent"
+        external.mkdir(mode=0o750)
+        external.chmod(0o750)
+        sentinel = external / "sentinel"
+        self._write(sentinel, b"outside bytes\n", 0o640)
+        parent_link = self.tempdir / "archive-parent-link"
+        parent_link.symlink_to(external, target_is_directory=True)
+        requested = parent_link / "archives"
+
+        with self.assertRaisesRegex(ValueError, "symlinked archive destination"):
+            create_archive(Paths.for_home(self.home), requested, "parent-link")
+
+        self.assertEqual(sentinel.read_bytes(), b"outside bytes\n")
+        self.assertEqual(stat.S_IMODE(sentinel.stat().st_mode), 0o640)
+        self.assertEqual(stat.S_IMODE(external.stat().st_mode), 0o750)
+        self.assertFalse((external / "archives").exists())
 
     def test_existing_archive_id_is_never_replaced(self):
         """Replacing a matching timestamp directory must fail this test."""
