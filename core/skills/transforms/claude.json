@@ -1,99 +1,28 @@
 {
   "schema_version": 1,
   "adapter": "claude",
+  "unsupported": {},
   "transforms": {
     "cursor-host": {
-      "text_extensions": [
-        ".md",
-        ".ts",
-        ".sh",
-        ".json"
-      ],
+      "text_extensions": [".md", ".ts", ".sh", ".json"],
       "replacements": [
-        {
-          "pattern": "(?m)^disable-model-invocation: true\\n",
-          "replacement": "",
-          "kind": "frontmatter"
-        },
-      {
-        "pattern": "(?m)^is_background: true\\n",
-        "replacement": "",
-        "kind": "frontmatter"
-      },
-      {
-        "pattern": "Frontmatter `disable-model-invocation: true` by default\\. Mode skills are heavy and opinionated; they should only apply when the user explicitly invokes them \\(by name or slash command\\), not auto-trigger on description matching\\. Opt out only if the user explicitly wants their mode to apply on every turn\\.",
-        "replacement": "Mode skills are heavy and opinionated; write the frontmatter description so they only apply when the user explicitly invokes them (by name or slash command), not on loose description matching. Opt out only if the user explicitly wants their mode to apply on every turn.",
-        "kind": "frontmatter"
-      },
-        {
-          "pattern": "claude-fable-5-thinking-max",
-          "replacement": "fable",
-          "kind": "model"
-        },
-        {
-          "pattern": "grok-4\\.\\d+-fast-xhigh",
-          "replacement": "haiku",
-          "kind": "model"
-        },
-        {
-          "pattern": "gpt-5\\.\\d+-sol-max",
-          "replacement": "opus",
-          "kind": "model"
-        },
-        {
-          "pattern": "claude-opus-5-thinking-xhigh",
-          "replacement": "opus",
-          "kind": "model"
-        },
-        {
-          "pattern": "generalPurpose",
-          "replacement": "general-purpose",
-          "kind": "tool"
-        },
-        {
-          "pattern": "~/\\.cursor/rules/pstack-models\\.mdc",
-          "replacement": "~/.claude/pstack-models.md",
-          "kind": "path"
-        },
-        {
-          "pattern": "\\$HOME/\\.cursor/projects/\\$slug/agent-transcripts",
-          "replacement": "$HOME/.claude/projects/$slug",
-          "kind": "path"
-        },
-        {
-          "pattern": "\\.cursor",
-          "replacement": ".claude",
-          "kind": "path"
-        },
-        {
-          "pattern": "\\bCursor\\b",
-          "replacement": "Claude Code",
-          "kind": "host"
-        },
-        {
-          "pattern": "/tmp/verify-this/",
-          "replacement": "$TMPDIR/verify-this/",
-          "kind": "path"
-        }
+        {"kind": "frontmatter", "field": "disable-model-invocation", "action": "remove"},
+        {"kind": "frontmatter", "field": "is-background", "action": "remove"},
+        {"kind": "model", "source": "claude-fable-5-thinking-max", "target": "fable"},
+        {"kind": "model", "source": "grok-4.6-fast-xhigh", "target": "haiku"},
+        {"kind": "model", "source": "gpt-5.6-sol-max", "target": "opus"},
+        {"kind": "model", "source": "claude-opus-5-thinking-xhigh", "target": "opus"},
+        {"kind": "tool", "source": "generalPurpose", "target": "general-purpose"},
+        {"kind": "path", "source": "~/.cursor/rules/pstack-models.mdc", "target": "~/.claude/pstack-models.md"},
+        {"kind": "path", "source": "$HOME/.cursor/projects/$slug/agent-transcripts", "target": "$HOME/.claude/projects/$slug"},
+        {"kind": "path", "source": ".cursor", "target": ".claude"},
+        {"kind": "host", "source": "Cursor", "target": "Claude Code"},
+        {"kind": "path", "source": "/tmp/verify-this/", "target": "$TMPDIR/verify-this/"}
       ],
-      "forbidden": [
-        "disable-model-invocation: true",
-        "is_background: true",
-        "generalPurpose",
-        "\\.cursor",
-        "\\bCursor\\b",
-        "grok-4\\.\\d+-fast",
-        "gpt-5\\.\\d+-sol-max",
-        "claude-opus-5-thinking-xhigh"
-      ]
+      "forbidden": ["generalPurpose", ".cursor", "grok-4.6-fast-xhigh", "gpt-5.6-sol-max", "claude-opus-5-thinking-xhigh"]
     },
     "authored-host": {
-      "text_extensions": [
-        ".md",
-        ".ts",
-        ".sh",
-        ".json"
-      ],
+      "text_extensions": [".md", ".ts", ".sh", ".json"],
       "replacements": [],
       "forbidden": []
     }

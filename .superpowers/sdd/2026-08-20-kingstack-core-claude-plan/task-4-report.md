@@ -211,3 +211,130 @@ No path under `~/.claude`, `~/.codex`, or `~/.kingstack` was created,
 rewritten, renamed, linked, activated, or removed. No mutable `.staging`, release
 materialization, schedule change, Superpowers change, six-plan deletion, push,
 or activation occurred.
+
+## Reviewer fix round 1 — source and parity boundaries
+
+Fix base: `190587cd76a74f40a30b8efe4b43ff810d486996`
+
+### Grouped RED before production edits
+
+Seven deterministic tests were added before production changes. The grouped run
+failed in every requested architectural category:
+
+```text
+Ran 7 tests in 1.577s
+FAILED (failures=12, errors=1)
+
+1. symlinked root ancestor accepted
+2. malformed frontmatter flow/control/ambiguous/unterminated values accepted
+3. destructive catch-all transform accepted; parity depended on render logic
+4. empty/missing/extra manifests and extra installed resources accepted/misclassified
+5. Codex claimed foreign-host workflow skills as bundled
+6. synthetic `example` adapter rejected by a hardcoded target set
+7. both adapters broadly claimed the mixed-ownership `skills` tree
+```
+
+### Architectural corrections
+
+- Catalog JSON, transform JSON, and every owned source tree are read through
+  component-wise `openat` descriptors with `O_NOFOLLOW`. Files, directories,
+  source roots, and repository/upstream roots are identity-revalidated after
+  reads. Symlinked ancestors and deterministic in-tree source swaps fail closed.
+- Loaded source bytes are immutable snapshots; rendering never reopens a source
+  by pathname. Production skill code contains no `Path.resolve` or `os.walk`.
+- Frontmatter uses a dependency-free strict subset parser: exact keys, no
+  duplicates/control characters/ambiguous spacing, quoted scalar termination,
+  safe plain scalars, and indented block scalars. All 53 real portable source
+  trees parse successfully.
+- Transform declarations now use typed exact operations. Frontmatter rules only
+  remove named frontmatter fields. Model/tool/host replacements use token
+  boundaries; path replacements use exact strings. Empty, catch-all,
+  self-mapping, destructive, regex-shaped, and non-host host rules are rejected.
+  Every transformed `SKILL.md` is reparsed.
+- Semantic parity independently aligns original and rendered content using only
+  declared token pairs. It compares resource sets, frontmatter fields/values,
+  headings, instruction paragraphs, binary bytes, and normalized script
+  content. It never renders an expected value with the transformation engine.
+- The clobber manifest must equal the complete pstack/adopted resource set.
+  Empty, missing, extra, out-of-catalog, deleted, additional, changed, or
+  symlinked installed content is rejected through descriptor reads; caller paths
+  cannot expand ownership.
+- Adapter IDs come from validated declarations and matching transform documents.
+  A synthetic `example` adapter renders `memory-review` and emits a bundle
+  manifest without a first-party provider import or core source change.
+- Adapter `owned_paths` enumerate only generated skill directories. They never
+  claim the broad `skills` tree, plugin-managed directories, or Codex-unsupported
+  directories.
+
+### Honest Codex accounting
+
+Codex directly excludes 11 portable skills, plus dependent `king-mode`; the
+Claude-only plugin skill remains unsupported. Exact direct evidence is carried
+in the manifest:
+
+```text
+arena: SKILL.md [run_in_background]
+automate-me: SKILL.md [AskQuestion, agent-transcripts]
+how: SKILL.md [subagent_type]
+interrogate: SKILL.md [Task syntax, subagent_type]
+no-comments: SKILL.md [subagent_type]
+poteto-mode:
+  SKILL.md [subagent_type, run_in_background, /loop]
+  playbooks/orchestrate.md [Task syntax, AskQuestion, agent-transcripts]
+  playbooks/autonomous-run.md [AskQuestion, /loop]
+  playbooks/babysit.md, bug-fix.md, shipping.md, visual-parity.md [/loop]
+  playbooks/eval.md, session-pickup.md [agent-transcripts]
+  references/plan.md [subagent_type, AskQuestion]
+  scripts/worktree-audit.sh [agent-transcripts]
+recall: SKILL.md [agent-transcripts]
+reflect: SKILL.md [subagent_type, agent-transcripts]
+show-me-your-work: SKILL.md [agent-transcripts]
+swarm: SKILL.md [subagent_type, run_in_background]
+why: SKILL.md [subagent_type]
+king-mode: catalog dependency [poteto-mode unsupported]
+service-migration-handover: catalog target [Codex not declared]
+```
+
+Claude remains the exact frozen 65-name catalog. Final accounting:
+
+```text
+claude: skills=65 files=130 bundled=53 plugin-managed=12 unsupported=0 skill_dirs=53
+codex:  skills=65 files=48  bundled=41 plugin-managed=11 unsupported=13 skill_dirs=41
+claude semantic parity: ()
+codex semantic parity: ()
+pstack upstream: revision=63d938c status=clean
+CLI JSON: claude=65/130, codex=65/48
+```
+
+### GREEN and protected-state evidence
+
+```text
+$ PYTHONPATH=lib python3 -m unittest tests.test_skills
+Ran 18 tests in 6.317s
+OK
+
+$ PYTHONPATH=lib python3 -m unittest discover -s tests -v
+Ran 102 tests in 20.130s
+OK
+
+py_compile: clean
+transform/adapter JSON: clean
+Path.resolve/os.walk/.staging production scan: clean
+git diff --check: clean
+```
+
+Protected state remained byte- and type-identical:
+
+```text
+CLAUDE.md 7a6f34e0ff3777279053bb63713dfc109761d508f18fef0316279e9a74fdab2e
+settings.json d68a1b364130ec36f9bde97e6926f02040d455b217352e367da6aa5b51c8477b
+config.toml ef83efb8a9b49180aae027805422ac039888b08bff8671a8c2038ef22cc18b14
+pstack-upstream.txt 07dd8e646ebb4d3368a48c0e40db31838b9d850e5c0aa02e989aee19fdaffd41
+pstack-manifest.sha256 58ab2ac234426d885e029c74cbdc5f3d1b1250090eda7a52e4391786c97ba999
+Claude skill tree baseline 3f669c14d0d792d84b6d36d66dafc3409164bb1159768a077d72ee3b40fb3b27 (unchanged; no live writes)
+~/.claude, ~/.codex, ~/.kingstack: real directories
+all five checked current links: absent
+```
+
+No live write, staging directory, native link, release, schedule, activation,
+Superpowers change, plan deletion, push, or amend occurred.

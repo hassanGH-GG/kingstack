@@ -1,163 +1,78 @@
 {
   "schema_version": 1,
   "adapter": "codex",
+  "unsupported": {
+    "arena": [{"resource": "SKILL.md", "construct": "run_in_background"}],
+    "automate-me": [{"resource": "SKILL.md", "construct": "AskQuestion"}, {"resource": "SKILL.md", "construct": "agent-transcripts"}],
+    "how": [{"resource": "SKILL.md", "construct": "subagent_type"}],
+    "interrogate": [{"resource": "SKILL.md", "construct": "Task syntax"}, {"resource": "SKILL.md", "construct": "subagent_type"}],
+    "no-comments": [{"resource": "SKILL.md", "construct": "subagent_type"}],
+    "poteto-mode": [
+      {"resource": "SKILL.md", "construct": "subagent_type"},
+      {"resource": "SKILL.md", "construct": "run_in_background"},
+      {"resource": "SKILL.md", "construct": "/loop"},
+      {"resource": "playbooks/orchestrate.md", "construct": "Task syntax"},
+      {"resource": "playbooks/orchestrate.md", "construct": "AskQuestion"},
+      {"resource": "playbooks/orchestrate.md", "construct": "agent-transcripts"},
+      {"resource": "playbooks/autonomous-run.md", "construct": "AskQuestion"},
+      {"resource": "playbooks/autonomous-run.md", "construct": "/loop"},
+      {"resource": "playbooks/babysit.md", "construct": "/loop"},
+      {"resource": "playbooks/bug-fix.md", "construct": "/loop"},
+      {"resource": "playbooks/eval.md", "construct": "agent-transcripts"},
+      {"resource": "playbooks/session-pickup.md", "construct": "agent-transcripts"},
+      {"resource": "playbooks/shipping.md", "construct": "/loop"},
+      {"resource": "playbooks/visual-parity.md", "construct": "/loop"},
+      {"resource": "references/plan.md", "construct": "subagent_type"},
+      {"resource": "references/plan.md", "construct": "AskQuestion"},
+      {"resource": "scripts/worktree-audit.sh", "construct": "agent-transcripts"}
+    ],
+    "recall": [{"resource": "SKILL.md", "construct": "agent-transcripts"}],
+    "reflect": [{"resource": "SKILL.md", "construct": "subagent_type"}, {"resource": "SKILL.md", "construct": "agent-transcripts"}],
+    "show-me-your-work": [{"resource": "SKILL.md", "construct": "agent-transcripts"}],
+    "swarm": [{"resource": "SKILL.md", "construct": "subagent_type"}, {"resource": "SKILL.md", "construct": "run_in_background"}],
+    "why": [{"resource": "SKILL.md", "construct": "subagent_type"}]
+  },
   "transforms": {
     "cursor-host": {
-      "text_extensions": [
-        ".md",
-        ".ts",
-        ".sh",
-        ".json"
-      ],
+      "text_extensions": [".md", ".ts", ".sh", ".json"],
       "replacements": [
-        {
-          "pattern": "(?m)^disable-model-invocation: true\\n",
-          "replacement": "",
-          "kind": "frontmatter"
-        },
-      {
-        "pattern": "(?m)^is_background: true\\n",
-        "replacement": "",
-        "kind": "frontmatter"
-      },
-      {
-        "pattern": "Frontmatter `disable-model-invocation: true` by default\\. Mode skills are heavy and opinionated; they should only apply when the user explicitly invokes them \\(by name or slash command\\), not auto-trigger on description matching\\. Opt out only if the user explicitly wants their mode to apply on every turn\\.",
-        "replacement": "Mode skills are heavy and opinionated; write the frontmatter description so they only apply when the user explicitly invokes them (by name or slash command), not on loose description matching. Opt out only if the user explicitly wants their mode to apply on every turn.",
-        "kind": "frontmatter"
-      },
-        {
-          "pattern": "claude-fable-5-thinking-max",
-          "replacement": "gpt-5.6-sol",
-          "kind": "model"
-        },
-        {
-          "pattern": "grok-4\\.\\d+-fast-xhigh",
-          "replacement": "gpt-5.6-luna",
-          "kind": "model"
-        },
-        {
-          "pattern": "gpt-5\\.\\d+-sol-max",
-          "replacement": "gpt-5.6-sol",
-          "kind": "model"
-        },
-        {
-          "pattern": "claude-opus-5-thinking-xhigh",
-          "replacement": "gpt-5.6-sol",
-          "kind": "model"
-        },
-        {
-          "pattern": "\\b(fable|haiku|sonnet|opus)\\b",
-          "replacement": "gpt-5.6-terra",
-          "kind": "model"
-        },
-        {
-          "pattern": "generalPurpose",
-          "replacement": "general-purpose",
-          "kind": "tool"
-        },
-        {
-          "pattern": "AskUserQuestion",
-          "replacement": "request_user_input",
-          "kind": "tool"
-        },
-        {
-          "pattern": "~/\\.cursor/rules/pstack-models\\.mdc",
-          "replacement": "~/.codex/model-routing.md",
-          "kind": "path"
-        },
-        {
-          "pattern": "\\$HOME/\\.cursor/projects/\\$slug/agent-transcripts",
-          "replacement": "$HOME/.codex/sessions",
-          "kind": "path"
-        },
-        {
-          "pattern": "\\.cursor",
-          "replacement": ".codex",
-          "kind": "path"
-        },
-        {
-          "pattern": "\\bCursor\\b",
-          "replacement": "Codex",
-          "kind": "host"
-        },
-        {
-          "pattern": "\\bClaude Code\\b",
-          "replacement": "Codex",
-          "kind": "host"
-        },
-        {
-          "pattern": "\\bClaude\\b",
-          "replacement": "Codex",
-          "kind": "host"
-        },
-        {
-          "pattern": "CLAUDE\\.md",
-          "replacement": "AGENTS.md",
-          "kind": "path"
-        },
-        {
-          "pattern": "/tmp/verify-this/",
-          "replacement": "$TMPDIR/verify-this/",
-          "kind": "path"
-        }
+        {"kind": "frontmatter", "field": "disable-model-invocation", "action": "remove"},
+        {"kind": "frontmatter", "field": "is-background", "action": "remove"},
+        {"kind": "model", "source": "claude-fable-5-thinking-max", "target": "gpt-5.6-sol"},
+        {"kind": "model", "source": "grok-4.6-fast-xhigh", "target": "gpt-5.6-luna"},
+        {"kind": "model", "source": "gpt-5.6-sol-max", "target": "gpt-5.6-sol"},
+        {"kind": "model", "source": "claude-opus-5-thinking-xhigh", "target": "gpt-5.6-sol"},
+        {"kind": "model", "source": "fable", "target": "gpt-5.6-terra"},
+        {"kind": "model", "source": "haiku", "target": "gpt-5.6-terra"},
+        {"kind": "model", "source": "sonnet", "target": "gpt-5.6-terra"},
+        {"kind": "model", "source": "opus", "target": "gpt-5.6-terra"},
+        {"kind": "tool", "source": "generalPurpose", "target": "general-purpose"},
+        {"kind": "tool", "source": "AskUserQuestion", "target": "request_user_input"},
+        {"kind": "path", "source": "~/.cursor/rules/pstack-models.mdc", "target": "~/.codex/model-routing.md"},
+        {"kind": "path", "source": "$HOME/.cursor/projects/$slug/agent-transcripts", "target": "$HOME/.codex/sessions"},
+        {"kind": "path", "source": ".cursor", "target": ".codex"},
+        {"kind": "host", "source": "Cursor", "target": "Codex"},
+        {"kind": "host", "source": "Claude Code", "target": "Codex"},
+        {"kind": "host", "source": "Claude", "target": "Codex"},
+        {"kind": "path", "source": "CLAUDE.md", "target": "AGENTS.md"},
+        {"kind": "path", "source": "/tmp/verify-this/", "target": "$TMPDIR/verify-this/"}
       ],
-      "forbidden": [
-        "disable-model-invocation: true",
-        "is_background: true",
-        "generalPurpose",
-        "\\.cursor",
-        "\\bCursor\\b",
-        "\\.claude",
-        "\\bClaude\\b",
-        "CLAUDE\\.md",
-        "\\b(fable|haiku|sonnet|opus)\\b"
-      ]
+      "forbidden": ["generalPurpose", ".cursor", ".claude", "Claude", "CLAUDE.md"]
     },
     "authored-host": {
-      "text_extensions": [
-        ".md",
-        ".ts",
-        ".sh",
-        ".json"
-      ],
+      "text_extensions": [".md", ".ts", ".sh", ".json"],
       "replacements": [
-        {
-          "pattern": "AskUserQuestion",
-          "replacement": "request_user_input",
-          "kind": "tool"
-        },
-        {
-          "pattern": "\\.claude",
-          "replacement": ".codex",
-          "kind": "path"
-        },
-        {
-          "pattern": "CLAUDE\\.md",
-          "replacement": "AGENTS.md",
-          "kind": "path"
-        },
-        {
-          "pattern": "\\bClaude Code\\b",
-          "replacement": "Codex",
-          "kind": "host"
-        },
-        {
-          "pattern": "\\bClaude\\b",
-          "replacement": "Codex",
-          "kind": "host"
-        },
-        {
-          "pattern": "\\b(fable|haiku|sonnet|opus)\\b",
-          "replacement": "gpt-5.6-terra",
-          "kind": "model"
-        }
+        {"kind": "tool", "source": "AskUserQuestion", "target": "request_user_input"},
+        {"kind": "path", "source": ".claude", "target": ".codex"},
+        {"kind": "path", "source": "CLAUDE.md", "target": "AGENTS.md"},
+        {"kind": "host", "source": "Claude Code", "target": "Codex"},
+        {"kind": "host", "source": "Claude", "target": "Codex"},
+        {"kind": "model", "source": "fable", "target": "gpt-5.6-terra"},
+        {"kind": "model", "source": "haiku", "target": "gpt-5.6-terra"},
+        {"kind": "model", "source": "sonnet", "target": "gpt-5.6-terra"},
+        {"kind": "model", "source": "opus", "target": "gpt-5.6-terra"}
       ],
-      "forbidden": [
-        "\\.claude",
-        "\\bClaude\\b",
-        "CLAUDE\\.md",
-        "\\b(fable|haiku|sonnet|opus)\\b"
-      ]
+      "forbidden": [".claude", "Claude", "CLAUDE.md"]
     }
   }
 }
