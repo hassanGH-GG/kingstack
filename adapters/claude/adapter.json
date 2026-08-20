@@ -4,11 +4,7 @@
   "render_module": "kingstack.adapters.claude",
   "native_home": ".claude",
   "owned_paths": ["CLAUDE.md"],
-  "model_tiers": {
-    "economical": "haiku",
-    "balanced": "sonnet",
-    "frontier": "opus"
-  },
+  "model_tiers": "models.json",
   "capability_matrix": {
     "contract_version": 1,
     "adapter_id": "claude",

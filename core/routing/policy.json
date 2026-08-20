@@ -1,0 +1,6 @@
+{
+  "waiting": {"tier": "none", "effort": "none"},
+  "mechanical": {"tier": "economical", "effort": "low"},
+  "precise": {"tier": "balanced", "effort": "medium"},
+  "judgment": {"tier": "frontier", "effort": "high"}
+}

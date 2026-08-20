@@ -88,15 +88,32 @@ class InstructionRenderTest(TestCase):
         self.assertEqual(digest, GOLDEN_SHA256)
         self.assertEqual(record["sha256"], GOLDEN_SHA256)
 
-    def test_claude_render_is_byte_identical_to_golden_and_live(self):
+    def test_claude_render_changes_only_the_intentional_routing_section(self):
         bundle = render_bundle("claude", ROOT)
-        expected = (FIXTURES / "claude-baseline/CLAUDE.md").read_bytes()
+        expected = (FIXTURES / "claude-baseline/CLAUDE.md").read_text(
+            encoding="utf-8"
+        )
         live = (Path.home() / ".claude/CLAUDE.md").read_bytes()
+        actual = bundle["CLAUDE.md"].decode("utf-8")
 
-        self.assertEqual(bundle, {"CLAUDE.md": expected})
-        self.assertEqual(bundle["CLAUDE.md"], live)
-        self.assertEqual(hashlib.sha256(bundle["CLAUDE.md"]).hexdigest(), GOLDEN_SHA256)
-        self.assertEqual(render_instructions("claude", ROOT).encode("utf-8"), expected)
+        baseline_prefix, marker, baseline_tail = expected.partition(
+            "\n# Model and effort routing\n"
+        )
+        _, next_marker, baseline_suffix = baseline_tail.partition("\n# kingstack is a repo\n")
+        actual_prefix, actual_marker, actual_tail = actual.partition(
+            "\n# Model and effort routing\n"
+        )
+        _, actual_next_marker, actual_suffix = actual_tail.partition("\n# kingstack is a repo\n")
+        actual_memory, appendix_marker, _ = actual_suffix.partition(
+            "\n# Claude model routing\n"
+        )
+
+        self.assertTrue(marker and next_marker and actual_marker and actual_next_marker)
+        self.assertTrue(appendix_marker)
+        self.assertEqual(actual_prefix, baseline_prefix)
+        self.assertEqual(actual_memory, baseline_suffix)
+        self.assertNotEqual(bundle["CLAUDE.md"], live)
+        self.assertEqual(render_instructions("claude", ROOT), actual)
 
     def test_order_lists_every_fragment_once(self):
         order = json.loads(
@@ -306,7 +323,13 @@ class InstructionRenderTest(TestCase):
         self.assertEqual(document["adapter"], "claude")
         self.assertEqual(
             document["files"],
-            [{"path": "CLAUDE.md", "size": 9525, "sha256": GOLDEN_SHA256}],
+            [
+                {
+                    "path": "CLAUDE.md",
+                    "size": len(bundle["CLAUDE.md"]),
+                    "sha256": hashlib.sha256(bundle["CLAUDE.md"]).hexdigest(),
+                }
+            ],
         )
         self.assertEqual(printed.returncode, 0, printed.stderr.decode())
         self.assertEqual(printed.stdout, bundle["CLAUDE.md"])

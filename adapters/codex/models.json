@@ -1,0 +1,20 @@
+{
+  "adapter": "codex",
+  "model_tiers": {
+    "economical": "gpt-5.6-luna",
+    "balanced": "gpt-5.6-terra",
+    "frontier": "gpt-5.6-sol"
+  },
+  "fallbacks": [
+    {
+      "from": "balanced",
+      "to": "economical",
+      "reason": "balanced model unavailable; use one adjacent lower tier"
+    },
+    {
+      "from": "frontier",
+      "to": "balanced",
+      "reason": "frontier model unavailable; use one adjacent lower tier"
+    }
+  ]
+}

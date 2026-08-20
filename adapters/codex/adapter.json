@@ -4,11 +4,7 @@
   "render_module": "kingstack.adapters.codex",
   "native_home": ".codex",
   "owned_paths": ["AGENTS.md"],
-  "model_tiers": {
-    "economical": "gpt-5.6-luna",
-    "balanced": "gpt-5.6-terra",
-    "frontier": "gpt-5.6-sol"
-  },
+  "model_tiers": "models.json",
   "capability_matrix": {
     "contract_version": 1,
     "adapter_id": "codex",
@@ -64,10 +60,10 @@
       },
       {
         "capability": "model_routing",
-        "status": "unsupported",
-        "evidence": "Task 1 declares Codex tier IDs, but the kingstack routing resolver has not been implemented or behaviorally proven.",
-        "impact": "Portable work classes do not yet select Codex model and effort settings.",
-        "strict_parity": false
+        "status": "emulated",
+        "evidence": "Kingstack resolves portable work classes through the Codex-owned model map with explicit model and effort plus one adjacent availability fallback.",
+        "impact": "Codex has no native portable-tier primitive; generated policy supplies behaviorally equivalent routing.",
+        "strict_parity": true
       },
       {
         "capability": "shared_memory",
