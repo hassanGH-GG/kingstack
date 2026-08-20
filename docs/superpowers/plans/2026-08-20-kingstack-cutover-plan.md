@@ -18,6 +18,7 @@
 - A live install requires a fresh snapshot and hash recheck immediately before writes.
 - Push only after Hassan reviews the final diff, rollback evidence, and no-loss matrix.
 - Deleting or archiving the legacy Claude checkout is a separate future decision, not part of this plan.
+- After every acceptance and rollback gate passes, delete the six dated implementation-plan files Hassan named from both the canonical checkout and their exact legacy `~/.claude` paths; preserve the approved design spec and Git history.
 
 ---
 
@@ -362,7 +363,20 @@ Present before/after architecture, every intentional transform, rollback IDs,
 behavior matrix, remaining exceptions, and exact commits pending push. Do not
 push on a generic earlier approval; this is the explicit final migration gate.
 
-- [ ] **Step 5: Push only after approval and verify remote equality**
+- [ ] **Step 5: Remove the completed implementation plans, then push after approval**
+
+Remove these six files from the canonical checkout and commit the removal:
+
+```text
+docs/superpowers/plans/2026-08-20-agent-neutral-kingstack-migration.md
+docs/superpowers/plans/2026-08-20-kingstack-foundation-plan.md
+docs/superpowers/plans/2026-08-20-kingstack-core-claude-plan.md
+docs/superpowers/plans/2026-08-20-kingstack-shared-memory-plan.md
+docs/superpowers/plans/2026-08-20-kingstack-codex-adapter-plan.md
+docs/superpowers/plans/2026-08-20-kingstack-cutover-plan.md
+```
+
+Then push and verify:
 
 ```bash
 git push origin main
@@ -371,7 +385,15 @@ test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
 ./scripts/kingstack check --all
 ```
 
-- [ ] **Step 6: Keep rollback material**
+- [ ] **Step 6: Remove the exact legacy plan paths after the successful push**
+
+Create one last private snapshot of the six files, verify the snapshot, then
+delete exactly the six `/Users/mac/.claude/docs/superpowers/plans/...` paths
+Hassan listed. Do not recurse into the plans directory and do not remove the
+approved design spec. Verify each target is absent. The content remains
+recoverable from the snapshot and Git history.
+
+- [ ] **Step 7: Keep rollback material**
 
 Report the dated private snapshots and legacy checkout location. Ask separately
 in a future session before deleting any of them. Completion means the new system

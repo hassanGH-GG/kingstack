@@ -17,6 +17,7 @@
 - Preserve the current main model `gpt-5.6-sol`. Keep main reasoning `high` until the medium-effort behavioral test passes and Hassan approves the change.
 - User hook trust is a native Codex security boundary. Do not bypass it for the live acceptance test.
 - Do not duplicate a skill already supplied equivalently by an enabled Codex plugin; record the provider and prove semantic parity.
+- Disable the Codex `superpowers` plugin only after every required overlapping skill has a verified kingstack/pstack provider; keep its installed source recoverable and prove the before/after capability set is unchanged.
 - Official `/import` is a one-time discovery comparison, not the synchronization mechanism.
 
 ---
@@ -225,8 +226,10 @@ Resolver rules:
 3. Fail on same-name/different-meaning collisions.
 4. Never overwrite an unknown personal skill.
 
-Test the current superpowers overlap explicitly. The plan must not disable the
-superpowers plugin merely to make the count look clean.
+Test the current superpowers overlap explicitly. The plugin is not disabled
+merely to make the count look clean. Hassan has authorized disabling it at
+cutover, but only after the resolver proves every required overlapping
+capability has an equivalent kingstack/pstack provider.
 
 - [ ] **Step 3: Implement the provider resolver and managed manifest**
 
@@ -244,7 +247,15 @@ The acceptance check uses capability names and provider records, not simply
 invoke representative pstack, king-mode, memory-review, design, verification,
 and adopted skills.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Stage the superpowers disable and prove no capability loss**
+
+In an isolated Codex home, capture the discovered capability/provider set with
+the plugin enabled, disable only its enabled-state entry, install the resolved
+kingstack providers, start a fresh session, and compare capability IDs. Any
+missing or semantically different skill blocks the disable. The plugin files and
+cache remain installed for rollback.
+
+- [ ] **Step 6: Commit**
 
 ```bash
 git add lib/kingstack/codex_skills.py tests/test_codex_skills.py core/skills/catalog.json docs/migration/codex-skill-providers.md
