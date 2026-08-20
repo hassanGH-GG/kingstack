@@ -171,6 +171,38 @@ class ArchiveTest(TestCase):
         self.assertEqual(stat.S_IMODE(external.stat().st_mode), 0o750)
         self.assertFalse((external / "archives").exists())
 
+    def test_destination_parent_rebind_after_validation_cannot_escape_anchor(self):
+        """Reopening a rebinding parent by path and writing outside must fail this test."""
+        from kingstack import archive as archive_module
+        from kingstack.archive import create_archive
+
+        anchored_parent = self.tempdir / "anchored-parent"
+        anchored_parent.mkdir(mode=0o750)
+        external = self.tempdir / "external-parent"
+        external.mkdir(mode=0o750)
+        external.chmod(0o750)
+        sentinel = external / "sentinel"
+        self._write(sentinel, b"outside bytes\n", 0o640)
+        requested = anchored_parent / "archives"
+        detached_parent = self.tempdir / "detached-parent"
+        original_validate = archive_module._archive_destination
+
+        def rebind_after_validation(destination):
+            validated = original_validate(destination)
+            anchored_parent.rename(detached_parent)
+            anchored_parent.symlink_to(external, target_is_directory=True)
+            return validated
+
+        with patch.object(archive_module, "_archive_destination", side_effect=rebind_after_validation):
+            with self.assertRaisesRegex(ValueError, "archive destination changed"):
+                create_archive(Paths.for_home(self.home), requested, "late-rebind")
+
+        self.assertEqual(sentinel.read_bytes(), b"outside bytes\n")
+        self.assertEqual(stat.S_IMODE(sentinel.stat().st_mode), 0o640)
+        self.assertEqual(stat.S_IMODE(external.stat().st_mode), 0o750)
+        self.assertFalse((external / "archives").exists())
+        self.assertEqual(list((detached_parent / "archives").glob("archive-*")), [])
+
     def test_existing_archive_id_is_never_replaced(self):
         """Replacing a matching timestamp directory must fail this test."""
         from kingstack import archive as archive_module

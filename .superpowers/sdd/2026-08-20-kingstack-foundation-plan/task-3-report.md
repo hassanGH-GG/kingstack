@@ -590,3 +590,152 @@ OK
 The direct destination and symlinked-parent tests both assert unchanged external
 sentinel bytes and mode (`0640`), unchanged external directory mode (`0750`),
 and no archive publication or child-directory creation in the external target.
+
+## Fix Round 3
+
+### Finding addressed
+
+A parent could be rebound after destination validation but before pathname-based
+creation. Capture now opens or creates the requested destination once through
+no-follow directory descriptors; temporary creation, archive tree creation,
+file writes, mode changes, private verification, cleanup, and the exclusive
+rename are all relative to that anchored descriptor. Before publication, the
+requested pathname is reopened only to compare its directory identity with the
+anchor; a mismatch returns `archive destination changed during capture` without
+mutating the rebound target.
+
+### Focused RED evidence
+
+Command:
+
+```sh
+PYTHONPATH=lib python3 -m unittest tests.test_archive.ArchiveTest.test_destination_parent_rebind_after_validation_cannot_escape_anchor -v
+```
+
+Exact output:
+
+```text
+test_destination_parent_rebind_after_validation_cannot_escape_anchor (tests.test_archive.ArchiveTest)
+Reopening a rebinding parent by path and writing outside must fail this test. ... FAIL
+
+======================================================================
+FAIL: test_destination_parent_rebind_after_validation_cannot_escape_anchor (tests.test_archive.ArchiveTest)
+Reopening a rebinding parent by path and writing outside must fail this test.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/mac/.claude/.worktrees/agent-neutral-kingstack/lib/kingstack/archive.py", line 294, in _copy_regular_file
+    destination_parent_fd = _open_directory_no_follow(destination.parent)
+NotADirectoryError: [Errno 20] Not a directory: 'anchored-parent'
+
+The above exception was the direct cause of the following exception:
+
+kingstack.archive.SourceChanged: source changed while copying /private/var/folders/ly/53rfjx09379f11nthm4flvxc0000gn/T/tmp6xk066q1/source-home/.claude/hooks/validate
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/mac/.claude/.worktrees/agent-neutral-kingstack/tests/test_archive.py", line 198, in test_destination_parent_rebind_after_validation_cannot_escape_anchor
+    create_archive(Paths.for_home(self.home), requested, "late-rebind")
+AssertionError: "archive destination changed" does not match "source changed while copying /private/var/folders/ly/53rfjx09379f11nthm4flvxc0000gn/T/tmp6xk066q1/source-home/.claude/hooks/validate"
+
+----------------------------------------------------------------------
+Ran 1 test in 0.040s
+
+FAILED (failures=1)
+```
+
+### Focused GREEN evidence
+
+Command:
+
+```sh
+PYTHONPATH=lib python3 -m py_compile lib/kingstack/archive.py && PYTHONPATH=lib python3 -m unittest tests.test_archive.ArchiveTest.test_destination_parent_rebind_after_validation_cannot_escape_anchor -v
+```
+
+Exact output:
+
+```text
+test_destination_parent_rebind_after_validation_cannot_escape_anchor (tests.test_archive.ArchiveTest)
+Reopening a rebinding parent by path and writing outside must fail this test. ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.056s
+
+OK
+```
+
+### Full explicit archive suite and diff check
+
+Command:
+
+```sh
+git diff --check && PYTHONPATH=lib python3 -m unittest tests.test_archive -v
+```
+
+Exact output:
+
+```text
+test_archive_cli_has_no_apply_or_restore_command (tests.test_archive.ArchiveTest)
+Adding a mutating archive subcommand must fail this test. ... ok
+test_capture_makes_every_intermediate_directory_private_under_a_broad_umask (tests.test_archive.ArchiveTest)
+Leaving an intermediate directory group-readable must fail this test. ... ok
+test_capture_preserves_selected_bytes_relative_links_and_private_modes (tests.test_archive.ArchiveTest)
+Changing copied bytes, link text, or private mode must fail this test. ... ok
+test_denied_auth_path_is_rejected (tests.test_archive.ArchiveTest)
+Allowing auth material into an archive must fail this test. ... ok
+test_destination_parent_rebind_after_validation_cannot_escape_anchor (tests.test_archive.ArchiveTest)
+Reopening a rebinding parent by path and writing outside must fail this test. ... ok
+test_existing_archive_id_is_never_replaced (tests.test_archive.ArchiveTest)
+Replacing a matching timestamp directory must fail this test. ... ok
+test_nested_sensitive_component_variants_are_rejected (tests.test_archive.ArchiveTest)
+Missing a sensitive component or prefix variant must fail this test. ... ok
+test_source_change_aborts_without_publication (tests.test_archive.ArchiveTest)
+Publishing an archive after its source changes must fail this test. ... ok
+test_source_swap_to_symlink_never_changes_its_target (tests.test_archive.ArchiveTest)
+Following a raced source link and chmodding its target must fail this test. ... ok
+test_symlinked_archive_destination_is_rejected_without_touching_target (tests.test_archive.ArchiveTest)
+Resolving a destination symlink and chmodding its target must fail this test. ... ok
+test_symlinked_destination_parent_is_rejected_without_creation (tests.test_archive.ArchiveTest)
+Traversing a symlinked parent before making an archive directory must fail this test. ... ok
+test_verify_reports_a_non_object_manifest (tests.test_archive.ArchiveTest)
+Calling dict methods on a JSON array must fail this test. ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 0.446s
+
+OK
+```
+
+### Constant-bounded descriptor evidence after anchoring
+
+Command:
+
+```sh
+ulimit -n 16
+PYTHONPATH=lib python3 - <<'PY'
+import tempfile
+from pathlib import Path
+from kingstack.archive import create_archive, verify_archive
+from kingstack.paths import Paths
+
+with tempfile.TemporaryDirectory() as temporary:
+    home = Path(temporary).resolve() / "home"
+    (home / ".claude" / "settings.json").parent.mkdir(parents=True)
+    (home / ".claude" / "settings.json").write_text("{}\n", encoding="utf-8")
+    for number in range(320):
+        entry = home / ".claude" / "skills" / ("dir-" + str(number)) / "entry.md"
+        entry.parent.mkdir(parents=True, exist_ok=True)
+        entry.write_text("entry " + str(number) + "\n", encoding="utf-8")
+    (home / ".codex").mkdir()
+    (home / ".codex" / "config.toml").write_text("model = 'test'\n", encoding="utf-8")
+    archive = create_archive(Paths.for_home(home), Path(temporary).resolve() / "archives", "fd-bound-320-round3")
+    assert verify_archive(archive, check_permissions=True) == []
+    print("fd-bound-320-round3-ok")
+PY
+```
+
+Exact output:
+
+```text
+fd-bound-320-round3-ok
+```

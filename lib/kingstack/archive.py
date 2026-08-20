@@ -6,7 +6,6 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import stat
 import sys
 import uuid
@@ -46,25 +45,23 @@ def create_archive(paths: Paths, destination: Path, label: str,
     pre_inventory = _source_inventory(paths)
     archive_name = "archive-" + datetime.utcnow().strftime("%Y%m%d-%H%M%S")
     destination = _archive_destination(Path(destination).expanduser())
-    final = destination / archive_name
-    if final.exists() or final.is_symlink():
-        raise ValueError("archive directory already exists")
-
-    _private_directory(destination)
-    # Recheck after making the parent.  This avoids replacing an existing ID;
-    # the temporary directory is never the public archive identifier.
-    if final.exists() or final.is_symlink():
-        raise ValueError("archive directory already exists")
-    temporary = destination / ("." + archive_name + "." + uuid.uuid4().hex + ".tmp")
-    temporary.mkdir(mode=0o700)
-    temporary.chmod(0o700)
+    destination_fd = None
+    temporary_fd = None
+    files_fd = None
+    temporary_name = "." + archive_name + "." + uuid.uuid4().hex + ".tmp"
+    temporary_identity = None
+    published = False
     try:
-        files_root = temporary / "files"
-        _private_directory(files_root)
+        destination_fd, destination_identity = _open_archive_destination(destination)
+        if _stat_optional_at(destination_fd, archive_name) is not None:
+            raise ValueError("archive directory already exists")
+        temporary_fd = _create_private_directory_at(destination_fd, temporary_name)
+        temporary_identity = _identity(os.fstat(temporary_fd))
+        files_fd = _create_private_directory_at(temporary_fd, "files")
         records = []  # type: List[Dict[str, object]]
         for entry in pre_inventory:
             source = _source_path(paths, str(entry["path"]))
-            record = _copy_entry(source, files_root, entry)
+            record = _copy_entry(source, files_fd, entry)
             records.append(record)
 
         if after_copy is not None:
@@ -79,25 +76,30 @@ def create_archive(paths: Paths, destination: Path, label: str,
             "source_inventories": {"pre": pre_inventory, "post": post_inventory},
             "files": records,
         }
-        manifest_path = temporary / "manifest.json"
-        manifest_path.write_text(
-            json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        _write_new_regular_at(
+            temporary_fd,
+            "manifest.json",
+            (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode("utf-8"),
+            0o600,
         )
-        manifest_path.chmod(0o600)
-        problems = verify_archive(temporary, check_permissions=True)
+        problems = _verify_created_archive(temporary_fd, files_fd, records)
         if problems:
             raise ValueError("created archive failed verification: " + "; ".join(problems))
 
-        # The final operation is a no-replace rename.  A competing capture
-        # therefore cannot turn this archive into an overwrite.
-        if final.exists() or final.is_symlink():
-            raise ValueError("archive directory already exists")
-        _publish_exclusively(temporary, final)
-        return final
+        if not _destination_matches_anchor(destination, destination_identity):
+            raise ValueError("archive destination changed during capture")
+        _publish_exclusively_at(destination_fd, temporary_name, archive_name)
+        published = True
+        return destination / archive_name
     except Exception:
-        if temporary.exists() and not temporary.is_symlink():
-            shutil.rmtree(temporary)
+        if (not published and destination_fd is not None
+                and temporary_identity is not None):
+            _remove_owned_tree_at(destination_fd, temporary_name, temporary_identity)
         raise
+    finally:
+        for descriptor in (files_fd, temporary_fd, destination_fd):
+            if descriptor is not None:
+                os.close(descriptor)
 
 
 def verify_archive(archive_dir: Path, check_permissions: bool = False) -> List[str]:
@@ -238,24 +240,31 @@ def _collect_allowlisted(path: Path, root: Path, found: set) -> None:
                 raise ValueError("refusing non-regular source path: " + str(child))
 
 
-def _copy_entry(source: Path, files_root: Path,
+def _copy_entry(source: Path, files_root_fd: int,
                 source_record: Dict[str, object]) -> Dict[str, object]:
     _assert_source_matches(source, source_record)
     path_text = str(source_record["path"])
     relative = PurePosixPath(path_text)
-    destination = files_root.joinpath(*relative.parts)
-    _private_directory_chain(files_root, destination.parent)
+    parent_fd = _open_archive_parent(files_root_fd, relative.parts[:-1])
     if source_record["kind"] == "symlink":
-        os.symlink(str(source_record["target"]), destination)
-        mode = None
-        sha256 = None
-        target = str(source_record["target"])
+        try:
+            os.symlink(str(source_record["target"]), relative.name, dir_fd=parent_fd)
+            mode = None
+            sha256 = None
+            target = str(source_record["target"])
+        finally:
+            os.close(parent_fd)
     else:
-        mode_value, sha256 = _copy_regular_file(source, destination, source_record)
-        mode = format(mode_value, "04o")
-        target = None
-        if sha256 != source_record["sha256"]:
-            raise SourceChanged("source changed while copying " + path_text)
+        try:
+            mode_value, sha256 = _copy_regular_file(
+                source, parent_fd, relative.name, source_record
+            )
+            mode = format(mode_value, "04o")
+            target = None
+            if sha256 != source_record["sha256"]:
+                raise SourceChanged("source changed while copying " + path_text)
+        finally:
+            os.close(parent_fd)
     return {"path": path_text, "kind": source_record["kind"], "sha256": sha256,
             "mode": mode, "target": target}
 
@@ -272,11 +281,11 @@ def _assert_source_matches(source: Path, record: Dict[str, object]) -> None:
         raise SourceChanged("source kind changed while copying " + str(source))
 
 
-def _copy_regular_file(source: Path, destination: Path,
+def _copy_regular_file(source: Path, destination_parent_fd: int,
+                       destination_name: str,
                        record: Dict[str, object]) -> Tuple[int, str]:
     """Copy a verified regular source via no-follow, descriptor-relative I/O."""
     source_fd = None
-    destination_parent_fd = None
     destination_fd = None
     try:
         source_parent_fd = _open_directory_no_follow(source.parent)
@@ -291,9 +300,8 @@ def _copy_regular_file(source: Path, destination: Path,
                 or [details.st_dev, details.st_ino] != record["identity"]):
             raise SourceChanged("source changed while copying " + str(source))
         mode_value = int(str(record["mode"]), 8) & 0o700
-        destination_parent_fd = _open_directory_no_follow(destination.parent)
         destination_fd = os.open(
-            destination.name,
+            destination_name,
             os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
             mode_value,
             dir_fd=destination_parent_fd,
@@ -312,7 +320,7 @@ def _copy_regular_file(source: Path, destination: Path,
     except OSError as error:
         raise SourceChanged("source changed while copying " + str(source)) from error
     finally:
-        for descriptor in (destination_fd, destination_parent_fd, source_fd):
+        for descriptor in (destination_fd, source_fd):
             if descriptor is not None:
                 os.close(descriptor)
 
@@ -393,13 +401,6 @@ def _safe_archive_path(path_text: str) -> bool:
         "/".join(parts) == path_text and "\\" not in path_text)
 
 
-def _private_directory(path: Path) -> None:
-    path.mkdir(mode=0o700, parents=True, exist_ok=True)
-    if path.is_symlink() or not path.is_dir():
-        raise ValueError("refusing non-directory archive path: " + str(path))
-    path.chmod(0o700)
-
-
 def _archive_destination(destination: Path) -> Path:
     """Reject any existing symlink in the requested archive-root path."""
     destination = Path(os.path.abspath(os.fspath(destination)))
@@ -419,12 +420,185 @@ def _archive_destination(destination: Path) -> Path:
     return destination
 
 
-def _private_directory_chain(root: Path, leaf: Path) -> None:
-    """Create and chmod every archive-relative ancestor, not just the leaf."""
-    current = root
-    for part in leaf.relative_to(root).parts:
-        current = current / part
-        _private_directory(current)
+def _open_archive_destination(destination: Path) -> Tuple[int, Tuple[int, int]]:
+    """Open/create the private root through no-follow directory descriptors."""
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    descriptor = os.open(destination.anchor, flags)
+    try:
+        last_index = len(destination.parts) - 1
+        for index, part in enumerate(destination.parts[1:], start=1):
+            created = False
+            try:
+                child = os.open(part, flags, dir_fd=descriptor)
+            except FileNotFoundError:
+                os.mkdir(part, 0o700, dir_fd=descriptor)
+                child = os.open(part, flags, dir_fd=descriptor)
+                created = True
+            except OSError as error:
+                raise ValueError("archive destination changed during capture") from error
+            os.close(descriptor)
+            descriptor = child
+            if created or index == last_index:
+                os.fchmod(descriptor, 0o700)
+        return descriptor, _identity(os.fstat(descriptor))
+    except Exception:
+        os.close(descriptor)
+        raise
+
+
+def _destination_matches_anchor(destination: Path,
+                                expected: Tuple[int, int]) -> bool:
+    try:
+        descriptor = _open_directory_no_follow(destination)
+    except OSError:
+        return False
+    try:
+        return _identity(os.fstat(descriptor)) == expected
+    finally:
+        os.close(descriptor)
+
+
+def _create_private_directory_at(parent_fd: int, name: str) -> int:
+    try:
+        os.mkdir(name, 0o700, dir_fd=parent_fd)
+    except FileExistsError as error:
+        raise ValueError("archive directory already exists") from error
+    try:
+        descriptor = os.open(
+            name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent_fd
+        )
+    except OSError as error:
+        raise ValueError("archive destination changed during capture") from error
+    os.fchmod(descriptor, 0o700)
+    return descriptor
+
+
+def _open_archive_parent(root_fd: int, parts: Tuple[str, ...]) -> int:
+    """Open/create an archive-private relative parent without retaining a chain."""
+    descriptor = os.dup(root_fd)
+    try:
+        for part in parts:
+            try:
+                child = os.open(
+                    part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                    dir_fd=descriptor,
+                )
+            except FileNotFoundError:
+                os.mkdir(part, 0o700, dir_fd=descriptor)
+                child = os.open(
+                    part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                    dir_fd=descriptor,
+                )
+            os.close(descriptor)
+            descriptor = child
+            os.fchmod(descriptor, 0o700)
+        return descriptor
+    except Exception:
+        os.close(descriptor)
+        raise
+
+
+def _write_new_regular_at(parent_fd: int, name: str, content: bytes,
+                          mode: int) -> None:
+    descriptor = os.open(
+        name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+        mode,
+        dir_fd=parent_fd,
+    )
+    try:
+        _write_all(descriptor, content)
+        os.fchmod(descriptor, mode)
+    finally:
+        os.close(descriptor)
+
+
+def _verify_created_archive(archive_fd: int, files_fd: int,
+                            records: List[Dict[str, object]]) -> List[str]:
+    """Verify the new payload through its private directory descriptors."""
+    problems = []  # type: List[str]
+    if stat.S_IMODE(os.fstat(archive_fd).st_mode) != 0o700:
+        problems.append("archive permission mismatch")
+    if stat.S_IMODE(os.fstat(files_fd).st_mode) != 0o700:
+        problems.append("archive files permission mismatch")
+    manifest = _stat_optional_at(archive_fd, "manifest.json")
+    if manifest is None or not stat.S_ISREG(manifest.st_mode) or stat.S_IMODE(manifest.st_mode) != 0o600:
+        problems.append("manifest permission mismatch")
+    for record in records:
+        relative = PurePosixPath(str(record["path"]))
+        parent_fd = _open_archive_parent(files_fd, relative.parts[:-1])
+        try:
+            details = _stat_optional_at(parent_fd, relative.name)
+            if details is None:
+                problems.append("missing archive entry: " + str(record["path"]))
+                continue
+            if record["kind"] == "symlink":
+                if not stat.S_ISLNK(details.st_mode) or os.readlink(relative.name, dir_fd=parent_fd) != record["target"]:
+                    problems.append("symlink target mismatch: " + str(record["path"]))
+                continue
+            if not stat.S_ISREG(details.st_mode):
+                problems.append("kind mismatch: " + str(record["path"]))
+                continue
+            descriptor = os.open(relative.name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=parent_fd)
+            try:
+                if _hash_descriptor(descriptor) != record["sha256"]:
+                    problems.append("hash mismatch: " + str(record["path"]))
+                if stat.S_IMODE(os.fstat(descriptor).st_mode) != int(str(record["mode"]), 8):
+                    problems.append("permission mismatch: " + str(record["path"]))
+            finally:
+                os.close(descriptor)
+        finally:
+            os.close(parent_fd)
+    return problems
+
+
+def _remove_owned_tree_at(parent_fd: int, name: str,
+                          expected: Tuple[int, int]) -> None:
+    details = _stat_optional_at(parent_fd, name)
+    if (details is None or not stat.S_ISDIR(details.st_mode)
+            or _identity(details) != expected):
+        return
+    try:
+        descriptor = os.open(
+            name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent_fd
+        )
+    except OSError:
+        return
+    try:
+        _remove_tree_fd(descriptor)
+    finally:
+        os.close(descriptor)
+    try:
+        os.rmdir(name, dir_fd=parent_fd)
+    except OSError:
+        pass
+
+
+def _remove_tree_fd(descriptor: int) -> None:
+    for name in os.listdir(descriptor):
+        details = _stat_optional_at(descriptor, name)
+        if details is None:
+            continue
+        if stat.S_ISDIR(details.st_mode):
+            child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                            dir_fd=descriptor)
+            try:
+                _remove_tree_fd(child)
+            finally:
+                os.close(child)
+            os.rmdir(name, dir_fd=descriptor)
+        else:
+            os.unlink(name, dir_fd=descriptor)
+
+
+def _stat_optional_at(parent_fd: int, name: str) -> Optional[os.stat_result]:
+    try:
+        return os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return None
+
+
+def _identity(details: os.stat_result) -> Tuple[int, int]:
+    return details.st_dev, details.st_ino
 
 
 def _open_directory_no_follow(path: Path) -> int:
@@ -445,20 +619,24 @@ def _open_directory_no_follow(path: Path) -> int:
         raise
 
 
-def _publish_exclusively(temporary: Path, final: Path) -> None:
-    """Publish a directory with the platform no-replace rename primitive."""
+def _publish_exclusively_at(destination_fd: int, temporary_name: str,
+                            archive_name: str) -> None:
+    """Publish with a no-replace rename rooted at the anchored destination FD."""
     library = ctypes.CDLL(None, use_errno=True)
     if sys.platform == "darwin":
-        operation = library.renamex_np
-        operation.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
+        operation = library.renameatx_np
+        operation.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
+                              ctypes.c_char_p, ctypes.c_uint]
         operation.restype = ctypes.c_int
-        result = operation(os.fsencode(temporary), os.fsencode(final), 0x00000004)
+        result = operation(destination_fd, os.fsencode(temporary_name), destination_fd,
+                           os.fsencode(archive_name), 0x00000004)
     elif sys.platform.startswith("linux") and hasattr(library, "renameat2"):
         operation = library.renameat2
         operation.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
                               ctypes.c_char_p, ctypes.c_uint]
         operation.restype = ctypes.c_int
-        result = operation(-100, os.fsencode(temporary), -100, os.fsencode(final), 1)
+        result = operation(destination_fd, os.fsencode(temporary_name), destination_fd,
+                           os.fsencode(archive_name), 1)
     else:
         raise OSError("platform lacks an exclusive directory rename")
     if result == 0:
@@ -466,7 +644,7 @@ def _publish_exclusively(temporary: Path, final: Path) -> None:
     error_number = ctypes.get_errno()
     if error_number == errno.EEXIST:
         raise ValueError("archive directory already exists")
-    raise OSError(error_number, os.strerror(error_number), str(final))
+    raise OSError(error_number, os.strerror(error_number), archive_name)
 
 
 def _hash_file(path: Path) -> str:
@@ -475,3 +653,12 @@ def _hash_file(path: Path) -> str:
         for chunk in iter(lambda: source.read(65536), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _hash_descriptor(descriptor: int) -> str:
+    digest = hashlib.sha256()
+    while True:
+        chunk = os.read(descriptor, 65536)
+        if not chunk:
+            return digest.hexdigest()
+        digest.update(chunk)
