@@ -127,3 +127,76 @@ file; this was fixed before completion.
 
 None. Descriptor no-follow guards are intentionally mandatory; rendering fails
 closed on platforms that do not expose `O_DIRECTORY` and `O_NOFOLLOW`.
+
+## Replacement: pure immutable adapter bundle
+
+Base: `bf906ff`
+
+### Result
+
+- Deleted `write_staged_instructions`, the `render --output` interface, every
+  destination publication/transaction branch, and all staging-specific tests.
+  Production render code contains no `.staging` reference and performs no
+  filesystem write.
+- Added declaration-driven provider dispatch. Claude and Codex providers live
+  under `lib/kingstack/adapters/`; a synthetic `sample_agent.render` provider
+  lives entirely with its fixture and renders `GUIDANCE.md` without a core
+  change or first-party import.
+- Provider source and adjacent adapter references are read through held
+  descriptors with `O_NOFOLLOW`, then revalidated before return. Providers must
+  expose `render(root, declaration, shared_sources)` and return canonical,
+  owned, byte-valued entries.
+- `render_bundle()` returns a sorted `MappingProxyType` from portable relative
+  paths to bytes. Output paths must be canonical, case-insensitively unique,
+  and covered by the declaration's `owned_paths`.
+- Replaced mutable CLI publication with three mutually exclusive read-only
+  selectors: `--manifest`, `--print-file PATH`, and
+  `--check-file PATH --equals FILE`. Unknown/traversal paths and selector
+  conflicts exit 2; a byte mismatch exits 1.
+- Preserved all eight existing instruction fragments, their exact order, the
+  empty first-party appendices, and the 9,525-byte Claude output without prose
+  normalization.
+
+### TDD evidence
+
+1. Replacement RED:
+   `PYTHONPATH=lib python3 -m unittest tests.test_instruction_render -v`
+   loaded one failing test module and raised the expected
+   `ImportError: cannot import name 'render_bundle'`.
+2. First implementation run: 13 tests ran; eight passed and five synthetic
+   provider cases exposed one missing extension behavior: a future adapter with
+   no appendix was rejected before its provider ran.
+3. Optional-empty appendix GREEN: 12/13 passed. The remaining failure was a
+   mistaken hand-written expectation (`# Who I am`) against the frozen order,
+   whose first literal bytes are `# Standing rule`; correcting the independent
+   expectation produced 13/13 passing.
+
+### Verification evidence
+
+- Focused: `PYTHONPATH=lib python3 -m unittest tests.test_instruction_render -v`
+  -> 13/13 passing.
+- Full: `PYTHONPATH=lib python3 -m unittest discover -s tests -v`
+  -> 71/71 passing.
+- Exact read-only comparison:
+  `./scripts/kingstack render --adapter claude --check-file CLAUDE.md --equals "$HOME/.claude/CLAUDE.md"`
+  -> exit 0.
+- Manifest: schema version 1, adapter `claude`, one `CLAUDE.md` row, 9,525
+  bytes, SHA-256
+  `7a6f34e0ff3777279053bb63713dfc109761d508f18fef0316279e9a74fdab2e`.
+- `--print-file CLAUDE.md | cmp - tests/fixtures/claude-baseline/CLAUDE.md`
+  -> exit 0.
+- Focused subprocess tests snapshot every source file and directory before and
+  after bundle render plus all three CLI selectors; the snapshots are identical.
+- `python3 -m py_compile` passed for renderer, CLI, both first-party providers,
+  the synthetic provider, and focused tests. JSON parsing and
+  `git diff --check` passed.
+- Root, golden, and live Claude guidance remain byte-identical at the recorded
+  digest. Live Claude settings and Codex config hashes remain
+  `d68a1b364130ec36f9bde97e6926f02040d455b217352e367da6aa5b51c8477b`
+  and `ef83efb8a9b49180aae027805422ac039888b08bff8671a8c2038ef22cc18b14`;
+  both native homes remain real directories, not links.
+
+### Concerns
+
+None. Provider modules are trusted, reviewed repository code; loading is
+path-confined and byte-stable, not a sandbox for hostile Python.

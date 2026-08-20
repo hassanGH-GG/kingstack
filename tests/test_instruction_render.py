@@ -6,10 +6,12 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from types import MappingProxyType
 from unittest import TestCase
 from unittest.mock import patch
 
-from kingstack.render import RenderError, render_instructions, write_staged_instructions
+import kingstack.render as render_module
+from kingstack.render import RenderError, render_bundle, render_instructions
 
 
 ROOT = Path(__file__).parents[1]
@@ -29,6 +31,48 @@ class InstructionRenderTest(TestCase):
         destination = destination or self.sandbox
         for relative in ("adapters", "core"):
             shutil.copytree(ROOT / relative, destination / relative)
+        provider_source = ROOT / "lib/kingstack"
+        provider_destination = destination / "lib/kingstack"
+        provider_destination.parent.mkdir(parents=True)
+        shutil.copytree(
+            provider_source,
+            provider_destination,
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+        )
+
+    def install_example_adapter(self):
+        self.copy_render_inputs()
+        shutil.copytree(
+            FIXTURES / "adapters/example", self.sandbox / "adapters/example"
+        )
+
+    def snapshot_tree(self, root):
+        if not root.exists():
+            return ()
+        rows = []
+        for path in sorted(root.rglob("*")):
+            relative = path.relative_to(root).as_posix()
+            if path.is_symlink():
+                rows.append((relative, "link", os.readlink(path)))
+            elif path.is_file():
+                rows.append((relative, "file", path.read_bytes()))
+            else:
+                rows.append((relative, "dir", b""))
+        return tuple(rows)
+
+    def run_render_cli(self, *arguments, root=None):
+        case_root = root or ROOT
+        environment = dict(os.environ)
+        environment["PYTHONPATH"] = str(case_root / "lib")
+        environment["PYTHONDONTWRITEBYTECODE"] = "1"
+        return subprocess.run(
+            [sys.executable, "-m", "kingstack.cli", "render", *arguments],
+            cwd=str(case_root),
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
 
     def test_frozen_fixture_matches_recorded_baseline_hash(self):
         fixture = FIXTURES / "claude-baseline/CLAUDE.md"
@@ -44,12 +88,15 @@ class InstructionRenderTest(TestCase):
         self.assertEqual(digest, GOLDEN_SHA256)
         self.assertEqual(record["sha256"], GOLDEN_SHA256)
 
-    def test_claude_render_is_byte_identical_to_baseline(self):
-        actual = render_instructions("claude", ROOT)
-        expected = (FIXTURES / "claude-baseline/CLAUDE.md").read_text(
-            encoding="utf-8"
-        )
-        self.assertEqual(actual, expected)
+    def test_claude_render_is_byte_identical_to_golden_and_live(self):
+        bundle = render_bundle("claude", ROOT)
+        expected = (FIXTURES / "claude-baseline/CLAUDE.md").read_bytes()
+        live = (Path.home() / ".claude/CLAUDE.md").read_bytes()
+
+        self.assertEqual(bundle, {"CLAUDE.md": expected})
+        self.assertEqual(bundle["CLAUDE.md"], live)
+        self.assertEqual(hashlib.sha256(bundle["CLAUDE.md"]).hexdigest(), GOLDEN_SHA256)
+        self.assertEqual(render_instructions("claude", ROOT).encode("utf-8"), expected)
 
     def test_order_lists_every_fragment_once(self):
         order = json.loads(
@@ -59,41 +106,47 @@ class InstructionRenderTest(TestCase):
         self.assertEqual(len(order), len(set(order)))
         self.assertEqual(set(order), fragments)
 
-    def test_duplicate_order_entry_is_rejected(self):
-        self.copy_render_inputs()
-        order_path = self.sandbox / "core/instructions/order.json"
-        order = json.loads(order_path.read_text(encoding="utf-8"))
-        order.append(order[0])
-        order_path.write_text(json.dumps(order), encoding="utf-8")
-        with self.assertRaisesRegex(RenderError, "duplicate"):
-            render_instructions("claude", self.sandbox)
+    def test_duplicate_missing_and_unlisted_fragments_are_rejected(self):
+        cases = ("duplicate", "missing", "unlisted")
+        for index, case in enumerate(cases):
+            with self.subTest(case=case):
+                case_root = Path(self.temporary_directory.name) / "fragment-case-{}".format(index)
+                self.copy_render_inputs(case_root)
+                order_path = case_root / "core/instructions/order.json"
+                order = json.loads(order_path.read_text(encoding="utf-8"))
+                if case == "duplicate":
+                    order.append(order[0])
+                    order_path.write_text(json.dumps(order), encoding="utf-8")
+                elif case == "missing":
+                    (case_root / "core/instructions/00-identity.md").unlink()
+                else:
+                    (case_root / "core/instructions/99-unlisted.md").write_text(
+                        "# Unlisted\n", encoding="utf-8"
+                    )
+                with self.assertRaisesRegex(RenderError, case):
+                    render_bundle("claude", case_root)
 
-    def test_unlisted_fragment_is_rejected(self):
-        self.copy_render_inputs()
-        (self.sandbox / "core/instructions/99-unlisted.md").write_text(
-            "# Unlisted\n", encoding="utf-8"
+    def test_invalid_utf8_and_newline_discipline_are_rejected(self):
+        cases = (
+            (b"\xff\n", "UTF-8"),
+            (b"# Double\n\n", "one trailing newline"),
+            (b"# CRLF\r\n", "terminal LF"),
+            (b"# Mixed\n\r\n", "terminal LF"),
         )
-        with self.assertRaisesRegex(RenderError, "unlisted"):
-            render_instructions("claude", self.sandbox)
+        for index, (content, message) in enumerate(cases):
+            with self.subTest(content=content):
+                case_root = Path(self.temporary_directory.name) / "text-case-{}".format(index)
+                self.copy_render_inputs(case_root)
+                (case_root / "core/instructions/00-identity.md").write_bytes(content)
+                with self.assertRaisesRegex(RenderError, message):
+                    render_bundle("claude", case_root)
 
-    def test_ordered_fragment_missing_from_disk_is_rejected(self):
-        self.copy_render_inputs()
-        (self.sandbox / "core/instructions/00-identity.md").unlink()
-        with self.assertRaisesRegex(RenderError, "missing fragments"):
-            render_instructions("claude", self.sandbox)
-
-    def test_invalid_utf8_fragment_is_rejected(self):
-        self.copy_render_inputs()
-        fragment = self.sandbox / "core/instructions/00-identity.md"
-        fragment.write_bytes(b"\xff\n")
-        with self.assertRaisesRegex(RenderError, "UTF-8"):
-            render_instructions("claude", self.sandbox)
-
-    def test_symlinked_order_fragment_and_appendix_are_rejected(self):
+    def test_symlinked_sources_and_adapter_traversal_are_rejected(self):
         targets = (
             ("core/instructions/order.json", b"[]"),
             ("core/instructions/00-identity.md", b"# External\n"),
             ("adapters/claude/instructions-appendix.md", b"\n# External\n"),
+            ("lib/kingstack/adapters/claude.py", b"def render(*args): return {}\n"),
         )
         for index, (relative, content) in enumerate(targets):
             with self.subTest(relative=relative):
@@ -105,24 +158,10 @@ class InstructionRenderTest(TestCase):
                 source.unlink()
                 source.symlink_to(external)
                 with self.assertRaisesRegex(RenderError, "symbolic link"):
-                    render_instructions("claude", case_root)
+                    render_bundle("claude", case_root)
 
-    def test_wrong_trailing_newline_discipline_is_rejected(self):
-        self.copy_render_inputs()
-        fragment = self.sandbox / "core/instructions/00-identity.md"
-        fragment.write_bytes(fragment.read_bytes() + b"\n")
-        with self.assertRaisesRegex(RenderError, "one trailing newline"):
-            render_instructions("claude", self.sandbox)
-
-    def test_crlf_and_mixed_terminal_newlines_are_rejected(self):
-        for index, content in enumerate((b"# CRLF\r\n", b"# Mixed\n\r\n", b"# Mixed\r\n\n")):
-            with self.subTest(content=content):
-                case_root = Path(self.temporary_directory.name) / "newline-case-{}".format(index)
-                self.copy_render_inputs(case_root)
-                fragment = case_root / "core/instructions/00-identity.md"
-                fragment.write_bytes(content)
-                with self.assertRaisesRegex(RenderError, "terminal LF"):
-                    render_instructions("claude", case_root)
+        with self.assertRaisesRegex(RenderError, "stable adapter ID"):
+            render_bundle("../claude", ROOT)
 
     def test_late_source_directory_swap_is_detected(self):
         self.copy_render_inputs()
@@ -144,125 +183,110 @@ class InstructionRenderTest(TestCase):
 
         with patch("kingstack.render.os.open", side_effect=swap_before_fragment_open):
             with self.assertRaisesRegex(RenderError, "changed during render"):
-                render_instructions("claude", self.sandbox)
+                render_bundle("claude", self.sandbox)
         self.assertTrue(swapped)
-        self.assertEqual((external / "00-identity.md").read_text(encoding="utf-8"), "# Injected\n")
-
-    def test_adapter_path_traversal_is_rejected(self):
-        with self.assertRaisesRegex(RenderError, "stable adapter ID"):
-            render_instructions("../claude", ROOT)
-
-    def test_adapter_directory_symlink_is_rejected(self):
-        self.copy_render_inputs()
-        external = Path(self.temporary_directory.name) / "external-claude"
-        shutil.copytree(self.sandbox / "adapters/claude", external)
-        shutil.rmtree(self.sandbox / "adapters/claude")
-        (self.sandbox / "adapters/claude").symlink_to(external, target_is_directory=True)
-        with self.assertRaisesRegex(RenderError, "symbolic link"):
-            render_instructions("claude", self.sandbox)
-
-    def test_staging_refuses_a_symlink_component(self):
-        self.copy_render_inputs()
-        outside = Path(self.temporary_directory.name) / "outside"
-        outside.mkdir()
-        (self.sandbox / ".staging").symlink_to(outside, target_is_directory=True)
-        with self.assertRaisesRegex(RenderError, "symbolic link"):
-            write_staged_instructions("claude", self.sandbox / ".staging/claude", self.sandbox)
-        self.assertEqual(list(outside.iterdir()), [])
-
-    def test_staging_regular_file_collision_is_a_render_error(self):
-        self.copy_render_inputs()
-        staging = self.sandbox / ".staging"
-        staging.write_text("keep", encoding="utf-8")
-        with self.assertRaisesRegex(RenderError, "not a directory"):
-            write_staged_instructions("claude", staging / "claude", self.sandbox)
-        self.assertEqual(staging.read_text(encoding="utf-8"), "keep")
-
-    def test_cli_regular_file_collision_returns_two_without_traceback(self):
-        case_root = Path(self.temporary_directory.name) / "cli-collision"
-        self.copy_render_inputs(case_root)
-        shutil.copytree(ROOT / "lib", case_root / "lib")
-        (case_root / ".staging").write_text("keep", encoding="utf-8")
-        environment = dict(os.environ)
-        environment["PYTHONPATH"] = str(case_root / "lib")
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "kingstack.cli",
-                "render",
-                "--adapter",
-                "claude",
-                "--output",
-                ".staging/claude",
-            ],
-            cwd=str(case_root),
-            env=environment,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("is not a directory", result.stderr)
-        self.assertNotIn("Traceback", result.stderr)
-        self.assertEqual((case_root / ".staging").read_text(encoding="utf-8"), "keep")
-
-    def test_late_staging_directory_swap_cannot_publish_externally(self):
-        self.copy_render_inputs()
-        output = self.sandbox / ".staging/claude"
-        output.mkdir(parents=True)
-        displaced = self.sandbox / ".staging/claude.displaced"
-        outside = Path(self.temporary_directory.name) / "outside-late-swap"
-        outside.mkdir()
-        real_open = os.open
-        swapped = False
-
-        def swap_before_output_open(path, flags, mode=0o777, *, dir_fd=None):
-            nonlocal swapped
-            if (
-                path == "CLAUDE.md"
-                and dir_fd is not None
-                and flags & os.O_CREAT
-                and not swapped
-            ):
-                swapped = True
-                output.rename(displaced)
-                output.symlink_to(outside, target_is_directory=True)
-            return real_open(path, flags, mode, dir_fd=dir_fd)
-
-        with patch("kingstack.render.os.open", side_effect=swap_before_output_open):
-            with self.assertRaisesRegex(RenderError, "changed during render"):
-                write_staged_instructions("claude", output, self.sandbox)
-        self.assertTrue(swapped)
-        self.assertEqual(list(outside.iterdir()), [])
-        self.assertEqual(list(displaced.iterdir()), [])
-
-    def test_staging_refuses_existing_output_collision(self):
-        self.copy_render_inputs()
-        output = self.sandbox / ".staging/claude"
-        output.mkdir(parents=True)
-        (output / "unexpected").write_text("keep", encoding="utf-8")
-        with self.assertRaisesRegex(RenderError, "not empty"):
-            write_staged_instructions("claude", output, self.sandbox)
-        self.assertEqual((output / "unexpected").read_text(encoding="utf-8"), "keep")
-
-    def test_existing_instruction_collision_is_preserved(self):
-        self.copy_render_inputs()
-        output = self.sandbox / ".staging/claude"
-        output.mkdir(parents=True)
-        existing = output / "CLAUDE.md"
-        existing.write_text("keep", encoding="utf-8")
-        with self.assertRaisesRegex(RenderError, "not empty"):
-            write_staged_instructions("claude", output, self.sandbox)
-        self.assertEqual(existing.read_text(encoding="utf-8"), "keep")
-
-    def test_staging_writes_only_the_adapter_owned_instruction_file(self):
-        self.copy_render_inputs()
-        output = self.sandbox / ".staging/claude"
-        written = write_staged_instructions("claude", output, self.sandbox)
-        self.assertEqual(written, (output / "CLAUDE.md").resolve())
         self.assertEqual(
-            {path.name for path in output.iterdir()},
-            {"CLAUDE.md"},
+            (external / "00-identity.md").read_text(encoding="utf-8"), "# Injected\n"
         )
-        self.assertEqual(written.read_text(encoding="utf-8"), render_instructions("claude", self.sandbox))
+
+    def test_declaration_dispatches_synthetic_provider_without_core_change(self):
+        self.install_example_adapter()
+
+        bundle = render_bundle("example", self.sandbox)
+
+        self.assertIsInstance(bundle, MappingProxyType)
+        self.assertEqual(list(bundle), ["GUIDANCE.md", "hooks/session-start"])
+        self.assertTrue(bundle["GUIDANCE.md"].startswith(b"# Standing rule"))
+        self.assertEqual(bundle["hooks/session-start"], b"sample-agent-start\n")
+        with self.assertRaises(TypeError):
+            bundle["GUIDANCE.md"] = b"changed"
+
+    def test_provider_output_must_be_bytes_canonical_and_owned(self):
+        cases = (
+            ("return {'GUIDANCE.md': 'text'}", "bytes"),
+            ("return {'../escape': b'bad'}", "canonical relative"),
+            ("return {'unowned': b'bad'}", "not covered"),
+        )
+        for index, (statement, message) in enumerate(cases):
+            with self.subTest(statement=statement):
+                case_root = Path(self.temporary_directory.name) / "provider-case-{}".format(index)
+                self.copy_render_inputs(case_root)
+                shutil.copytree(FIXTURES / "adapters/example", case_root / "adapters/example")
+                (case_root / "adapters/example/sample_agent/render.py").write_text(
+                    "def render(root, declaration, shared_sources):\n    {}\n".format(statement),
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(RenderError, message):
+                    render_bundle("example", case_root)
+
+    def test_missing_or_invalid_provider_entrypoint_is_rejected(self):
+        self.install_example_adapter()
+        provider = self.sandbox / "adapters/example/sample_agent/render.py"
+        provider.write_text("VALUE = 1\n", encoding="utf-8")
+        with self.assertRaisesRegex(RenderError, "callable render"):
+            render_bundle("example", self.sandbox)
+
+    def test_render_and_all_cli_selectors_write_nothing(self):
+        self.copy_render_inputs()
+        before = self.snapshot_tree(self.sandbox)
+
+        bundle = render_bundle("claude", self.sandbox)
+        manifest = self.run_render_cli("--adapter", "claude", "--manifest", root=self.sandbox)
+        printed = self.run_render_cli(
+            "--adapter", "claude", "--print-file", "CLAUDE.md", root=self.sandbox
+        )
+        self.assertEqual(before, self.snapshot_tree(self.sandbox))
+
+        equal_file = Path(self.temporary_directory.name) / "expected.md"
+        equal_file.write_bytes(bundle["CLAUDE.md"])
+        checked = self.run_render_cli(
+            "--adapter", "claude", "--check-file", "CLAUDE.md",
+            "--equals", str(equal_file), root=self.sandbox,
+        )
+
+        self.assertEqual(manifest.returncode, 0, manifest.stderr.decode())
+        document = json.loads(manifest.stdout)
+        self.assertEqual(document["schema_version"], 1)
+        self.assertEqual(document["adapter"], "claude")
+        self.assertEqual(
+            document["files"],
+            [{"path": "CLAUDE.md", "size": 9525, "sha256": GOLDEN_SHA256}],
+        )
+        self.assertEqual(printed.returncode, 0, printed.stderr.decode())
+        self.assertEqual(printed.stdout, bundle["CLAUDE.md"])
+        self.assertEqual(checked.returncode, 0, checked.stderr.decode())
+        self.assertEqual(before, self.snapshot_tree(self.sandbox))
+
+    def test_cli_rejects_output_conflicts_unknown_paths_and_mismatch(self):
+        conflict = self.run_render_cli(
+            "--adapter", "claude", "--manifest", "--print-file", "CLAUDE.md"
+        )
+        output = self.run_render_cli(
+            "--adapter", "claude", "--output", ".staging/claude"
+        )
+        traversal = self.run_render_cli(
+            "--adapter", "claude", "--print-file", "../CLAUDE.md"
+        )
+        unknown = self.run_render_cli(
+            "--adapter", "claude", "--print-file", "UNKNOWN.md"
+        )
+        missing_equals = self.run_render_cli(
+            "--adapter", "claude", "--check-file", "CLAUDE.md"
+        )
+        mismatch_path = Path(self.temporary_directory.name) / "mismatch"
+        mismatch_path.write_bytes(b"different\n")
+        mismatch = self.run_render_cli(
+            "--adapter", "claude", "--check-file", "CLAUDE.md",
+            "--equals", str(mismatch_path),
+        )
+
+        for result in (conflict, output, traversal, unknown, missing_equals):
+            self.assertEqual(result.returncode, 2, result.stderr.decode())
+        self.assertEqual(mismatch.returncode, 1, mismatch.stderr.decode())
+
+    def test_mutable_staging_api_and_production_references_are_absent(self):
+        self.assertFalse(hasattr(render_module, "write_staged_instructions"))
+        production = (ROOT / "lib/kingstack/render.py").read_text(encoding="utf-8")
+        cli = (ROOT / "lib/kingstack/cli.py").read_text(encoding="utf-8")
+        self.assertNotIn(".staging", production)
+        self.assertNotIn("write_staged_instructions", production + cli)

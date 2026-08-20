@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -14,7 +15,7 @@ from kingstack.adapter_contract import (
 from kingstack.bootstrap import BootstrapError, bootstrap
 from kingstack.inventory import capture_baseline, write_public_report
 from kingstack.paths import Paths
-from kingstack.render import RenderError, write_staged_instructions
+from kingstack.render import RenderError, render_bundle
 
 
 def _adapter_id(value: str) -> str:
@@ -69,8 +70,18 @@ def main(argv: Optional[List[str]] = None) -> int:
     adapter_selector.add_argument("--adapter-path", type=Path)
     render_command = commands.add_parser("render")
     render_command.add_argument("--adapter", type=_adapter_id, required=True)
-    render_command.add_argument("--output", type=Path, required=True)
+    render_selector = render_command.add_mutually_exclusive_group(required=True)
+    render_selector.add_argument("--manifest", action="store_true")
+    render_selector.add_argument("--print-file")
+    render_selector.add_argument("--check-file")
+    render_command.add_argument("--equals", type=Path)
     arguments = parser.parse_args(argv)
+
+    if arguments.command == "render":
+        if arguments.check_file is not None and arguments.equals is None:
+            render_command.error("--check-file requires --equals FILE")
+        if arguments.check_file is None and arguments.equals is not None:
+            render_command.error("--equals is valid only with --check-file")
 
     if arguments.command == "inventory":
         write_public_report(
@@ -114,14 +125,40 @@ def main(argv: Optional[List[str]] = None) -> int:
     if arguments.command == "render":
         root = Path(__file__).resolve().parents[2]
         try:
-            destination = write_staged_instructions(
-                arguments.adapter, arguments.output, root
-            )
-        except RenderError as error:
+            bundle = render_bundle(arguments.adapter, root)
+            selected_path = arguments.print_file or arguments.check_file
+            if selected_path is not None and selected_path not in bundle:
+                raise RenderError(
+                    "rendered bundle has no canonical path '{}'".format(selected_path)
+                )
+            if arguments.manifest:
+                document = {
+                    "schema_version": 1,
+                    "adapter": arguments.adapter,
+                    "files": [
+                        {
+                            "path": path,
+                            "size": len(content),
+                            "sha256": hashlib.sha256(content).hexdigest(),
+                        }
+                        for path, content in bundle.items()
+                    ],
+                }
+                print(json.dumps(document, indent=2, sort_keys=True))
+                return 0
+            if arguments.print_file is not None:
+                sys.stdout.buffer.write(bundle[arguments.print_file])
+                return 0
+            try:
+                expected = arguments.equals.read_bytes()
+            except OSError as error:
+                raise RenderError(
+                    "cannot read comparison file '{}': {}".format(arguments.equals, error)
+                ) from error
+            return 0 if bundle[arguments.check_file] == expected else 1
+        except (RenderError, AdapterContractError) as error:
             print("kingstack render: {}".format(error), file=sys.stderr)
             return 2
-        print(destination)
-        return 0
     return 1
 
 

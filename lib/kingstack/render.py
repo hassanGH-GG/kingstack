@@ -1,11 +1,15 @@
-"""Deterministic, descriptor-confined rendering for agent instruction files."""
+"""Pure, deterministic, descriptor-confined rendering of adapter bundles."""
 
+from collections import OrderedDict
+from collections.abc import Mapping
 import errno
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import stat
+from types import MappingProxyType
 from typing import Any, List, Tuple
+import unicodedata
 
 from kingstack.adapter_contract import (
     ADAPTER_ID_PATTERN,
@@ -17,7 +21,7 @@ from kingstack.adapter_contract import (
 
 
 class RenderError(ValueError):
-    """Raised when instruction sources or staged output violate the contract."""
+    """Raised when render sources or provider output violate the contract."""
 
 
 _DIRECTORY = getattr(os, "O_DIRECTORY", 0)
@@ -202,9 +206,8 @@ def _assert_file_identity(
 
 
 def _load_declaration(
-    adapter: str, root: Path, adapter_bytes: bytes, catalog_bytes: bytes
+    adapter: str, root: Path, adapter_document: Any, catalog_bytes: bytes
 ):
-    adapter_document = _decode_json(adapter_bytes, "adapter declaration")
     catalog_document = _decode_json(catalog_bytes, "capability catalog")
     try:
         declaration = load_adapter_document(
@@ -225,10 +228,89 @@ def _load_declaration(
     return declaration
 
 
-def _render_with_declaration(adapter: str, root: Path):
+def _inline_adapter_references(
+    document: Any, adapter_fd: int, file_identities: list
+) -> Any:
+    if not isinstance(document, dict):
+        return document
+    inlined = dict(document)
+    for field in ("owned_paths", "model_tiers", "capability_matrix"):
+        reference = inlined.get(field)
+        if not isinstance(reference, str):
+            continue
+        if Path(reference).name != reference or not reference.endswith(".json"):
+            raise RenderError(
+                "render-time adapter reference '{}' must be an adjacent JSON file".format(
+                    reference
+                )
+            )
+        content, identity = _read_file_at(
+            adapter_fd, reference, "adapter {} reference".format(field)
+        )
+        file_identities.append(
+            (
+                adapter_fd,
+                reference,
+                identity,
+                "adapter {} reference".format(field),
+            )
+        )
+        value = _decode_json(content, "adapter {} reference".format(field))
+        if field in ("owned_paths", "model_tiers") and isinstance(value, dict):
+            value = value.get(field, value)
+        inlined[field] = value
+    return inlined
+
+
+def _read_provider_source(
+    root_fd: int,
+    adapter_fd: int,
+    declaration,
+    descriptors: List[int],
+    directory_identities: list,
+    file_identities: list,
+) -> bytes:
+    components = declaration.render_module.split(".")
+    if components[:2] == ["kingstack", "adapters"]:
+        if len(components) != 3:
+            raise RenderError("first-party render modules must name one adapter provider")
+        parent = root_fd
+        for component, label in (
+            ("lib", "provider lib directory"),
+            ("kingstack", "provider package directory"),
+            ("adapters", "provider adapter package directory"),
+        ):
+            descriptor = _open_directory_at(parent, component, label)
+            descriptors.append(descriptor)
+            directory_identities.append((parent, component, descriptor, label))
+            parent = descriptor
+        filename = components[-1] + ".py"
+    else:
+        if components[0] == "kingstack":
+            raise RenderError("render module may not escape the provider namespace")
+        parent = adapter_fd
+        for component in components[:-1]:
+            label = "local provider package '{}'".format(component)
+            descriptor = _open_directory_at(parent, component, label)
+            descriptors.append(descriptor)
+            directory_identities.append((parent, component, descriptor, label))
+            parent = descriptor
+        filename = components[-1] + ".py"
+
+    source, identity = _read_file_at(parent, filename, "render provider")
+    file_identities.append((parent, filename, identity, "render provider"))
+    try:
+        source.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise RenderError("render provider must be valid UTF-8") from error
+    return source
+
+
+def _load_render_context(adapter: str, root: Path):
     if not isinstance(adapter, str) or ADAPTER_ID_PATTERN.fullmatch(adapter) is None:
         raise RenderError("adapter must be a stable adapter ID")
     descriptors: List[int] = []
+    directory_identities = []
     file_identities = []
     try:
         root_fd = _open_root(root)
@@ -264,7 +346,12 @@ def _render_with_declaration(adapter: str, root: Path):
         file_identities.append(
             (capabilities_fd, "catalog.json", identity, "capability catalog")
         )
-        declaration = _load_declaration(adapter, root, adapter_bytes, catalog_bytes)
+        adapter_document = _inline_adapter_references(
+            _decode_json(adapter_bytes, "adapter declaration"),
+            adapter_fd,
+            file_identities,
+        )
+        declaration = _load_declaration(adapter, root, adapter_document, catalog_bytes)
 
         order_bytes, identity = _read_file_at(
             instructions_fd, "order.json", "instruction order"
@@ -300,19 +387,38 @@ def _render_with_declaration(adapter: str, root: Path):
                 _decode_utf8(content, "instruction fragment '{}'".format(name))
             )
 
-        appendix_bytes, identity = _read_file_at(
-            adapter_fd, "instructions-appendix.md", "adapter instruction appendix"
-        )
-        file_identities.append(
-            (
-                adapter_fd,
+        try:
+            appendix_metadata = os.stat(
                 "instructions-appendix.md",
-                identity,
-                "adapter instruction appendix",
+                dir_fd=adapter_fd,
+                follow_symlinks=False,
             )
-        )
+        except FileNotFoundError:
+            appendix_bytes = b""
+        else:
+            if not stat.S_ISREG(appendix_metadata.st_mode):
+                raise RenderError("adapter instruction appendix may not be a symbolic link")
+            appendix_bytes, identity = _read_file_at(
+                adapter_fd, "instructions-appendix.md", "adapter instruction appendix"
+            )
+            file_identities.append(
+                (
+                    adapter_fd,
+                    "instructions-appendix.md",
+                    identity,
+                    "adapter instruction appendix",
+                )
+            )
         appendix = _decode_utf8(
             appendix_bytes, "adapter instruction appendix", allow_empty=True
+        )
+        provider_source = _read_provider_source(
+            root_fd,
+            adapter_fd,
+            declaration,
+            descriptors,
+            directory_identities,
+            file_identities,
         )
 
         _assert_root_identity(root, root_fd)
@@ -329,9 +435,17 @@ def _render_with_declaration(adapter: str, root: Path):
         _assert_entry_identity(
             adapters_fd, adapter, adapter_fd, "selected adapter directory"
         )
+        for parent, name, descriptor, label in directory_identities:
+            _assert_entry_identity(parent, name, descriptor, label)
         for parent, name, expected, label in file_identities:
             _assert_file_identity(parent, name, expected, label)
-        return "".join(fragments) + appendix, declaration
+        shared_sources = MappingProxyType(
+            {
+                "instructions": "".join(fragments).encode("utf-8"),
+                "appendix": appendix.encode("utf-8"),
+            }
+        )
+        return declaration, shared_sources, provider_source
     except OSError as error:
         raise RenderError("descriptor-confined render failed: {}".format(error)) from error
     finally:
@@ -339,135 +453,88 @@ def _render_with_declaration(adapter: str, root: Path):
             os.close(descriptor)
 
 
-def render_instructions(adapter: str, root: Path) -> str:
-    """Render ordered shared fragments and the selected adapter appendix."""
-    content, _ = _render_with_declaration(adapter, Path(root).resolve())
-    return content
-
-
-def _instruction_filename(adapter: str, declaration) -> str:
-    expected = {"claude": "CLAUDE.md", "codex": "AGENTS.md"}.get(adapter)
-    if expected is None or expected not in declaration.owned_paths:
+def _provider_callable(module_name: str, source: bytes):
+    namespace = {
+        "__name__": module_name,
+        "__package__": module_name.rpartition(".")[0],
+        "__file__": "<kingstack-provider:{}>".format(module_name),
+    }
+    try:
+        code = compile(source, namespace["__file__"], "exec")
+        exec(code, namespace)
+    except Exception as error:
         raise RenderError(
-            "adapter '{}' does not declare an owned instruction file".format(adapter)
+            "render provider '{}' could not be loaded: {}".format(module_name, error)
+        ) from error
+    provider = namespace.get("render")
+    if not callable(provider):
+        raise RenderError(
+            "render provider '{}' must expose callable render".format(module_name)
         )
-    return expected
+    return provider
 
 
-def _confined_output(adapter: str, output: Path, supplied_root: Path, root: Path) -> Path:
-    expected = root / ".staging" / adapter
-    supplied_output = Path(output)
-    if supplied_output.is_absolute():
-        try:
-            relative_output = supplied_output.relative_to(supplied_root)
-        except ValueError as error:
-            raise RenderError("output must be inside the canonical repository") from error
-        candidate = Path(os.path.abspath(str(root / relative_output)))
-    else:
-        candidate = Path(os.path.abspath(str(root / supplied_output)))
-    if candidate != expected:
-        raise RenderError("output must be the adapter staging directory: {}".format(expected))
-    return expected
+def _canonical_output_path(path: object) -> str:
+    if not isinstance(path, str) or not path:
+        raise RenderError("provider output path must be a nonempty string")
+    if any(ord(character) <= 0x1F or ord(character) == 0x7F for character in path):
+        raise RenderError("provider output path must be a canonical relative path")
+    if "\\" in path or path.startswith("/") or "//" in path or path.endswith("/"):
+        raise RenderError("provider output path must be a canonical relative path")
+    normalized = unicodedata.normalize("NFC", path)
+    portable = PurePosixPath(normalized)
+    canonical = portable.as_posix()
+    if ".." in portable.parts or canonical in ("", ".") or canonical != normalized:
+        raise RenderError("provider output path must be a canonical relative path")
+    return canonical
 
 
-def _open_or_create_directory_at(
-    parent: int, name: str, label: str, mode: int = 0o700
-) -> int:
-    created = False
-    try:
-        os.mkdir(name, mode=mode, dir_fd=parent)
-        created = True
-    except FileExistsError:
-        pass
-    try:
-        return _open_directory_at(parent, name, label)
-    except RenderError:
-        if created:
-            try:
-                os.rmdir(name, dir_fd=parent)
-            except OSError:
-                pass
-        raise
-
-
-def write_staged_instructions(adapter: str, output: Path, root: Path) -> Path:
-    """Exclusively write one instruction file below an anchored staging directory."""
-    supplied_root = Path(root)
-    root = supplied_root.resolve()
-    destination = _confined_output(adapter, output, supplied_root, root)
-    content, declaration = _render_with_declaration(adapter, root)
-    filename = _instruction_filename(adapter, declaration)
-    descriptors: List[int] = []
-    output_fd = None
-    output_identity = None
-    created_output = False
-    published = False
-    try:
-        root_fd = _open_root(root)
-        descriptors.append(root_fd)
-        staging_fd = _open_or_create_directory_at(
-            root_fd, ".staging", "staged output root"
-        )
-        descriptors.append(staging_fd)
-        adapter_fd = _open_or_create_directory_at(
-            staging_fd, adapter, "adapter staged output"
-        )
-        descriptors.append(adapter_fd)
-        if os.listdir(adapter_fd):
+def _validate_provider_output(output: object, declaration):
+    if not isinstance(output, Mapping):
+        raise RenderError("render provider must return a mapping of paths to bytes")
+    entries = []
+    seen = set()
+    for raw_path, content in output.items():
+        path = _canonical_output_path(raw_path)
+        portable_key = path.casefold()
+        if portable_key in seen:
+            raise RenderError("render provider returned duplicate output path '{}'".format(path))
+        seen.add(portable_key)
+        if not isinstance(content, bytes):
+            raise RenderError("render provider output '{}' must be bytes".format(path))
+        if not any(path == owned or path.startswith(owned + "/") for owned in declaration.owned_paths):
             raise RenderError(
-                "staged output directory is not empty: {}".format(destination)
+                "render provider output '{}' is not covered by owned_paths".format(path)
             )
-        try:
-            output_fd = os.open(
-                filename,
-                os.O_WRONLY | os.O_CREAT | os.O_EXCL | _NOFOLLOW,
-                0o644,
-                dir_fd=adapter_fd,
-            )
-            created_output = True
-        except FileExistsError as error:
-            raise RenderError(
-                "staged instruction output already exists: {}".format(
-                    destination / filename
-                )
-            ) from error
-        data = content.encode("utf-8")
-        offset = 0
-        while offset < len(data):
-            written = os.write(output_fd, data[offset:])
-            if written <= 0:
-                raise RenderError("staged instruction write made no progress")
-            offset += written
-        os.fsync(output_fd)
-        output_identity = _file_identity(os.fstat(output_fd))
-        os.close(output_fd)
-        output_fd = None
+        entries.append((path, content))
+    if not entries:
+        raise RenderError("render provider returned an empty bundle")
+    return MappingProxyType(OrderedDict(sorted(entries)))
 
-        _assert_root_identity(root, root_fd)
-        _assert_entry_identity(root_fd, ".staging", staging_fd, "staged output root")
-        _assert_entry_identity(
-            staging_fd, adapter, adapter_fd, "adapter staged output"
-        )
-        metadata = os.stat(filename, dir_fd=adapter_fd, follow_symlinks=False)
-        if (
-            not stat.S_ISREG(metadata.st_mode)
-            or _file_identity(metadata) != output_identity
-        ):
-            raise RenderError("staged instruction output changed during render")
-        published = True
-        return destination / filename
+
+def render_bundle(adapter: str, root: Path):
+    """Return an immutable ordered path-to-bytes bundle without filesystem writes."""
+    root = Path(root).resolve()
+    declaration, shared_sources, source = _load_render_context(adapter, root)
+    provider = _provider_callable(declaration.render_module, source)
+    try:
+        output = provider(root, declaration, shared_sources)
     except RenderError:
         raise
-    except OSError as error:
-        raise RenderError("staged render failed: {}".format(error)) from error
-    finally:
-        if output_fd is not None:
-            os.close(output_fd)
-        if created_output and not published and len(descriptors) >= 3:
-            adapter_fd = descriptors[-1]
-            try:
-                os.unlink(filename, dir_fd=adapter_fd)
-            except OSError:
-                pass
-        for descriptor in reversed(descriptors):
-            os.close(descriptor)
+    except Exception as error:
+        raise RenderError(
+            "render provider '{}' failed: {}".format(declaration.render_module, error)
+        ) from error
+    return _validate_provider_output(output, declaration)
+
+
+def render_instructions(adapter: str, root: Path) -> str:
+    """Compatibility helper for single-file instruction adapters."""
+    bundle = render_bundle(adapter, root)
+    if len(bundle) != 1:
+        raise RenderError("instruction renderer requires a single-file bundle")
+    content = next(iter(bundle.values()))
+    try:
+        return content.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise RenderError("rendered instruction file must be valid UTF-8") from error
