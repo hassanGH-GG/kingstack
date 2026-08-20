@@ -83,14 +83,22 @@ class InventoryTest(TestCase):
         """An absolute symlink target would disclose a home path in the report."""
         from kingstack.inventory import capture_baseline
 
-        link = self.home / ".claude" / "skills" / "absolute-target.md"
-        link.symlink_to("/Users/test/private/SKILL.md")
+        targets = {
+            "absolute-target.md": "/Users/test/private/SKILL.md",
+            "unc-target.md": r"\\server\share\secret",
+            "rooted-backslash-target.md": r"\Users\test\private",
+        }
+        for name, target in targets.items():
+            (self.home / ".claude" / "skills" / name).symlink_to(target)
 
         report = capture_baseline(Paths.for_home(self.home))
         records = {record["path"]: record for record in report["claude"]["records"]}
 
-        self.assertEqual(records["skills/absolute-target.md"]["target"], "<redacted>")
-        self.assertNotIn("/Users/test/private", json.dumps(report, sort_keys=True))
+        encoded = json.dumps(report, sort_keys=True)
+        for name, target in targets.items():
+            with self.subTest(target=target):
+                self.assertEqual(records["skills/" + name]["target"], "<redacted>")
+                self.assertNotIn(target, encoded)
 
     def test_capture_redacts_path_shaped_json_key_names(self):
         """A path-shaped JSON key must not reveal a home path as report metadata."""

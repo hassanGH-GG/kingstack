@@ -164,7 +164,7 @@ def _safe_key_part(part: str) -> str:
 
 def _safe_link_target(target: str) -> str:
     """Redact absolute link targets while retaining safe relative link structure."""
-    if target.startswith(("/", "~")) or re.match(r"^[A-Za-z]:[\\/]", target):
+    if target.startswith(("/", "\\", "~")) or re.match(r"^[A-Za-z]:[\\/]", target):
         return "<redacted>"
     return target
 
