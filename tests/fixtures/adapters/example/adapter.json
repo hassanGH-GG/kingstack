@@ -1,0 +1,13 @@
+{
+  "id": "example",
+  "contract_version": 1,
+  "render_module": "sample_agent.render",
+  "native_home": ".example-agent",
+  "owned_paths": ["GUIDANCE.md", "hooks/session-start"],
+  "model_tiers": {
+    "economical": "sample-small",
+    "balanced": "sample-medium",
+    "frontier": "sample-large"
+  },
+  "capability_matrix": "capabilities.json"
+}

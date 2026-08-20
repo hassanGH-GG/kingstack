@@ -4,6 +4,12 @@ import sys
 from pathlib import Path
 from typing import Optional, List
 
+from kingstack.adapter_contract import (
+    AdapterContractError,
+    load_adapter,
+    load_capability_catalog,
+    validate_adapter,
+)
 from kingstack.bootstrap import BootstrapError, bootstrap
 from kingstack.inventory import capture_baseline, write_public_report
 from kingstack.paths import Paths
@@ -28,6 +34,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     bootstrap_command.add_argument("--allow-unpushed", action="store_true")
     bootstrap_command.add_argument("--dry-run", action="store_true")
+    check_command = commands.add_parser("check")
+    check_command.add_argument("--contract", action="store_true")
+    adapter_selector = check_command.add_mutually_exclusive_group(required=True)
+    adapter_selector.add_argument("--adapter")
+    adapter_selector.add_argument("--adapter-path", type=Path)
     arguments = parser.parse_args(argv)
 
     if arguments.command == "inventory":
@@ -49,6 +60,30 @@ def main(argv: Optional[List[str]] = None) -> int:
             print("kingstack bootstrap: " + str(error), file=sys.stderr)
             return 2
         print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
+    if arguments.command == "check":
+        if not arguments.contract:
+            check_command.error("--contract is required")
+        root = Path(__file__).resolve().parents[2]
+        adapter_path = (
+            root / "adapters" / arguments.adapter / "adapter.json"
+            if arguments.adapter is not None
+            else arguments.adapter_path
+        )
+        if adapter_path is not None and not adapter_path.is_absolute():
+            adapter_path = root / adapter_path
+        try:
+            declaration = load_adapter(adapter_path)
+            catalog = load_capability_catalog(root / "core/capabilities/catalog.json")
+            errors = validate_adapter(declaration, catalog)
+        except AdapterContractError as error:
+            print("kingstack check: {}".format(error), file=sys.stderr)
+            return 2
+        if errors:
+            for error in errors:
+                print("kingstack check: {}".format(error), file=sys.stderr)
+            return 2
+        print("{} adapter contract valid".format(declaration.id))
         return 0
     return 1
 

@@ -1,0 +1,32 @@
+{
+  "id": "claude",
+  "contract_version": 1,
+  "render_module": "kingstack.adapters.claude",
+  "native_home": ".claude",
+  "owned_paths": ["CLAUDE.md"],
+  "model_tiers": {
+    "economical": "haiku",
+    "balanced": "sonnet",
+    "frontier": "opus"
+  },
+  "capability_matrix": {
+    "contract_version": 1,
+    "adapter_id": "claude",
+    "capabilities": [
+      {
+        "capability": "global_guidance",
+        "status": "native",
+        "evidence": "Claude Code loads generated global guidance from CLAUDE.md.",
+        "impact": "",
+        "strict_parity": true
+      },
+      {
+        "capability": "before_compaction",
+        "status": "native",
+        "evidence": "Claude Code exposes a PreCompact lifecycle hook.",
+        "impact": "",
+        "strict_parity": true
+      }
+    ]
+  }
+}

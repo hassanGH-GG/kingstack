@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kingstack.dev/schemas/adapter.schema.json",
+  "title": "Kingstack adapter declaration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "contract_version",
+    "render_module",
+    "native_home",
+    "owned_paths",
+    "model_tiers",
+    "capability_matrix"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*$"
+    },
+    "contract_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "render_module": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)+$"
+    },
+    "native_home": {
+      "type": "string",
+      "pattern": "^\\.[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "owned_paths": {
+      "oneOf": [
+        {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        }
+      ]
+    },
+    "model_tiers": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": {"type": "string", "minLength": 1}
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        }
+      ]
+    },
+    "capability_matrix": {
+      "oneOf": [
+        {"type": "object"},
+        {"type": "string", "minLength": 1}
+      ]
+    }
+  }
+}

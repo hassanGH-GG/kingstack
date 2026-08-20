@@ -1,0 +1,20 @@
+{
+  "contract_version": 1,
+  "adapter_id": "example",
+  "capabilities": [
+    {
+      "capability": "before_compaction",
+      "status": "unsupported",
+      "evidence": "The example harness exposes no event before automatic compaction.",
+      "impact": "Strict parity cannot preserve immediate pre-compaction state.",
+      "strict_parity": false
+    },
+    {
+      "capability": "global_guidance",
+      "status": "native",
+      "evidence": "The example harness reads GUIDANCE.md at session start.",
+      "impact": "",
+      "strict_parity": true
+    }
+  ]
+}

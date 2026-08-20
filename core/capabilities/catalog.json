@@ -1,0 +1,19 @@
+{
+  "contract_version": 1,
+  "model_tiers": ["economical", "balanced", "frontier"],
+  "capabilities": [
+    {"id": "global_guidance", "description": "Render and load shared global guidance."},
+    {"id": "skill_catalog", "description": "Register shared and package-managed skills."},
+    {"id": "session_start", "description": "Inject the session-start operating contract."},
+    {"id": "stop_capture", "description": "Capture memory candidates after a turn."},
+    {"id": "before_compaction", "description": "Checkpoint and preserve state before compaction."},
+    {"id": "post_tool_use", "description": "Observe oversized tool results."},
+    {"id": "subagent_start", "description": "Expose subagent model, effort, role, and task."},
+    {"id": "model_routing", "description": "Map portable work tiers to native models."},
+    {"id": "shared_memory", "description": "Read and contribute to curated shared memory."},
+    {"id": "schedules", "description": "Run declared unattended workflows."},
+    {"id": "health", "description": "Report adapter and shared-core health."},
+    {"id": "activation", "description": "Activate a validated immutable adapter release."},
+    {"id": "rollback", "description": "Restore manifest-owned surfaces without native-state loss."}
+  ]
+}

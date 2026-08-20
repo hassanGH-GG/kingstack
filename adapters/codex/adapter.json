@@ -1,0 +1,32 @@
+{
+  "id": "codex",
+  "contract_version": 1,
+  "render_module": "kingstack.adapters.codex",
+  "native_home": ".codex",
+  "owned_paths": ["AGENTS.md"],
+  "model_tiers": {
+    "economical": "gpt-5.6-luna",
+    "balanced": "gpt-5.6-terra",
+    "frontier": "gpt-5.6-sol"
+  },
+  "capability_matrix": {
+    "contract_version": 1,
+    "adapter_id": "codex",
+    "capabilities": [
+      {
+        "capability": "global_guidance",
+        "status": "native",
+        "evidence": "Codex loads generated global guidance from AGENTS.md.",
+        "impact": "",
+        "strict_parity": true
+      },
+      {
+        "capability": "before_compaction",
+        "status": "native",
+        "evidence": "Codex exposes a PreCompact lifecycle hook.",
+        "impact": "",
+        "strict_parity": true
+      }
+    ]
+  }
+}

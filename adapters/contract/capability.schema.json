@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kingstack.dev/schemas/capability.schema.json",
+  "title": "Kingstack adapter capability matrix",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "adapter_id", "capabilities"],
+  "properties": {
+    "contract_version": {"type": "integer", "const": 1},
+    "adapter_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*$"
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "capability",
+          "status",
+          "evidence",
+          "impact",
+          "strict_parity"
+        ],
+        "properties": {
+          "capability": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["native", "emulated", "degraded", "unsupported"]
+          },
+          "evidence": {"type": "string"},
+          "impact": {"type": "string"},
+          "strict_parity": {"type": "boolean"}
+        }
+      }
+    }
+  }
+}
