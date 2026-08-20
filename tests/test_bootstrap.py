@@ -334,6 +334,69 @@ class BootstrapTest(TestCase):
         self.assertEqual(manifest.read_bytes(), b'{"contender": true}\n')
         self.assertEqual([path.name for path in private_dir.iterdir()], ["manifest.json"])
 
+    def test_parent_change_after_manifest_never_returns_failure_with_success_record(self):
+        from kingstack import bootstrap as bootstrap_module
+        from kingstack.bootstrap import BootstrapError
+
+        safe_parent = self.tempdir / "publish-parent"
+        safe_parent.mkdir()
+        original_parent = self.tempdir / "publish-parent-original"
+        replacement_parent = self.tempdir / "publish-parent-replacement"
+        replacement_parent.mkdir()
+        destination = safe_parent / "kingstack"
+        manifest = self.runtime / "bootstrap/manifest.json"
+        original_writer = bootstrap_module._write_private_manifest
+
+        def publish_then_change_parent(path, value):
+            original_writer(path, value)
+            safe_parent.rename(original_parent)
+            safe_parent.symlink_to(replacement_parent, target_is_directory=True)
+
+        failure = None
+        with patch(
+            "kingstack.bootstrap._write_private_manifest",
+            side_effect=publish_then_change_parent,
+        ):
+            try:
+                self._bootstrap(destination=destination)
+            except BootstrapError as error:
+                failure = error
+
+        if failure is not None:
+            self.assertFalse(manifest.exists(), "a failed run left a success manifest")
+            safe_parent.unlink()
+            original_parent.rename(safe_parent)
+            self._bootstrap(destination=destination)
+
+        self.assertTrue(manifest.is_file())
+
+    def test_parent_descriptor_close_error_cannot_turn_committed_success_into_failure(self):
+        from kingstack import bootstrap as bootstrap_module
+
+        manifest = self.runtime / "bootstrap/manifest.json"
+        original_open = bootstrap_module.open_directory_no_symlinks
+        original_close = os.close
+        held_parent = []
+
+        def record_parent(path, *arguments, **keywords):
+            descriptor = original_open(path, *arguments, **keywords)
+            if Path(path) == self.destination.parent:
+                held_parent.append(descriptor)
+            return descriptor
+
+        def close_with_late_error(descriptor):
+            original_close(descriptor)
+            if held_parent and descriptor == held_parent[0] and manifest.exists():
+                raise OSError("injected close error after success publication")
+
+        with patch(
+            "kingstack.bootstrap.open_directory_no_symlinks",
+            side_effect=record_parent,
+        ), patch("kingstack.bootstrap.os.close", side_effect=close_with_late_error):
+            result = self._bootstrap()
+
+        self.assertEqual(json.loads(manifest.read_text(encoding="utf-8")), result)
+
     def test_clone_with_no_source_upstream_has_no_manufactured_upstream_or_refs(self):
         run_git(self.source, "checkout", "-b", "feature/no-upstream")
         self._make_unpushed_commit()

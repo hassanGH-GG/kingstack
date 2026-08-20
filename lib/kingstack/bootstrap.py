@@ -398,8 +398,12 @@ def bootstrap(
 
         _ensure_private_directory(runtime)
         _ensure_private_directory(private_directory)
-        _write_private_manifest(private_manifest, result)
         _assert_directory_identity(destination.parent, parent_fd)
+        _write_private_manifest(private_manifest, result)
         return result
     finally:
-        os.close(parent_fd)
+        try:
+            os.close(parent_fd)
+        except OSError:
+            # Closing the held identity cannot invalidate a published success.
+            pass
