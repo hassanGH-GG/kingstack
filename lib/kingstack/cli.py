@@ -14,6 +14,7 @@ from kingstack.adapter_contract import (
 from kingstack.bootstrap import BootstrapError, bootstrap
 from kingstack.inventory import capture_baseline, write_public_report
 from kingstack.paths import Paths
+from kingstack.render import RenderError, write_staged_instructions
 
 
 def _adapter_id(value: str) -> str:
@@ -66,6 +67,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     adapter_selector = check_command.add_mutually_exclusive_group(required=True)
     adapter_selector.add_argument("--adapter", type=_adapter_id)
     adapter_selector.add_argument("--adapter-path", type=Path)
+    render_command = commands.add_parser("render")
+    render_command.add_argument("--adapter", type=_adapter_id, required=True)
+    render_command.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args(argv)
 
     if arguments.command == "inventory":
@@ -106,6 +110,17 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print("kingstack check: {}".format(error), file=sys.stderr)
             return 2
         print("{} adapter contract valid".format(declaration.id))
+        return 0
+    if arguments.command == "render":
+        root = Path(__file__).resolve().parents[2]
+        try:
+            destination = write_staged_instructions(
+                arguments.adapter, arguments.output, root
+            )
+        except RenderError as error:
+            print("kingstack render: {}".format(error), file=sys.stderr)
+            return 2
+        print(destination)
         return 0
     return 1
 
