@@ -38,6 +38,8 @@ def _immutable(values: Mapping[str, Any]) -> Mapping[str, Any]:
 
 
 def _require_exact_keys(value: Mapping[str, Any], expected, label: str) -> None:
+    if not all(isinstance(key, str) for key in value):
+        raise RoutingError("{} keys must be strings".format(label))
     actual = set(value)
     if actual != set(expected):
         missing = sorted(set(expected) - actual)
@@ -207,6 +209,7 @@ class RoutingTable:
             raise RoutingError("unknown work class '{}'".format(work_class))
         route = self.policy[work_class]
         tier = route["tier"]
+        overrides = _validate_overrides(availability_overrides)
         if tier == "none":
             return _immutable(
                 {
@@ -220,7 +223,6 @@ class RoutingTable:
                 }
             )
 
-        overrides = _validate_overrides(availability_overrides)
         override = overrides.get(tier)
         model = override["model"] if override else self.model_tiers[tier]
         evidence = (

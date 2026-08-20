@@ -179,6 +179,64 @@ class RoutingTest(TestCase):
                 with self.assertRaisesRegex(RoutingError, message):
                     routing_from_documents(policy, models, adapter)
 
+    def test_non_string_unknown_keys_raise_stable_routing_errors(self):
+        """Diagnostic formatting must never leak TypeError for malformed keys."""
+        policy_route = portable_policy()
+        policy_route["precise"][7] = "bad"
+
+        model_top = model_map()
+        model_top[7] = "bad"
+
+        fallback_record = model_map()
+        fallback_record["fallbacks"][0][7] = "bad"
+
+        cases = (
+            (
+                "policy route",
+                lambda: routing_from_documents(
+                    policy_route,
+                    model_map(),
+                    declaration("sample", model_map()["model_tiers"]),
+                ),
+            ),
+            (
+                "model top level",
+                lambda: routing_from_documents(
+                    portable_policy(),
+                    model_top,
+                    declaration("sample", model_top["model_tiers"]),
+                ),
+            ),
+            (
+                "fallback record",
+                lambda: routing_from_documents(
+                    portable_policy(),
+                    fallback_record,
+                    declaration("sample", fallback_record["model_tiers"]),
+                ),
+            ),
+            (
+                "availability override",
+                lambda: resolve(
+                    "codex",
+                    "precise",
+                    root=ROOT,
+                    availability_overrides=(
+                        {
+                            "tier": "balanced",
+                            "model": "private",
+                            "reason": "available",
+                            7: "bad",
+                        },
+                    ),
+                ),
+            ),
+        )
+        for label, operation in cases:
+            with self.subTest(label=label):
+                with self.assertRaisesRegex(RoutingError, "keys must be strings"):
+                    operation()
+
     def test_model_map_must_exactly_match_declaration_and_known_tiers(self):
         """A missing, extra, malformed, or declaration-divergent tier must fail."""
         cases = []
@@ -255,6 +313,31 @@ class RoutingTest(TestCase):
                     resolve(
                         "claude",
                         "judgment",
+                        root=ROOT,
+                        availability_overrides=overrides,
+                    )
+
+    def test_waiting_validates_malformed_and_ambiguous_availability_overrides(self):
+        """The no-model branch must not bypass caller-supplied validation."""
+        cases = (
+            (
+                ({"tier": "frontier", "model": "bad model", "reason": "bad"},),
+                "model ID",
+            ),
+            (
+                (
+                    {"tier": "frontier", "model": "one", "reason": "available"},
+                    {"tier": "frontier", "model": "two", "reason": "also available"},
+                ),
+                "ambiguous",
+            ),
+        )
+        for overrides, message in cases:
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(RoutingError, message):
+                    resolve(
+                        "codex",
+                        "waiting",
                         root=ROOT,
                         availability_overrides=overrides,
                     )

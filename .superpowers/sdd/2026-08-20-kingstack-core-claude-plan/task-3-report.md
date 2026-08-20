@@ -339,3 +339,193 @@ native/live type-link proof: clean
 
 No path under `~/.claude`, `~/.codex`, or `~/.kingstack` was created,
 rewritten, renamed, linked, activated, or removed. Nothing was pushed.
+
+## Independent review fix round 1 (2026-08-20)
+
+Base: `8ce2975`
+
+The review reproduced two validation-boundary failures: non-string unknown
+keys could escape as diagnostic-formatting `TypeError`, and the waiting branch
+returned before validating caller-supplied availability overrides. The fix
+validates key types before formatting and validates overrides before the
+no-model early return. Valid routing decisions and rendered bytes are unchanged.
+
+### RED
+
+Command:
+
+```text
+PYTHONPATH=lib python3 -m unittest tests.test_routing -v
+```
+
+Unabridged output before the production fix:
+
+```text
+test_availability_overrides_reject_ambiguous_and_malformed_records (tests.test_routing.RoutingTest)
+Two private choices for a tier or malformed values must fail. ... ok
+test_checked_in_policy_is_exactly_portable (tests.test_routing.RoutingTest)
+A vendor token or extra policy field must make this contract fail. ... ok
+test_fallback_graph_rejects_duplicates_ambiguity_nonadjacency_and_cycles (tests.test_routing.RoutingTest)
+Any graph that permits zero, two, or cyclic fallback choices must fail. ... ok
+test_fallback_is_one_adjacent_step_with_a_stable_reason (tests.test_routing.RoutingTest)
+Skipping a tier, using a vendor-global override, or varying output must fail. ... ok
+test_model_map_must_exactly_match_declaration_and_known_tiers (tests.test_routing.RoutingTest)
+A missing, extra, malformed, or declaration-divergent tier must fail. ... ok
+test_non_string_unknown_keys_raise_stable_routing_errors (tests.test_routing.RoutingTest)
+Diagnostic formatting must never leak TypeError for malformed keys. ... test_policy_rejects_unknown_keys_types_and_nonportable_values (tests.test_routing.RoutingTest)
+Schema drift or model syntax in shared policy must fail at compile time. ... ok
+test_private_availability_override_is_injected_and_tier_scoped (tests.test_routing.RoutingTest)
+Ignoring or leaking a runtime-only alternate model must fail. ... ok
+test_resolve_maps_both_adapters_and_returns_explainable_immutable_data (tests.test_routing.RoutingTest)
+A wrong model, effort, tier, class, or missing evidence must fail. ... ok
+test_unknown_work_class_and_tier_fail_visibly (tests.test_routing.RoutingTest)
+Silently defaulting an unknown selector must fail. ... ok
+test_waiting_validates_malformed_and_ambiguous_availability_overrides (tests.test_routing.RoutingTest)
+The no-model branch must not bypass caller-supplied validation. ...
+
+======================================================================
+ERROR: test_non_string_unknown_keys_raise_stable_routing_errors (tests.test_routing.RoutingTest) (label='policy route')
+Diagnostic formatting must never leak TypeError for malformed keys.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/mac/Desktop/Work/kingstack/tests/test_routing.py", line 238, in test_non_string_unknown_keys_raise_stable_routing_errors
+    operation()
+  File "/Users/mac/Desktop/Work/kingstack/tests/test_routing.py", line 196, in <lambda>
+    lambda: routing_from_documents(
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 287, in routing_from_documents
+    policy = _validate_policy(policy_document)
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 64, in _validate_policy
+    _require_exact_keys(route, {"tier", "effort"}, "policy work class '{}'".format(work_class))
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 49, in _require_exact_keys
+    details.append("unknown keys {}".format(", ".join(extra)))
+TypeError: sequence item 0: expected str instance, int found
+
+======================================================================
+ERROR: test_non_string_unknown_keys_raise_stable_routing_errors (tests.test_routing.RoutingTest) (label='model top level')
+Diagnostic formatting must never leak TypeError for malformed keys.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/mac/Desktop/Work/kingstack/tests/test_routing.py", line 238, in test_non_string_unknown_keys_raise_stable_routing_errors
+    operation()
+  File "/Users/mac/Desktop/Work/kingstack/tests/test_routing.py", line 204, in <lambda>
+    lambda: routing_from_documents(
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 288, in routing_from_documents
+    model_tiers, fallbacks = _validate_model_map(model_document, declaration)
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 95, in _validate_model_map
+    _require_exact_keys(document, MODEL_MAP_KEYS, "adapter model map")
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 49, in _require_exact_keys
+    details.append("unknown keys {}".format(", ".join(extra)))
+TypeError: sequence item 0: expected str instance, int found
+
+======================================================================
+ERROR: test_non_string_unknown_keys_raise_stable_routing_errors (tests.test_routing.RoutingTest) (label='fallback record')
+Diagnostic formatting must never leak TypeError for malformed keys.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/mac/Desktop/Work/kingstack/tests/test_routing.py", line 238, in test_non_string_unknown_keys_raise_stable_routing_errors
+    operation()
+  File "/Users/mac/Desktop/Work/kingstack/tests/test_routing.py", line 212, in <lambda>
+    lambda: routing_from_documents(
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 288, in routing_from_documents
+    model_tiers, fallbacks = _validate_model_map(model_document, declaration)
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 126, in _validate_model_map
+    _require_exact_keys(record, FALLBACK_KEYS, label)
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 49, in _require_exact_keys
+    details.append("unknown keys {}".format(", ".join(extra)))
+TypeError: sequence item 0: expected str instance, int found
+
+======================================================================
+ERROR: test_non_string_unknown_keys_raise_stable_routing_errors (tests.test_routing.RoutingTest) (label='availability override')
+Diagnostic formatting must never leak TypeError for malformed keys.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/mac/Desktop/Work/kingstack/tests/test_routing.py", line 238, in test_non_string_unknown_keys_raise_stable_routing_errors
+    operation()
+  File "/Users/mac/Desktop/Work/kingstack/tests/test_routing.py", line 220, in <lambda>
+    lambda: resolve(
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 329, in resolve
+    return load_routing(adapter, root).resolve(work_class, availability_overrides)
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 223, in resolve
+    overrides = _validate_overrides(availability_overrides)
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 173, in _validate_overrides
+    _require_exact_keys(record, OVERRIDE_KEYS, label)
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 49, in _require_exact_keys
+    details.append("unknown keys {}".format(", ".join(extra)))
+TypeError: sequence item 0: expected str instance, int found
+
+======================================================================
+FAIL: test_waiting_validates_malformed_and_ambiguous_availability_overrides (tests.test_routing.RoutingTest) (message='model ID')
+The no-model branch must not bypass caller-supplied validation.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/mac/Desktop/Work/kingstack/tests/test_routing.py", line 338, in test_waiting_validates_malformed_and_ambiguous_availability_overrides
+    resolve(
+AssertionError: RoutingError not raised
+
+======================================================================
+FAIL: test_waiting_validates_malformed_and_ambiguous_availability_overrides (tests.test_routing.RoutingTest) (message='ambiguous')
+The no-model branch must not bypass caller-supplied validation.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/mac/Desktop/Work/kingstack/tests/test_routing.py", line 338, in test_waiting_validates_malformed_and_ambiguous_availability_overrides
+    resolve(
+AssertionError: RoutingError not raised
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.035s
+
+FAILED (failures=2, errors=4)
+```
+
+### GREEN
+
+Command:
+
+```text
+PYTHONPATH=lib python3 -m unittest tests.test_routing -v
+```
+
+Unabridged output after the minimal production fix:
+
+```text
+test_availability_overrides_reject_ambiguous_and_malformed_records (tests.test_routing.RoutingTest)
+Two private choices for a tier or malformed values must fail. ... ok
+test_checked_in_policy_is_exactly_portable (tests.test_routing.RoutingTest)
+A vendor token or extra policy field must make this contract fail. ... ok
+test_fallback_graph_rejects_duplicates_ambiguity_nonadjacency_and_cycles (tests.test_routing.RoutingTest)
+Any graph that permits zero, two, or cyclic fallback choices must fail. ... ok
+test_fallback_is_one_adjacent_step_with_a_stable_reason (tests.test_routing.RoutingTest)
+Skipping a tier, using a vendor-global override, or varying output must fail. ... ok
+test_model_map_must_exactly_match_declaration_and_known_tiers (tests.test_routing.RoutingTest)
+A missing, extra, malformed, or declaration-divergent tier must fail. ... ok
+test_non_string_unknown_keys_raise_stable_routing_errors (tests.test_routing.RoutingTest)
+Diagnostic formatting must never leak TypeError for malformed keys. ... ok
+test_policy_rejects_unknown_keys_types_and_nonportable_values (tests.test_routing.RoutingTest)
+Schema drift or model syntax in shared policy must fail at compile time. ... ok
+test_private_availability_override_is_injected_and_tier_scoped (tests.test_routing.RoutingTest)
+Ignoring or leaking a runtime-only alternate model must fail. ... ok
+test_resolve_maps_both_adapters_and_returns_explainable_immutable_data (tests.test_routing.RoutingTest)
+A wrong model, effort, tier, class, or missing evidence must fail. ... ok
+test_unknown_work_class_and_tier_fail_visibly (tests.test_routing.RoutingTest)
+Silently defaulting an unknown selector must fail. ... ok
+test_waiting_validates_malformed_and_ambiguous_availability_overrides (tests.test_routing.RoutingTest)
+The no-model branch must not bypass caller-supplied validation. ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.017s
+
+OK
+```
+
+### Fix-round verification
+
+- Focused routing + contract + render: 53/53 passed.
+- Full suite: 84/84 passed.
+- `py_compile`, five Task 3 JSON parses, `git diff --check`, both foreign-name
+  scans, three contract CLI selectors, and both pure render manifests passed.
+- Claude and Codex manifest hashes remained
+  `0792f1a7fd19f92db0d04a27ca47927bc37114ca8ab07a11e9b00c01b8d01107`
+  and `4bb4d923aa0fed97867a5020c2072776787c05cc0521bee23eac5872cfa010df`.
+- Live Claude guidance/settings and Codex config hashes remained unchanged;
+  both native homes remained real directories and both adapter `current` links
+  remained absent. No live path was changed and nothing was pushed.
