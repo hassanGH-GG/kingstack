@@ -3,7 +3,7 @@
   "contract_version": 1,
   "render_module": "kingstack.adapters.codex",
   "native_home": ".codex",
-  "owned_paths": ["AGENTS.md"],
+  "owned_paths": ["AGENTS.md", "skills"],
   "model_tiers": "models.json",
   "capability_matrix": {
     "contract_version": 1,

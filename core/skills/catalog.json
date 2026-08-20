@@ -1,0 +1,715 @@
+{
+  "schema_version": 1,
+  "upstreams": {
+    "pstack": {
+      "revision": "63d938c",
+      "source": "pstack"
+    }
+  },
+  "entries": [
+    {
+      "name": "agents-sdk",
+      "owner": "plugin-manager",
+      "source": "plugin:cloudflare/agents-sdk",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "architect",
+      "owner": "pstack",
+      "source": "pstack/skills/architect",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "arena",
+      "owner": "pstack",
+      "source": "pstack/skills/arena",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "automate-me",
+      "owner": "pstack",
+      "source": "pstack/skills/automate-me",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "blast-radius",
+      "owner": "pstack",
+      "source": "pstack/skills/blast-radius",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "bro",
+      "owner": "pstack",
+      "source": "pstack/skills/bro",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "cli-for-agents",
+      "owner": "adopted",
+      "source": "cli-for-agent/skills/cli-for-agents",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "cloudflare",
+      "owner": "plugin-manager",
+      "source": "plugin:cloudflare/cloudflare",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "cloudflare-email-service",
+      "owner": "plugin-manager",
+      "source": "plugin:cloudflare/cloudflare-email-service",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "cloudflare-one",
+      "owner": "plugin-manager",
+      "source": "plugin:cloudflare/cloudflare-one",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "cloudflare-one-migrations",
+      "owner": "plugin-manager",
+      "source": "plugin:cloudflare/cloudflare-one-migrations",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "control-cli",
+      "owner": "adopted",
+      "source": "cursor-team-kit/skills/control-cli",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "control-ui",
+      "owner": "adopted",
+      "source": "cursor-team-kit/skills/control-ui",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "create-verification-skill",
+      "owner": "pstack",
+      "source": "pstack/skills/create-verification-skill",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "deslop",
+      "owner": "adopted",
+      "source": "cursor-team-kit/skills/deslop",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "durable-objects",
+      "owner": "plugin-manager",
+      "source": "plugin:cloudflare/durable-objects",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "figure-it-out",
+      "owner": "pstack",
+      "source": "pstack/skills/figure-it-out",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "how",
+      "owner": "pstack",
+      "source": "pstack/skills/how",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "interrogate",
+      "owner": "pstack",
+      "source": "pstack/skills/interrogate",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "king-mode",
+      "owner": "kingstack",
+      "source": "core/skills/authored/king-mode",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [
+        "poteto-mode"
+      ],
+      "transform": "authored-host"
+    },
+    {
+      "name": "maintain-verification-skill",
+      "owner": "pstack",
+      "source": "pstack/skills/maintain-verification-skill",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "make-pr-easy-to-review",
+      "owner": "adopted",
+      "source": "cursor-team-kit/skills/make-pr-easy-to-review",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "memory-review",
+      "owner": "kingstack",
+      "source": "core/skills/authored/memory-review",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "authored-host"
+    },
+    {
+      "name": "no-comments",
+      "owner": "pstack",
+      "source": "pstack/skills/no-comments",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "poteto-mode",
+      "owner": "pstack",
+      "source": "pstack/skills/poteto-mode",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "principle-boundary-discipline",
+      "owner": "pstack",
+      "source": "pstack/skills/principle-boundary-discipline",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "principle-build-the-lever",
+      "owner": "pstack",
+      "source": "pstack/skills/principle-build-the-lever",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "principle-encode-lessons-in-structure",
+      "owner": "pstack",
+      "source": "pstack/skills/principle-encode-lessons-in-structure",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "principle-exhaust-the-design-space",
+      "owner": "pstack",
+      "source": "pstack/skills/principle-exhaust-the-design-space",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "principle-experience-first",
+      "owner": "pstack",
+      "source": "pstack/skills/principle-experience-first",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "principle-fix-root-causes",
+      "owner": "pstack",
+      "source": "pstack/skills/principle-fix-root-causes",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "principle-foundational-thinking",
+      "owner": "pstack",
+      "source": "pstack/skills/principle-foundational-thinking",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "principle-guard-the-context-window",
+      "owner": "pstack",
+      "source": "pstack/skills/principle-guard-the-context-window",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "principle-laziness-protocol",
+      "owner": "pstack",
+      "source": "pstack/skills/principle-laziness-protocol",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "principle-make-operations-idempotent",
+      "owner": "pstack",
+      "source": "pstack/skills/principle-make-operations-idempotent",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "principle-migrate-callers-then-delete-legacy-apis",
+      "owner": "pstack",
+      "source": "pstack/skills/principle-migrate-callers-then-delete-legacy-apis",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "principle-minimize-reader-load",
+      "owner": "pstack",
+      "source": "pstack/skills/principle-minimize-reader-load",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "principle-model-the-domain",
+      "owner": "pstack",
+      "source": "pstack/skills/principle-model-the-domain",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "principle-never-block-on-the-human",
+      "owner": "pstack",
+      "source": "pstack/skills/principle-never-block-on-the-human",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "principle-outcome-oriented-execution",
+      "owner": "pstack",
+      "source": "pstack/skills/principle-outcome-oriented-execution",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "principle-prove-it-works",
+      "owner": "pstack",
+      "source": "pstack/skills/principle-prove-it-works",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "principle-redesign-from-first-principles",
+      "owner": "pstack",
+      "source": "pstack/skills/principle-redesign-from-first-principles",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "principle-separate-before-serializing-shared-state",
+      "owner": "pstack",
+      "source": "pstack/skills/principle-separate-before-serializing-shared-state",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "principle-sequence-verifiable-units",
+      "owner": "pstack",
+      "source": "pstack/skills/principle-sequence-verifiable-units",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "principle-subtract-before-you-add",
+      "owner": "pstack",
+      "source": "pstack/skills/principle-subtract-before-you-add",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "principle-type-system-discipline",
+      "owner": "pstack",
+      "source": "pstack/skills/principle-type-system-discipline",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "recall",
+      "owner": "pstack",
+      "source": "pstack/skills/recall",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "reflect",
+      "owner": "pstack",
+      "source": "pstack/skills/reflect",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "sandbox-sdk",
+      "owner": "plugin-manager",
+      "source": "plugin:cloudflare/sandbox-sdk",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "service-migration-handover",
+      "owner": "plugin-manager",
+      "source": "plugin:cloudflare/service-migration-handover",
+      "targets": [
+        "claude"
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "show-me-your-work",
+      "owner": "pstack",
+      "source": "pstack/skills/show-me-your-work",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "swarm",
+      "owner": "pstack",
+      "source": "pstack/skills/swarm",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "tdd",
+      "owner": "pstack",
+      "source": "pstack/skills/tdd",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "teach",
+      "owner": "pstack",
+      "source": "pstack/skills/teach",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "technical-writing",
+      "owner": "pstack",
+      "source": "pstack/skills/technical-writing",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "thermo-nuclear-code-quality-review",
+      "owner": "adopted",
+      "source": "thermos/skills/thermo-nuclear-code-quality-review",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "thermo-nuclear-review",
+      "owner": "adopted",
+      "source": "thermos/skills/thermo-nuclear-review",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "turnstile-spin",
+      "owner": "plugin-manager",
+      "source": "plugin:cloudflare/turnstile-spin",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "typescript-best-practices",
+      "owner": "pstack",
+      "source": "pstack/skills/typescript-best-practices",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "unslop",
+      "owner": "pstack",
+      "source": "pstack/skills/unslop",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "verify-this",
+      "owner": "adopted",
+      "source": "cursor-team-kit/skills/verify-this",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "web-perf",
+      "owner": "plugin-manager",
+      "source": "plugin:cloudflare/web-perf",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "why",
+      "owner": "pstack",
+      "source": "pstack/skills/why",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": [],
+      "transform": "cursor-host"
+    },
+    {
+      "name": "workers-best-practices",
+      "owner": "plugin-manager",
+      "source": "plugin:cloudflare/workers-best-practices",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "wrangler",
+      "owner": "plugin-manager",
+      "source": "plugin:cloudflare/wrangler",
+      "targets": [
+        "claude",
+        "codex"
+      ],
+      "dependencies": []
+    }
+  ]
+}

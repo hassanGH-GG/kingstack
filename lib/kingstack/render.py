@@ -524,9 +524,14 @@ def render_bundle(adapter: str, root: Path):
 def render_instructions(adapter: str, root: Path) -> str:
     """Compatibility helper for single-file instruction adapters."""
     bundle = render_bundle(adapter, root)
-    if len(bundle) != 1:
-        raise RenderError("instruction renderer requires a single-file bundle")
-    content = next(iter(bundle.values()))
+    candidates = [
+        content
+        for path, content in bundle.items()
+        if "/" not in path and path.endswith(".md")
+    ]
+    if len(candidates) != 1:
+        raise RenderError("instruction renderer requires one root guidance file")
+    content = candidates[0]
     try:
         return content.decode("utf-8")
     except UnicodeDecodeError as error:

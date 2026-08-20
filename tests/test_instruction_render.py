@@ -321,14 +321,16 @@ class InstructionRenderTest(TestCase):
         document = json.loads(manifest.stdout)
         self.assertEqual(document["schema_version"], 1)
         self.assertEqual(document["adapter"], "claude")
+        self.assertEqual(len(document["skills"]), 65)
         self.assertEqual(
             document["files"],
             [
                 {
-                    "path": "CLAUDE.md",
-                    "size": len(bundle["CLAUDE.md"]),
-                    "sha256": hashlib.sha256(bundle["CLAUDE.md"]).hexdigest(),
+                    "path": path,
+                    "size": len(content),
+                    "sha256": hashlib.sha256(content).hexdigest(),
                 }
+                for path, content in bundle.items()
             ],
         )
         self.assertEqual(printed.returncode, 0, printed.stderr.decode())

@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "adapter": "codex",
+  "transforms": {
+    "cursor-host": {
+      "text_extensions": [
+        ".md",
+        ".ts",
+        ".sh",
+        ".json"
+      ],
+      "replacements": [
+        {
+          "pattern": "(?m)^disable-model-invocation: true\\n",
+          "replacement": "",
+          "kind": "frontmatter"
+        },
+      {
+        "pattern": "(?m)^is_background: true\\n",
+        "replacement": "",
+        "kind": "frontmatter"
+      },
+      {
+        "pattern": "Frontmatter `disable-model-invocation: true` by default\\. Mode skills are heavy and opinionated; they should only apply when the user explicitly invokes them \\(by name or slash command\\), not auto-trigger on description matching\\. Opt out only if the user explicitly wants their mode to apply on every turn\\.",
+        "replacement": "Mode skills are heavy and opinionated; write the frontmatter description so they only apply when the user explicitly invokes them (by name or slash command), not on loose description matching. Opt out only if the user explicitly wants their mode to apply on every turn.",
+        "kind": "frontmatter"
+      },
+        {
+          "pattern": "claude-fable-5-thinking-max",
+          "replacement": "gpt-5.6-sol",
+          "kind": "model"
+        },
+        {
+          "pattern": "grok-4\\.\\d+-fast-xhigh",
+          "replacement": "gpt-5.6-luna",
+          "kind": "model"
+        },
+        {
+          "pattern": "gpt-5\\.\\d+-sol-max",
+          "replacement": "gpt-5.6-sol",
+          "kind": "model"
+        },
+        {
+          "pattern": "claude-opus-5-thinking-xhigh",
+          "replacement": "gpt-5.6-sol",
+          "kind": "model"
+        },
+        {
+          "pattern": "\\b(fable|haiku|sonnet|opus)\\b",
+          "replacement": "gpt-5.6-terra",
+          "kind": "model"
+        },
+        {
+          "pattern": "generalPurpose",
+          "replacement": "general-purpose",
+          "kind": "tool"
+        },
+        {
+          "pattern": "AskUserQuestion",
+          "replacement": "request_user_input",
+          "kind": "tool"
+        },
+        {
+          "pattern": "~/\\.cursor/rules/pstack-models\\.mdc",
+          "replacement": "~/.codex/model-routing.md",
+          "kind": "path"
+        },
+        {
+          "pattern": "\\$HOME/\\.cursor/projects/\\$slug/agent-transcripts",
+          "replacement": "$HOME/.codex/sessions",
+          "kind": "path"
+        },
+        {
+          "pattern": "\\.cursor",
+          "replacement": ".codex",
+          "kind": "path"
+        },
+        {
+          "pattern": "\\bCursor\\b",
+          "replacement": "Codex",
+          "kind": "host"
+        },
+        {
+          "pattern": "\\bClaude Code\\b",
+          "replacement": "Codex",
+          "kind": "host"
+        },
+        {
+          "pattern": "\\bClaude\\b",
+          "replacement": "Codex",
+          "kind": "host"
+        },
+        {
+          "pattern": "CLAUDE\\.md",
+          "replacement": "AGENTS.md",
+          "kind": "path"
+        },
+        {
+          "pattern": "/tmp/verify-this/",
+          "replacement": "$TMPDIR/verify-this/",
+          "kind": "path"
+        }
+      ],
+      "forbidden": [
+        "disable-model-invocation: true",
+        "is_background: true",
+        "generalPurpose",
+        "\\.cursor",
+        "\\bCursor\\b",
+        "\\.claude",
+        "\\bClaude\\b",
+        "CLAUDE\\.md",
+        "\\b(fable|haiku|sonnet|opus)\\b"
+      ]
+    },
+    "authored-host": {
+      "text_extensions": [
+        ".md",
+        ".ts",
+        ".sh",
+        ".json"
+      ],
+      "replacements": [
+        {
+          "pattern": "AskUserQuestion",
+          "replacement": "request_user_input",
+          "kind": "tool"
+        },
+        {
+          "pattern": "\\.claude",
+          "replacement": ".codex",
+          "kind": "path"
+        },
+        {
+          "pattern": "CLAUDE\\.md",
+          "replacement": "AGENTS.md",
+          "kind": "path"
+        },
+        {
+          "pattern": "\\bClaude Code\\b",
+          "replacement": "Codex",
+          "kind": "host"
+        },
+        {
+          "pattern": "\\bClaude\\b",
+          "replacement": "Codex",
+          "kind": "host"
+        },
+        {
+          "pattern": "\\b(fable|haiku|sonnet|opus)\\b",
+          "replacement": "gpt-5.6-terra",
+          "kind": "model"
+        }
+      ],
+      "forbidden": [
+        "\\.claude",
+        "\\bClaude\\b",
+        "CLAUDE\\.md",
+        "\\b(fable|haiku|sonnet|opus)\\b"
+      ]
+    }
+  }
+}

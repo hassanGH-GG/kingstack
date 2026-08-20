@@ -1,4 +1,5 @@
 import argparse
+from collections.abc import Mapping
 import hashlib
 import json
 import sys
@@ -16,6 +17,21 @@ from kingstack.bootstrap import BootstrapError, bootstrap
 from kingstack.inventory import capture_baseline, write_public_report
 from kingstack.paths import Paths
 from kingstack.render import RenderError, render_bundle
+from kingstack.skills import (
+    SkillCatalogError,
+    bundle_manifest,
+    check_clobber_manifest,
+    check_upstream,
+    semantic_parity_errors,
+)
+
+
+def _plain(value):
+    if isinstance(value, Mapping):
+        return {key: _plain(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_plain(item) for item in value]
+    return value
 
 
 def _adapter_id(value: str) -> str:
@@ -75,6 +91,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     render_selector.add_argument("--print-file")
     render_selector.add_argument("--check-file")
     render_command.add_argument("--equals", type=Path)
+    sync_command = commands.add_parser("sync-upstream")
+    sync_command.add_argument("upstream", choices=("pstack",))
+    sync_mode = sync_command.add_mutually_exclusive_group(required=True)
+    sync_mode.add_argument("--bundle-manifest", action="store_true")
+    sync_mode.add_argument("--check", action="store_true")
+    sync_command.add_argument("--adapter", type=_adapter_id)
+    sync_command.add_argument("--upstream-root", type=Path)
+    sync_command.add_argument("--installed-root", type=Path)
+    sync_command.add_argument("--installed-manifest", type=Path)
     arguments = parser.parse_args(argv)
 
     if arguments.command == "render":
@@ -82,6 +107,13 @@ def main(argv: Optional[List[str]] = None) -> int:
             render_command.error("--check-file requires --equals FILE")
         if arguments.check_file is None and arguments.equals is not None:
             render_command.error("--equals is valid only with --check-file")
+    if arguments.command == "sync-upstream":
+        if arguments.bundle_manifest and arguments.adapter is None:
+            sync_command.error("--bundle-manifest requires --adapter")
+        if (arguments.installed_root is None) != (arguments.installed_manifest is None):
+            sync_command.error("--installed-root and --installed-manifest are required together")
+        if arguments.installed_root is not None and arguments.adapter is None:
+            sync_command.error("installed clobber checking requires --adapter")
 
     if arguments.command == "inventory":
         write_public_report(
@@ -126,6 +158,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         root = Path(__file__).resolve().parents[2]
         try:
             bundle = render_bundle(arguments.adapter, root)
+            skill_document = bundle_manifest(arguments.adapter, root)
             selected_path = arguments.print_file or arguments.check_file
             if selected_path is not None and selected_path not in bundle:
                 raise RenderError(
@@ -135,6 +168,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                 document = {
                     "schema_version": 1,
                     "adapter": arguments.adapter,
+                    "upstreams": _plain(skill_document["upstreams"]),
+                    "skills": _plain(skill_document["skills"]),
                     "files": [
                         {
                             "path": path,
@@ -156,8 +191,40 @@ def main(argv: Optional[List[str]] = None) -> int:
                     "cannot read comparison file '{}': {}".format(arguments.equals, error)
                 ) from error
             return 0 if bundle[arguments.check_file] == expected else 1
-        except (RenderError, AdapterContractError) as error:
+        except (RenderError, AdapterContractError, SkillCatalogError) as error:
             print("kingstack render: {}".format(error), file=sys.stderr)
+            return 2
+    if arguments.command == "sync-upstream":
+        root = Path(__file__).resolve().parents[2]
+        upstream_root = arguments.upstream_root or root.parent / "plugins"
+        try:
+            if arguments.bundle_manifest:
+                print(json.dumps(_plain(bundle_manifest(arguments.adapter, root, upstream_root)), indent=2, sort_keys=True))
+                return 0
+            upstream_report = check_upstream(arguments.upstream, root, upstream_root)
+            semantic_errors = {
+                adapter: semantic_parity_errors(adapter, root, upstream_root)
+                for adapter in ("claude", "codex")
+            }
+            failures = [
+                "{}: {}".format(adapter, error)
+                for adapter, errors in semantic_errors.items()
+                for error in errors
+            ]
+            if failures:
+                raise SkillCatalogError("; ".join(failures))
+            if arguments.installed_root is not None:
+                check_clobber_manifest(
+                    arguments.adapter,
+                    root,
+                    arguments.installed_root,
+                    arguments.installed_manifest.read_bytes(),
+                    upstream_root=upstream_root,
+                )
+            print(json.dumps(_plain({"schema_version": 1, "upstream": upstream_report, "semantics": semantic_errors}), indent=2, sort_keys=True))
+            return 0
+        except (OSError, SkillCatalogError) as error:
+            print("kingstack sync-upstream: {}".format(error), file=sys.stderr)
             return 2
     return 1
 

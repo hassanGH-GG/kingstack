@@ -3,7 +3,7 @@
   "contract_version": 1,
   "render_module": "kingstack.adapters.claude",
   "native_home": ".claude",
-  "owned_paths": ["CLAUDE.md"],
+  "owned_paths": ["CLAUDE.md", "skills"],
   "model_tiers": "models.json",
   "capability_matrix": {
     "contract_version": 1,
