@@ -1,7 +1,7 @@
 # Agent-neutral kingstack design
 
 Date: 2026-08-20
-Status: Approved revised architecture
+Status: Approved non-destructive ownership architecture
 Owner: Hassan Ghandour
 
 ## Summary
@@ -10,7 +10,9 @@ Kingstack will become Hassan's agent-neutral control plane. Its canonical Git
 checkout will move from `~/.claude` to `~/Desktop/Work/kingstack`. Agent
 harnesses consume native, versioned adapters generated from one shared source;
 no agent's home directory, syntax, model catalog, or memory format defines the
-core.
+core. Kingstack does not implement a backup filesystem: safety comes from
+leaving native homes intact and transferring only explicitly owned paths by
+atomic, reversible renames.
 
 The migration is an expansion, not a replacement:
 
@@ -29,7 +31,7 @@ local, cloud, editor, CLI, or chat agents join by implementing the adapter
 contract and capability tests. No live profile is deleted or overwritten during
 migration. Claude Code remains operational until the initial adapters pass
 parity tests, and every original kingstack-owned path stays available as a dated
-rollback backup until Hassan explicitly approves its removal.
+rollback original until Hassan explicitly approves its removal.
 
 ## Goals
 
@@ -126,7 +128,7 @@ Shared private state will live outside the public repository:
 │   ├── claude/releases/
 │   ├── codex/releases/
 │   └── manifests/
-├── backups/
+├── disabled/
 ├── checkpoints/
 ├── ledgers/
 ├── manifests/
@@ -143,25 +145,25 @@ Each release is immutable and named by its source hash. A per-agent `current`
 link selects the active verified release; publishing a new release changes that
 single link only after generation and validation finish.
 
-### Snapshot boundary
+### Preservation boundary
 
-Snapshot capture is deliberately smaller than adapter rollback. It records a
-read-only inventory and private archive of the authored configuration selected
-by an allowlist. Capture compares source identity and content before and after;
-if the source changed, the attempt is rejected and retried rather than declared
-lossless. A completed archive is verified, permission-checked, and then
-published immutably.
+Kingstack captures a deterministic, read-only inventory of authored
+configuration but does not copy or restore a native home. Independent review
+showed that a custom recursive archive engine would recreate filesystem backup
+semantics, including namespace-rebind, cleanup, and descriptor-lifetime risks
+that do not belong in this product.
 
-There is no production snapshot `apply` operation. The experimental
-file-by-file restore transaction built during foundation is removed before
-foundation acceptance because independent review found irreducible late-rename
-windows and unbounded descriptor retention. Existing verified snapshot
-directories remain preserved as evidence and additional recovery inputs, but
-they are not the sole rollback mechanism.
+Losslessness instead follows three rules. Native `~/.claude` and `~/.codex`
+directories remain in place. The canonical repository is created with Git's
+own clone machinery and verified against the source history. Immediately before
+activation, every pre-existing manifest-owned path is atomically renamed beside
+itself to a unique dated original before its wrapper or link is installed.
+Nothing recursively copies, deletes, or restores those originals.
 
-Normal rollback uses the dated originals of manifest-owned paths. Disaster
-recovery materializes an archive beside, never into, a live agent home and
-requires a separate verification and human-approved whole-directory decision.
+The rejected private snapshots and capture archives created during development
+remain untouched as historical evidence, but no production command creates,
+applies, verifies, or depends on them. Whole-home disaster recovery belongs to
+the user's normal machine-backup system and is outside kingstack.
 
 ## Shared core
 
@@ -375,7 +377,7 @@ capability matrix, and every native path kingstack owns. Installation follows:
 3. compare its ownership manifest against the live agent home
 4. refuse unknown, modified, mixed-ownership, or agent-native paths
 5. atomically preserve each pre-existing kingstack-owned path by renaming it
-   into a dated private backup
+   to a unique dated sibling recorded in the activation manifest
 6. install only the reviewed wrapper or symbolic link for that owned path
 7. atomically select the verified release through the adapter's `current` link
 8. run native and shared health checks in fresh sessions
@@ -389,7 +391,7 @@ ownership.
 The installer has per-adapter and `--all` modes plus `--dry-run`. It never
 removes an unknown file and never performs a general file-by-file restore into a
 live home. Forced replacement requires an explicit flag, an ownership match,
-and a successfully verified dated backup.
+and a successfully verified dated original.
 
 ## Migration sequence
 
@@ -397,9 +399,8 @@ and a successfully verified dated backup.
 
 - Require clean kingstack Git state.
 - Record the live baseline, hashes, symlinks, modes, and schedules.
-- Capture immutable, user-only snapshots of authored Claude files and existing
-  Codex configuration. Snapshots are evidence and disaster-recovery inputs, not
-  instructions for mutating a live home in place.
+- Record deterministic inventories and hashes of authored Claude files and
+  existing Codex configuration. Do not copy, archive, or mutate either home.
 - Export a redacted configuration report; never export auth or secret values.
 
 ### Phase 1: create neutral checkout
@@ -458,8 +459,8 @@ and a successfully verified dated backup.
 
 - Update launchd jobs, aliases, and wrappers to the neutral checkout.
 - Mark `~/Desktop/Work/kingstack` as canonical in both adapters.
-- Preserve the original `~/.claude` repository metadata and authored files as a
-  dated backup.
+- Preserve the original `~/.claude` repository and every dated original of a
+  manifest-owned path; do not repurpose the legacy checkout as runtime storage.
 - Push only after all acceptance tests pass and Hassan reviews the diff.
 
 ### Adding another agent
@@ -539,10 +540,9 @@ Normal adapter rollback operates only on manifest-owned surfaces:
 4. restore prior hook and scheduler registrations from their ownership records
 5. run the same health and parity checks used during activation
 
-Immutable snapshots are never replayed file by file into a live agent home. For
-disaster recovery, a snapshot is materialized into a separate directory,
-verified there, and presented for an explicit whole-directory recovery decision.
-The original live tree is not incrementally repaired.
+Kingstack has no whole-home restore path. Existing historical snapshot/archive
+directories are preserved but never replayed. Whole-home disaster recovery uses
+an external machine backup and a separate human-approved recovery procedure.
 
 Rollback never touches auth, transcripts, native memory databases, caches,
 plugins, or shared-memory content. It is tested against staged homes and then by
@@ -613,14 +613,14 @@ The design is complete when implementation proves all of the following:
 - Both adapters pass static and behavioral suites.
 - Versioned activation and manifest-owned rollback have been exercised
   successfully for both initial adapters without replacing either native home.
-- Immutable snapshots verify, and no production command performs an in-place
-  file-by-file restore into a live agent home.
+- No production archive/restore command exists; pre-activation inventories and
+  dated manifest-owned originals prove lossless, reversible activation.
 - No secrets or runtime state are tracked.
 - `kingstack check --all` is green.
 - Semantic version, changelog, and roadmap checks are green, with one source of
   truth for future work.
 - Hassan reviews the final migration diff before push or removal of any legacy
-  backup.
+  original.
 
 ## Official Codex references
 

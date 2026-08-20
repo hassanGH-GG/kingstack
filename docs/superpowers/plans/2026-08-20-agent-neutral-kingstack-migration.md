@@ -13,14 +13,14 @@
 ## Global Constraints
 
 - Never delete, move, replace, or link an entire `~/.claude`, `~/.codex`, or future agent home, nor touch its auth, transcripts, caches, native memory stores, plugins, or project data.
-- Use capture -> immutable release -> stage -> verify -> preserve owned path -> link -> switch. A failed pre-link gate leaves live profiles untouched.
+- Use inventory -> immutable adapter release -> stage -> verify -> atomically rename owned original -> link -> switch. A failed pre-link gate leaves live profiles untouched.
 - Every live managed-path change requires a private dated original, an ownership manifest, a release hash, and an exercised rollback path.
 - Preserve unrelated Codex settings byte-for-byte. The config merger may only own the explicitly named kingstack keys.
 - Do not push any migration commit until the phase verification passes and Hassan reviews the phase summary.
 - Keep raw memories and transcripts agent-native. Only human-approved curated memory is shared.
-- Keep the original `~/.claude` repository, all existing private snapshots, and a fresh immutable archive until Hassan separately authorizes deletion.
+- Keep the original `~/.claude` repository and all existing private snapshot/archive directories untouched. Kingstack creates no new recursive backup artifact and never depends on those historical artifacts for rollback.
 - Never track `.kingstack` runtime state, generated adapters, reports containing machine paths, or secret-shaped values.
-- Expose no production file-by-file restore into a live home. Disaster recovery materializes separately and requires a new human-approved whole-directory decision.
+- Expose no production archive, snapshot, or file-by-file restore command. Whole-home disaster recovery remains outside kingstack and requires a separate human-approved machine-backup procedure.
 - Treat Claude and Codex as initial adapters only; every shared interface must admit a third adapter without copying either first-party implementation.
 
 ---
@@ -47,5 +47,5 @@ The implementing agent records the exact command outputs in the phase's commit
 message or handoff. A phase may not start if the preceding plan has unchecked
 tasks or an unresolved parity exception. Execution stops after all staging and
 clone proofs and before the first live symbolic link so Hassan can review the
-exact owned paths, capability matrices, backups, commands, and rollback
+exact owned paths, capability matrices, dated originals, commands, and rollback
 behavior.

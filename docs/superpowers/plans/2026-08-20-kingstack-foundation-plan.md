@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Create the neutral kingstack checkout, private runtime skeleton, deterministic inventories, and immutable capture-only configuration archives without changing either live agent profile.
+**Goal:** Create the neutral kingstack checkout, private runtime skeleton, and deterministic inventories without copying or changing either live agent profile.
 
-**Architecture:** A dependency-free Python CLI captures typed inventories and immutable private archives, redacts the report safe for Git, and clones the current repository with its history and real origin. Archives have no apply operation: normal rollback later uses dated originals of manifest-owned paths, while disaster recovery materializes beside a live home. All writes target only the isolated worktree, the new checkout, and `~/.kingstack`; `~/.claude` and `~/.codex` are read-only inputs in this phase.
+**Architecture:** A dependency-free Python CLI captures typed inventories, redacts a report safe for Git, and clones the current repository with its history and real origin. Kingstack implements no recursive archive or restore path: native homes stay in place, and later rollback uses atomic dated siblings of only manifest-owned paths. All writes target only the isolated worktree, the new checkout, and non-home metadata under `~/.kingstack`; `~/.claude` and `~/.codex` are read-only inputs in this phase.
 
 **Tech Stack:** Python 3 standard library, Git, POSIX shell, JSON, SHA-256.
 
@@ -14,10 +14,10 @@
 
 - Run from the isolated feature worktree and require its tracked state clean at each acceptance gate. Treat live `~/.claude` as the read-only baseline; `--allow-unpushed` is permitted only for the initial local clone after exact HEAD/origin evidence is recorded.
 - Do not read or copy `~/.claude.json`, `~/.codex/auth.json`, keychains, browser state, or credential stores.
-- Full configuration backups are private mode `0600`; tracked reports contain hashes and key names, never values.
+- Private manifests are mode `0600`; tracked reports contain hashes and key names, never values.
 - The new checkout must retain the Git object history, branch, tags, and original remote URL.
 - No symlink under an agent home is created in this phase.
-- Delete the experimental in-place restore implementation before foundation acceptance; preserve its private snapshot directories but expose no production `snapshot apply` or `restore_snapshot` interface.
+- Delete both experimental recursive filesystem engines before foundation acceptance. Preserve all private snapshot/archive directories as historical evidence, but expose no production archive, snapshot, apply, verify, or restore interface.
 
 ---
 
@@ -79,8 +79,7 @@ class Paths:
 
 `scripts/kingstack` exports `PYTHONPATH="$SCRIPT_DIR/../lib"` and executes
 `python3 -m kingstack.cli "$@"`. Add all runtime and staging names to the
-allowlist `.gitignore`: `.staging/`, `*.private.json`, `*.snapshot.tar`, and
-`runtime/`.
+allowlist `.gitignore`: `.staging/`, `*.private.json`, and `runtime/`.
 
 - [ ] **Step 4: Run the focused test**
 
@@ -173,97 +172,65 @@ git add lib/kingstack/inventory.py lib/kingstack/cli.py tests/test_inventory.py 
 git commit -m "feat: capture deterministic agent baselines"
 ```
 
-### Task 3: Replace experimental restore with immutable capture-only archives
+### Task 3: Remove custom recursive archive and restore engines
 
 **Files:**
 
 - Delete: `lib/kingstack/snapshot.py`
 - Delete: `tests/test_snapshot.py`
-- Create: `lib/kingstack/archive.py`
-- Create: `tests/test_archive.py`
+- Delete: `lib/kingstack/archive.py`
+- Delete: `tests/test_archive.py`
 - Modify: `lib/kingstack/cli.py`
+- Create: `tests/test_cli_surface.py`
 
-- [ ] **Step 1: Write failing capture, verification, and non-restoration tests**
+- [ ] **Step 1: Write the failing public-surface test**
 
-Use a temporary fake home and archive root. Assert a normal capture preserves
-selected bytes, relative symlink targets, and owner permissions; a denied auth
-path is rejected; a source mutation injected between pre- and post-inventory
-rejects and publishes nothing; an existing archive ID is never replaced; and
-the CLI parser has no archive apply/restore command.
+Add a CLI/package test which inventories command names and importable production
+modules. It must fail while either experimental engine remains:
 
 ```python
-class ArchiveTest(TestCase):
-    def test_source_change_aborts_without_publication(self):
-        with self.assertRaises(SourceChanged):
-            create_archive(paths, root, "race", after_copy=mutate_source)
-        self.assertEqual(list(root.glob("archive-*")), [])
-
-    def test_archive_api_is_capture_only(self):
-        self.assertFalse(hasattr(archive, "restore_snapshot"))
-        self.assertNotIn("apply", archive_cli_subcommands())
+def test_no_recursive_backup_or_restore_surface(self):
+    self.assertFalse((ROOT / "lib/kingstack/snapshot.py").exists())
+    self.assertFalse((ROOT / "lib/kingstack/archive.py").exists())
+    self.assertNotIn("snapshot", cli_command_names())
+    self.assertNotIn("archive", cli_command_names())
 ```
 
-- [ ] **Step 2: Run the tests and confirm failure**
+- [ ] **Step 2: Run the focused test and confirm RED**
 
-Run: `PYTHONPATH=lib python3 -m unittest tests.test_archive -v`
+Run: `PYTHONPATH=lib python3 -m unittest tests.test_cli_surface -v`
 
-Expected: import failure because `kingstack.archive` does not exist.
+Expected: failure naming the still-present archive module or command.
 
-- [ ] **Step 3: Remove the experimental engine and implement capture-only archives**
+- [ ] **Step 3: Delete both engines and remove their CLI surface**
 
-Delete the experimental snapshot module and its transaction tests. Do not delete
-any directory under `~/.kingstack/backups`; those are private evidence.
+Delete the snapshot/archive implementations and their implementation-specific
+tests. Remove their parser branches, imports, and handlers from `cli.py`. Do not
+delete, rename, chmod, verify, or enumerate contents inside
+`~/.kingstack/snapshots` or `~/.kingstack/archives`; only record the directory
+names before and after as preservation evidence.
 
-The replacement exposes only:
-
-```python
-def create_archive(paths: Paths, destination: Path, label: str,
-                   after_copy: Optional[Callable[[], None]] = None) -> Path: ...
-def verify_archive(archive_dir: Path, check_permissions: bool = False) -> List[str]: ...
-```
-
-Use Python 3.9-compatible annotations from `typing`. Capture a deterministic
-pre-inventory, copy only allowlisted authored configuration into a private
-temporary sibling, capture a post-inventory, and reject if source identities or
-hashes differ. Verify copied bytes and modes against the manifest before one
-exclusive rename publishes the archive. Never keep one descriptor per copied
-directory; bound simultaneous file descriptors to a constant number.
-
-Layout:
-
-```text
-archive-YYYYMMDD-HHMMSS/
-  manifest.json       # version, source inventories, path/hash/mode/kind/target
-  files/claude/...
-  files/codex/...
-```
-
-Create directories with `0700`, files with their original mode capped so group
-and other permissions are removed. Copy with `shutil.copy2`; recreate symlinks
-without following them. Use a hard denylist for `auth.json`, `.claude.json`,
-`credentials`, `keychain`, `sessions`, and transcript extensions. The CLI
-supports only `archive create --label LABEL --print-id` and
-`archive verify IDENTIFIER --check-permissions`. It contains no restore or apply
-path.
-
-- [ ] **Step 4: Prove capture, source-change rejection, descriptor bounds, and permissions**
+- [ ] **Step 4: Prove absence and historical preservation**
 
 ```bash
-PYTHONPATH=lib python3 -m unittest tests.test_archive -v
-ks_archive_id=$(./scripts/kingstack archive create --label pre-neutral-migration --print-id)
-test -n "${ks_archive_id:?}"
-./scripts/kingstack archive verify "$ks_archive_id" --check-permissions
-! ./scripts/kingstack archive apply "$ks_archive_id"
+before=$(mktemp)
+after=$(mktemp)
+find "$HOME/.kingstack/snapshots" "$HOME/.kingstack/archives" -mindepth 1 -maxdepth 1 -type d -print 2>/dev/null | sort > "$before"
+PYTHONPATH=lib python3 -m unittest tests.test_cli_surface -v
+! ./scripts/kingstack archive create --label forbidden --print-id
+! ./scripts/kingstack snapshot create --label forbidden
+find "$HOME/.kingstack/snapshots" "$HOME/.kingstack/archives" -mindepth 1 -maxdepth 1 -type d -print 2>/dev/null | sort > "$after"
+cmp "$before" "$after"
 ```
 
-Expected: tests pass, verification prints `verified`, and the unsupported apply
-command exits nonzero without changing any live path.
+Expected: the absence test passes, both commands fail at parsing, and the exact
+historical directory list is unchanged.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add lib/kingstack/snapshot.py tests/test_snapshot.py lib/kingstack/archive.py tests/test_archive.py lib/kingstack/cli.py
-git commit -m "fix: replace in-place restore with immutable archives"
+git add lib/kingstack/snapshot.py tests/test_snapshot.py lib/kingstack/archive.py tests/test_archive.py lib/kingstack/cli.py tests/test_cli_surface.py
+git commit -m "refactor: remove custom filesystem backup engines"
 ```
 
 ### Task 4: Create the neutral checkout without changing live ownership
@@ -318,7 +285,7 @@ Run: `PYTHONPATH=lib python3 -m unittest tests.test_bootstrap -v`
 ./scripts/kingstack bootstrap --source "$HOME/.claude" --dry-run
 ```
 
-Expected: it names the target checkout, archive path, HEAD, origin, and every
+Expected: it names the target checkout, HEAD, origin, and every
 would-write path; it reports zero writes.
 
 - [ ] **Step 6: Apply locally and prove the old setup is untouched**
@@ -356,7 +323,6 @@ git commit -m "feat: bootstrap neutral kingstack without live mutation"
 cd "$HOME/Desktop/Work/kingstack"
 PYTHONPATH=lib python3 -m unittest discover -s tests -v
 ./scripts/kingstack inventory --output "$(mktemp -d)/baseline.json"
-./scripts/kingstack archive create --label foundation-acceptance --print-id
 git fsck --full
 git status --short
 "$HOME/.claude/scripts/check-setup.sh"
@@ -365,7 +331,8 @@ git status --short
 - [ ] **Step 2: Record exact before/after evidence**
 
 The verification document records: old and new HEAD, origin, tag count, public
-inventory counts, private archive ID, unchanged live hashes, permission checks,
+inventory counts, preserved historical snapshot/archive directory names,
+unchanged live hashes, permission checks,
 and the Claude health output. It explicitly states that no live path changed.
 
 - [ ] **Step 3: Commit; do not push yet**

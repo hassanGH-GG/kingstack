@@ -15,12 +15,12 @@
 - Do not remove `.git`, tracked files, memory banks, or runtime state from `~/.claude`.
 - Do not enable a Codex Scheduled task that duplicates an active launchd job.
 - Keep local no-model work under launchd. Move work to Codex scheduling only when it needs a persistent Codex chat/plugin/worktree and has an idempotency key.
-- A live activation requires a fresh immutable archive, source/hash recheck, exact ownership manifest, and Hassan's explicit pre-link approval immediately before writes.
+- A live activation requires a fresh source/hash recheck, an exact ownership manifest with unique dated-sibling paths, and Hassan's explicit pre-link approval immediately before writes.
 - Push only after Hassan reviews the final diff, rollback evidence, and no-loss matrix.
 - Deleting or archiving the legacy Claude checkout is a separate future decision, not part of this plan.
 - After every acceptance and rollback gate passes, delete the six dated implementation-plan files Hassan named from both the canonical checkout and their exact legacy `~/.claude` paths; preserve the approved design spec and Git history.
 - Maintain one product-governance surface: SemVer in `VERSION`, Keep-a-Changelog entries in `CHANGELOG.md`, and the existing backlog renamed to `docs/ROADMAP.md` rather than duplicated.
-- Never link an entire agent home or use the discarded file-by-file restore engine.
+- Never link an entire agent home or expose an archive, snapshot, or file-by-file restore command.
 
 ---
 
@@ -141,8 +141,8 @@ git commit -m "feat: stage versioned Claude adapter releases"
 
 - [ ] **Step 1: Generate the mandatory pre-link briefing and stop**
 
-The briefing records the canonical clone HEAD/origin/history proof; immutable
-archive ID and verification; Claude and Codex release IDs; capability matrices
+The briefing records the canonical clone HEAD/origin/history proof; Claude and
+Codex release IDs; capability matrices
 and every non-native gap; shared-memory parity; pstack revision; all proposed
 owned paths, existing types/hashes/modes, dated-original locations, and link
 targets; unchanged native-state categories; hook hashes requiring trust;
@@ -154,20 +154,19 @@ Stop and ask Hassan for explicit approval. A previous design or migration
 approval is insufficient. Do not proceed to Step 2 until he approves this exact
 briefing.
 
-- [ ] **Step 2: Capture a fresh immutable archive and activate the approved releases**
+- [ ] **Step 2: Recheck live identities and activate the approved releases**
 
 ```bash
-ks_archive_id=$(./scripts/kingstack archive create --label pre-live-activation --print-id)
-test -n "${ks_archive_id:?}"
-./scripts/kingstack archive verify "$ks_archive_id" --check-permissions
 ./scripts/kingstack activate --adapter claude --release "$ks_claude_release" --all-profiles --apply --approved-briefing docs/migration/pre-link-briefing.md
 ./scripts/kingstack activate --adapter codex --release "$ks_codex_release" --apply --approved-briefing docs/migration/pre-link-briefing.md
 ```
 
 Immediately re-run the live precondition hashes captured by each activation
-plan. Abort before a write on any mismatch. Preserve each owned original by
-atomic rename before installing its stable wrapper/link. Never link an entire
-agent home.
+plan. Abort before a write on any mismatch. Hold the per-home activation lock,
+open the verified native parent directory without following symlinks, atomically
+rename each owned original to its unique dated sibling in that same directory,
+then install the stable wrapper/link descriptor-relatively. Never copy or delete
+the original and never link an entire agent home.
 
 - [ ] **Step 3: Start fresh Claude work/personal and Codex CLI/desktop sessions**
 
@@ -190,8 +189,8 @@ Apply rollback using each activation manifest. Compare every restored hash,
 symlink target, mode, schedule definition, and agent health with the dated
 originals and pre-link inventory. Start all four surfaces; run the old
 `claude-check` and the pre-existing Codex health/config commands to prove the
-previous setups still operate. The immutable archive is verified but not
-applied.
+previous setups still operate. Historical snapshot/archive artifacts are
+neither required nor consulted.
 
 - [ ] **Step 6: Re-activate the same immutable releases and rerun the smoke suite**
 
@@ -298,7 +297,7 @@ Create a manifest schema whose status is exactly `rewrite`, `historical`,
 `upstream`, `fixture`, or `delete-at-final-acceptance`. The test enumerates
 `git ls-files '*.md'` and fails if any Markdown file is unclassified, any
 current authored surface still calls `~/.claude` canonical, any production
-command mentions snapshot apply/restore, any shared interface restricts adapter
+command exposes archive/snapshot create, verify, apply, or restore, any shared interface restricts adapter
 IDs to Claude/Codex, or any file marked historical lacks a visible historical
 banner. Test fixtures may remain unchanged; upstream skill workflow text may
 remain unchanged only with provenance.
@@ -307,8 +306,9 @@ remain unchanged only with provenance.
 def test_every_tracked_markdown_has_a_disposition(self):
     self.assertEqual(set(git_markdown_files()), set(surface_manifest()))
 
-def test_current_docs_have_no_discarded_restore_contract(self):
-    self.assertEqual(scan_current_docs(["snapshot apply", "restore_snapshot"]), [])
+def test_current_docs_have_no_backup_engine_contract(self):
+    self.assertEqual(scan_current_docs(["snapshot apply", "restore_snapshot",
+                                        "archive create", "archive verify"]), [])
 ```
 
 - [ ] **Step 2: Rewrite every affected authored Markdown surface**
@@ -326,8 +326,8 @@ keeps its original numbers unchanged.
 Move the failed foundation transaction evidence needed for engineering history
 into a redacted section of `docs/migration/markdown-rewrite-report.md`, then
 remove the tracked SDD task report because it contains absolute machine paths,
-private snapshot identifiers, and an implementation superseded by the approved
-capture-only design. Do not delete private snapshots.
+private snapshot identifiers, and implementations superseded by the approved
+non-destructive ownership design. Do not delete private snapshots or archives.
 
 The report lists every tracked Markdown file, its classification, whether it
 changed, and why. The six dated implementation plans are classified
@@ -476,7 +476,7 @@ changes, then kickstart and verify all three again.
 - [ ] **Step 3: Mark, but do not dismantle, the legacy checkout**
 
 Document `~/.claude` as the live Claude home and legacy Git rollback checkout.
-Record its HEAD, origin, bundle/archive ID, and why `.git` remains. Do not move
+Record its HEAD, origin, and why `.git` remains. Do not move
 or delete `.git`, tracked files, or original memory. Add a health warning if new
 kingstack commits are made there after cutover.
 
@@ -505,7 +505,7 @@ Pstack revision == adapter source revision
 Schedules == active mapped schedules
 Codex pre-existing unowned config bytes == current unowned config bytes
 Auth/session/native-memory sentinels == unchanged
-Immutable archives == verified; dated owned originals == rollback-ready
+Historical snapshots/archives == untouched; dated owned originals == rollback-ready
 ```
 
 - [ ] **Step 2: Scan the public repository for forbidden state**
@@ -523,17 +523,18 @@ Record `codex plugin list --json` and the exact discovered Superpowers source.
 Because current Codex may expose Superpowers as a cache-only curated package
 rather than an installed plugin, disable by provider type:
 
-- installed plugin: first archive its exact source and manifest privately, then
+- installed plugin: first atomically move its exact source and manifest into
+  the private disabled-provider directory, then
   run the official `codex plugin remove PLUGIN@MARKETPLACE --json`
 - cache-only package: atomically rename only the exact version directory into
-  `~/.kingstack/backups/superpowers/<version>-<content-hash>`; do not recursively
+  `~/.kingstack/disabled/superpowers/<version>-<content-hash>`; do not recursively
   remove the marketplace or unrelated cache
 
 Start a fresh Codex session and prove no `superpowers:*` skill is advertised,
 the required capability-name set is unchanged through kingstack/pstack, and all
 behavioral tests remain green. If Codex rehydrates the package or any capability
-is missing, restore the archived provider immediately and block acceptance. The
-private archived provider remains recoverable after success.
+is missing, atomically rename the disabled provider back immediately and block
+acceptance. The private disabled provider remains recoverable after success.
 
 - [ ] **Step 4: Run final verification from a fresh shell**
 
@@ -576,15 +577,15 @@ test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
 
 - [ ] **Step 7: Remove the exact legacy plan paths after the successful push**
 
-Create one last immutable private archive of the six files, verify it, then
-delete exactly the six `/Users/mac/.claude/docs/superpowers/plans/...` paths
-Hassan listed. Do not recurse into the plans directory and do not remove the
-approved design spec. Verify each target is absent. The content remains
-recoverable from the archive and Git history.
+Verify each of the six files exists in the pushed Git history, then delete
+exactly the six `/Users/mac/.claude/docs/superpowers/plans/...` paths Hassan
+listed. Do not recurse into the plans directory and do not remove the approved
+design spec. Verify each target is absent. The content remains recoverable from
+the canonical and legacy Git histories; no new private archive is created.
 
 - [ ] **Step 8: Keep rollback material**
 
-Report the dated private snapshots, immutable archives, Superpowers provider
-archive, and legacy checkout location. Ask separately
+Report the untouched historical snapshots/archives, dated manifest-owned
+originals, disabled Superpowers provider, and legacy checkout location. Ask separately
 in a future session before deleting any of them. Completion means the new system
 works and the old system remains recoverable—not that old data has been erased.

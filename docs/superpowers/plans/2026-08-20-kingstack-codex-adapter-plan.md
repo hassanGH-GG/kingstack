@@ -291,7 +291,7 @@ def build_release(adapter_id: str, staged: Path, store: Path,
                   source_hash: str) -> ReleaseManifest: ...
 def verify_release(release: Path) -> List[str]: ...
 def plan_activation(adapter: AdapterDeclaration, release: ReleaseManifest,
-                    native_home: Path, backup_root: Path) -> ActivationPlan: ...
+                    native_home: Path, activation_id: str) -> ActivationPlan: ...
 ```
 
 The release manifest includes contract and generator versions, source hash,
@@ -299,7 +299,9 @@ capability matrix, every content hash, and owned-path mapping. Publish to
 `~/.kingstack/adapters/codex/releases/<source-hash>` only after verification.
 The activation plan is read-only and contains only `AGENTS.md`, the reviewed
 hook surface, managed skill entries, and owned TOML edits. It names the exact
-dated original location and stable `current`-release target for every path.
+unique dated sibling and stable `current`-release target for every path.
+Originals remain beside their native paths and are never copied into a
+recursive backup tree.
 
 - [ ] **Step 3: Run all fake-home and release tests**
 

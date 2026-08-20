@@ -181,7 +181,7 @@ and resumes safely after an interrupted copy.
 
 ```text
 kingstack memory migrate-claude --dry-run
-kingstack memory migrate-claude --apply --archive-id "$(kingstack archive create --label pre-memory-migration --print-id)"
+kingstack memory migrate-claude --apply --expected-source-manifest <manifest-id>
 kingstack memory verify-migration
 ```
 
@@ -202,18 +202,19 @@ Run:
 Expected: exactly the foundation bank count, every source file classified,
 zero overwrites, zero unreadable files, and no writes.
 
-- [ ] **Step 4: Apply to the private store and prove hashes both ways**
+- [ ] **Step 4: Re-inventory, apply to the private store, and prove hashes both ways**
 
 ```bash
-ks_archive_id=$(./scripts/kingstack archive create --label pre-memory-migration --print-id)
-test -n "${ks_archive_id:?}"
-./scripts/kingstack memory migrate-claude --apply --archive-id "$ks_archive_id"
+ks_memory_manifest=$(./scripts/kingstack memory migrate-claude --dry-run --write-private-manifest)
+test -n "${ks_memory_manifest:?}"
+./scripts/kingstack memory migrate-claude --apply --expected-source-manifest "$ks_memory_manifest"
 ./scripts/kingstack memory verify-migration
 ```
 
 Re-run the foundation inventory on the original banks and compare it with the
 pre-migration manifest. Expected: all originals unchanged; destination content
-hash multiset identical.
+hash multiset identical. Apply must abort before writing if the source manifest
+does not match the fresh source inventory; no archive is created or required.
 
 - [ ] **Step 5: Commit code and redacted counts only**
 
