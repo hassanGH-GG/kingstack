@@ -3,6 +3,7 @@ import os
 import shutil
 import stat
 import tempfile
+import hashlib
 from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
@@ -31,6 +32,51 @@ class SnapshotTest(TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
         path.chmod(mode)
+
+    def _plant_journal(
+        self,
+        snapshot,
+        destination,
+        *,
+        status="prepared",
+        target=".claude/settings.json",
+        before=None,
+        parent_before=None,
+        backup_payload=None,
+        backup_symlink=None,
+        staged_payload=b"staged\n",
+    ):
+        """Plant a complete v1 recovery journal accepted by the prior implementation."""
+        destination.mkdir(parents=True, exist_ok=True)
+        stage = destination / ".kingstack-restore-stage-valid"
+        backup = destination / ".kingstack-restore-backup-valid"
+        stage.mkdir(mode=0o700)
+        backup.mkdir(mode=0o700)
+        if staged_payload is not None:
+            self._write(stage / "0", staged_payload, 0o600)
+        if backup_payload is not None:
+            self._write(backup / "0", backup_payload, 0o600)
+        elif backup_symlink is not None:
+            (backup / "0").symlink_to(backup_symlink)
+        if before is None:
+            before = {"kind": "missing"}
+        if parent_before is None:
+            parent_before = {"kind": "dir", "mode": "0755"}
+        payload = {
+            "version": 1,
+            "status": status,
+            "expected": "0" * 64,
+            "destination": str(destination.resolve()),
+            "snapshot": snapshot.name,
+            "stage": stage.name,
+            "backup": backup.name,
+            "entries": [{"target": target, "backup": "0", "before": before}],
+            "parents": [{"path": ".claude", "before": parent_before}],
+        }
+        journal = destination / ".kingstack-restore-journal.json"
+        journal.write_text(json.dumps(payload), encoding="utf-8")
+        journal.chmod(0o600)
+        return journal, stage, backup
 
     def test_snapshot_round_trips_files_symlinks_and_private_modes(self):
         """Following a link or broadening a mode would corrupt a private restore."""
@@ -405,20 +451,30 @@ class SnapshotTest(TestCase):
 
         snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
         destination = self.tempdir / "restore-home"
-        destination.mkdir()
+        self._write(destination / ".claude" / "settings.json", b"partial-new\n", 0o600)
         outside = self.tempdir / "outside"
         outside.mkdir()
         sentinel = outside / "sentinel"
         self._write(sentinel, b"unchanged\n", 0o640)
+        old = b"old-before-interrupt\n"
+        self._write(outside / "0", old, 0o600)
         stage = destination / ".kingstack-restore-stage-valid"
-        stage.mkdir()
+        stage.mkdir(mode=0o700)
+        self._write(stage / "0", b"staged-new\n", 0o600)
         backup = destination / ".kingstack-restore-backup-valid"
         backup.symlink_to(outside, target_is_directory=True)
+        before = {
+            "kind": "file",
+            "sha256": hashlib.sha256(old).hexdigest(),
+            "mode": "0600",
+        }
         journal = destination / ".kingstack-restore-journal.json"
         journal.write_text(json.dumps({
             "version": 1, "status": "prepared", "expected": "0" * 64,
             "destination": str(destination.resolve()), "snapshot": snapshot.name,
-            "stage": stage.name, "backup": backup.name, "entries": [], "parents": [],
+            "stage": stage.name, "backup": backup.name,
+            "entries": [{"target": ".claude/settings.json", "backup": "0", "before": before}],
+            "parents": [{"path": ".claude", "before": {"kind": "dir", "mode": "0755"}}],
         }), encoding="utf-8")
         journal.chmod(0o600)
 
@@ -441,3 +497,534 @@ class SnapshotTest(TestCase):
         problems = verify_snapshot(snapshot, check_permissions=True)
         self.assertTrue(problems)
         self.assertTrue(any("invalid" in problem or "denylisted" in problem for problem in problems), problems)
+
+    def test_recovery_unlink_stays_anchored_during_post_validation_parent_rebind(self):
+        """Rebinding a validated target parent cannot redirect the actual rollback unlink."""
+        from kingstack import snapshot as snapshot_module
+        from kingstack.snapshot import create_snapshot, current_destination_hash, restore_snapshot
+
+        snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
+        destination = self.tempdir / "restore-home"
+        self._write(destination / ".claude" / "settings.json", b"partial-new\n", 0o600)
+        self._plant_journal(snapshot, destination, before={"kind": "missing"})
+        outside = self.tempdir / "outside"
+        outside.mkdir()
+        sentinel = outside / "settings.json"
+        self._write(sentinel, b"outside-sentinel\n", 0o640)
+        relocated = destination / ".claude-relocated"
+        real_validate = snapshot_module._validate_journal_physical
+        rebound = False
+
+        def validate_and_keep_descriptors(*args, **kwargs):
+            nonlocal rebound
+            result = real_validate(*args, **kwargs)
+            rebound = True
+            (destination / ".claude").rename(relocated)
+            (destination / ".claude").symlink_to(outside, target_is_directory=True)
+            return result
+
+        expected = current_destination_hash(snapshot, destination)
+        with patch("kingstack.snapshot._validate_journal_physical", side_effect=validate_and_keep_descriptors):
+            with self.assertRaises(ValueError):
+                restore_snapshot(snapshot, destination, dry_run=False, expected_current_hash=expected)
+
+        self.assertTrue(rebound)
+        self.assertEqual(sentinel.read_bytes(), b"outside-sentinel\n")
+        self.assertEqual(stat.S_IMODE(sentinel.stat().st_mode), 0o640)
+
+    def test_apply_refuses_full_journal_with_symlinked_target_ancestor(self):
+        """A complete journal cannot traverse a target ancestor symlink during recovery."""
+        from kingstack.snapshot import create_snapshot, current_destination_hash, restore_snapshot
+
+        snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
+        destination = self.tempdir / "restore-home"
+        destination.mkdir()
+        outside = self.tempdir / "outside"
+        outside.mkdir()
+        sentinel = outside / "settings.json"
+        self._write(sentinel, b"outside-sentinel\n", 0o640)
+        (destination / ".claude").symlink_to(outside, target_is_directory=True)
+        self._plant_journal(snapshot, destination, before={"kind": "missing"}, parent_before={"kind": "missing"})
+
+        with self.assertRaisesRegex(ValueError, "journal"):
+            restore_snapshot(
+                snapshot,
+                destination,
+                dry_run=False,
+                expected_current_hash=current_destination_hash(snapshot, destination),
+            )
+        self.assertEqual(sentinel.read_bytes(), b"outside-sentinel\n")
+
+    def test_apply_refuses_full_journal_with_symlinked_backup_entry(self):
+        """A backup entry must physically match its recorded before-state before rollback."""
+        from kingstack.snapshot import create_snapshot, current_destination_hash, restore_snapshot
+
+        snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
+        destination = self.tempdir / "restore-home"
+        self._write(destination / ".claude" / "settings.json", b"partial-new\n", 0o600)
+        outside = self.tempdir / "outside"
+        outside.mkdir()
+        sentinel = outside / "sentinel"
+        self._write(sentinel, b"outside-sentinel\n", 0o640)
+        before = {
+            "kind": "file",
+            "sha256": hashlib.sha256(b"old-before\n").hexdigest(),
+            "mode": "0600",
+        }
+        self._plant_journal(snapshot, destination, before=before, backup_symlink=sentinel)
+
+        with self.assertRaisesRegex(ValueError, "journal"):
+            restore_snapshot(
+                snapshot,
+                destination,
+                dry_run=False,
+                expected_current_hash=current_destination_hash(snapshot, destination),
+            )
+        self.assertEqual(sentinel.read_bytes(), b"outside-sentinel\n")
+        self.assertTrue((destination / ".kingstack-restore-journal.json").exists())
+
+    def test_valid_prepared_journal_with_missing_parents_recovers_then_applies(self):
+        """A journal published before parent creation remains recoverable after a crash."""
+        from kingstack.snapshot import create_snapshot, current_destination_hash, restore_snapshot
+
+        snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
+        destination = self.tempdir / "restore-home"
+        destination.mkdir()
+        expected = current_destination_hash(snapshot, destination)
+        journal, stage, backup = self._plant_journal(
+            snapshot,
+            destination,
+            before={"kind": "missing"},
+            parent_before={"kind": "missing"},
+        )
+        self.assertFalse((destination / ".claude").exists())
+
+        restore_snapshot(snapshot, destination, dry_run=False, expected_current_hash=expected)
+
+        self.assertEqual((destination / ".claude" / "settings.json").read_bytes(), b'{"theme":"dark"}\n')
+        self.assertFalse(journal.exists())
+        self.assertFalse(stage.exists())
+        self.assertFalse(backup.exists())
+
+    def test_apply_refuses_journal_temp_symlink_without_outside_mutation(self):
+        """The exclusive descriptor-relative journal temporary never follows a static symlink."""
+        from kingstack.snapshot import create_snapshot, current_destination_hash, restore_snapshot
+
+        snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
+        destination = self.tempdir / "restore-home"
+        self._write(destination / ".claude" / "settings.json", b"old-live\n", 0o600)
+        outside = self.tempdir / "outside-sentinel"
+        self._write(outside, b"outside-sentinel\n", 0o640)
+        temporary = destination / ".kingstack-restore-journal.json.tmp"
+        temporary.symlink_to(outside)
+        expected = current_destination_hash(snapshot, destination)
+
+        with self.assertRaisesRegex(ValueError, "journal temporary"):
+            restore_snapshot(snapshot, destination, dry_run=False, expected_current_hash=expected)
+        self.assertTrue(temporary.is_symlink())
+        self.assertEqual(outside.read_bytes(), b"outside-sentinel\n")
+        self.assertEqual((destination / ".claude" / "settings.json").read_bytes(), b"old-live\n")
+
+    def test_manifest_mode_type_and_each_control_path_are_rejected_independently(self):
+        """Unhashable modes and every C0/C1 control path produce verifier problems."""
+        from kingstack.snapshot import create_snapshot, verify_snapshot
+
+        for field, value in (("mode", []), ("path", "claude/bad\x00name"),
+                             ("path", "claude/bad\x1fname"), ("path", "claude/bad\x7fname"),
+                             ("path", "claude/bad\x85name")):
+            with self.subTest(field=field, value=repr(value)):
+                root = self.tempdir / ("snapshots-" + str(len(list(self.tempdir.iterdir()))))
+                snapshot = create_snapshot(Paths.for_home(self.home), root, "before-migration")
+                manifest_path = snapshot / "manifest.json"
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                record = next(item for item in manifest["files"] if item["kind"] == "file")
+                record[field] = value
+                manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+                manifest_path.chmod(0o600)
+
+                problems = verify_snapshot(snapshot, check_permissions=True)
+                self.assertTrue(any("invalid" in problem for problem in problems), problems)
+
+    def test_journal_status_mode_and_each_control_path_raise_controlled_value_error(self):
+        """Malformed journal types and controls never escape as TypeError or OSError."""
+        from kingstack.snapshot import create_snapshot, current_destination_hash, restore_snapshot
+
+        snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
+        cases = [
+            ("status", []),
+            ("mode", []),
+            ("target", ".claude/bad\x00name"),
+            ("target", ".claude/bad\x1fname"),
+            ("target", ".claude/bad\x7fname"),
+            ("target", ".claude/bad\x85name"),
+        ]
+        for index, (field, value) in enumerate(cases):
+            with self.subTest(field=field, value=repr(value)):
+                destination = self.tempdir / ("journal-home-" + str(index))
+                destination.mkdir()
+                journal, _, _ = self._plant_journal(snapshot, destination)
+                payload = json.loads(journal.read_text(encoding="utf-8"))
+                if field == "status":
+                    payload["status"] = value
+                elif field == "mode":
+                    payload["entries"][0]["before"] = {
+                        "kind": "file", "sha256": "0" * 64, "mode": value,
+                    }
+                else:
+                    payload["entries"][0]["target"] = value
+                journal.write_text(json.dumps(payload), encoding="utf-8")
+                journal.chmod(0o600)
+
+                with self.assertRaisesRegex(ValueError, "journal"):
+                    restore_snapshot(
+                        snapshot,
+                        destination,
+                        dry_run=False,
+                        expected_current_hash=current_destination_hash(snapshot, destination),
+                    )
+
+    def test_expected_hash_bad_type_raises_controlled_value_error(self):
+        """An unhashable expected hash is rejected before membership or filesystem mutation."""
+        from kingstack.snapshot import create_snapshot, restore_snapshot
+
+        snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
+        destination = self.tempdir / "restore-home"
+        with self.assertRaisesRegex(ValueError, "expected current hash"):
+            restore_snapshot(snapshot, destination, dry_run=False, expected_current_hash=["not-a-hash"])
+        self.assertFalse(destination.exists())
+
+    def test_creation_refuses_source_root_rebind_without_reading_replacement(self):
+        """Source reads remain on the opened root descriptor after its pathname is rebound."""
+        from kingstack.snapshot import create_snapshot
+
+        outside = self.tempdir / "outside-claude"
+        shutil.copytree(self.home / ".claude", outside, symlinks=True)
+        self._write(outside / "settings.json", b"outside-secret\n", 0o600)
+        relocated = self.home / ".claude-relocated"
+        real_mkdir = os.mkdir
+        rebound = False
+
+        def rebind_after_snapshot_mkdir(path, *args, **kwargs):
+            nonlocal rebound
+            result = real_mkdir(path, *args, **kwargs)
+            if not rebound and Path(os.fspath(path)).name.startswith("snapshot-"):
+                rebound = True
+                (self.home / ".claude").rename(relocated)
+                (self.home / ".claude").symlink_to(outside, target_is_directory=True)
+            return result
+
+        with patch("kingstack.snapshot.os.mkdir", side_effect=rebind_after_snapshot_mkdir):
+            with self.assertRaisesRegex(ValueError, "source root changed"):
+                create_snapshot(Paths.for_home(self.home), self.snapshot_root, "source-rebind")
+
+        self.assertTrue(rebound)
+        self.assertEqual((outside / "settings.json").read_bytes(), b"outside-secret\n")
+        self.assertFalse(any(self.snapshot_root.glob("snapshot-*")))
+
+    def test_creation_refuses_destination_root_rebind_without_writing_replacement(self):
+        """Snapshot writes remain on the opened destination descriptor after pathname rebind."""
+        from kingstack.snapshot import create_snapshot
+
+        self.snapshot_root.mkdir(mode=0o700)
+        relocated = self.tempdir / "private-snapshots-relocated"
+        outside = self.tempdir / "outside-snapshot-root"
+        outside.mkdir()
+        sentinel = outside / "sentinel"
+        self._write(sentinel, b"outside-sentinel\n", 0o640)
+        real_mkdir = os.mkdir
+        rebound = False
+
+        def rebind_after_snapshot_mkdir(path, *args, **kwargs):
+            nonlocal rebound
+            result = real_mkdir(path, *args, **kwargs)
+            if not rebound and Path(os.fspath(path)).name.startswith("snapshot-"):
+                rebound = True
+                self.snapshot_root.rename(relocated)
+                self.snapshot_root.symlink_to(outside, target_is_directory=True)
+            return result
+
+        with patch("kingstack.snapshot.os.mkdir", side_effect=rebind_after_snapshot_mkdir):
+            with self.assertRaisesRegex(ValueError, "destination root changed|symlinked"):
+                create_snapshot(Paths.for_home(self.home), self.snapshot_root, "destination-rebind")
+
+        self.assertTrue(rebound)
+        self.assertEqual(sentinel.read_bytes(), b"outside-sentinel\n")
+        self.assertEqual(sorted(path.name for path in outside.iterdir()), ["sentinel"])
+        self.assertFalse(any(relocated.glob("snapshot-*")))
+
+    def test_interruption_after_backup_rename_is_recovered_to_before_state(self):
+        """A crash after target-to-backup rename leaves a durable prepared rollback."""
+        from kingstack.snapshot import create_snapshot, current_destination_hash, restore_snapshot
+
+        snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
+        destination = self.tempdir / "restore-home"
+        self._write(destination / ".claude" / "settings.json", b"old-live\n", 0o600)
+        expected = current_destination_hash(snapshot, destination)
+        real_rename = os.rename
+        real_replace = os.replace
+        interrupted = False
+
+        def maybe_interrupt(operation):
+            def wrapper(source, target, *args, **kwargs):
+                nonlocal interrupted
+                result = operation(source, target, *args, **kwargs)
+                source_name = Path(os.fspath(source)).name
+                target_name = Path(os.fspath(target)).name
+                if not interrupted and target_name.isdigit() and not source_name.isdigit():
+                    interrupted = True
+                    raise KeyboardInterrupt("injected after backup rename")
+                return result
+            return wrapper
+
+        with patch("kingstack.snapshot.os.rename", side_effect=maybe_interrupt(real_rename)), \
+                patch("kingstack.snapshot.os.replace", side_effect=maybe_interrupt(real_replace)):
+            with self.assertRaises(KeyboardInterrupt):
+                restore_snapshot(snapshot, destination, dry_run=False, expected_current_hash=expected)
+        self.assertTrue(interrupted)
+
+        with self.assertRaisesRegex(ValueError, "expected current hash"):
+            restore_snapshot(snapshot, destination, dry_run=False, expected_current_hash="0" * 64)
+        self.assertEqual((destination / ".claude" / "settings.json").read_bytes(), b"old-live\n")
+        self.assertFalse((destination / ".kingstack-restore-journal.json").exists())
+
+    def test_interruptions_around_committed_journal_recover_correct_side(self):
+        """Prepared crashes roll back, while durably committed crashes retain restored bytes."""
+        from kingstack import snapshot as snapshot_module
+        from kingstack.snapshot import create_snapshot, current_destination_hash, restore_snapshot
+
+        snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
+        for after_write in (False, True):
+            with self.subTest(after_write=after_write):
+                destination = self.tempdir / ("commit-home-" + str(after_write))
+                self._write(destination / ".claude" / "settings.json", b"old-live\n", 0o600)
+                expected = current_destination_hash(snapshot, destination)
+                real_write = snapshot_module._write_journal
+
+                def interrupt_committed(*args, **kwargs):
+                    transaction = args[-1]
+                    if transaction["status"] == "committed" and not after_write:
+                        raise KeyboardInterrupt("injected before committed journal")
+                    result = real_write(*args, **kwargs)
+                    if transaction["status"] == "committed" and after_write:
+                        raise KeyboardInterrupt("injected after committed journal")
+                    return result
+
+                with patch("kingstack.snapshot._write_journal", side_effect=interrupt_committed):
+                    with self.assertRaises(KeyboardInterrupt):
+                        restore_snapshot(snapshot, destination, dry_run=False, expected_current_hash=expected)
+
+                with self.assertRaisesRegex(ValueError, "expected current hash"):
+                    restore_snapshot(snapshot, destination, dry_run=False, expected_current_hash="0" * 64)
+                wanted = b'{"theme":"dark"}\n' if after_write else b"old-live\n"
+                self.assertEqual((destination / ".claude" / "settings.json").read_bytes(), wanted)
+                self.assertFalse((destination / ".kingstack-restore-journal.json").exists())
+
+    def test_committed_recovery_never_cleans_up_when_restored_content_is_absent(self):
+        """A committed journal remains recoverable if its claimed target is missing."""
+        from kingstack import snapshot as snapshot_module
+        from kingstack.snapshot import create_snapshot, current_destination_hash, restore_snapshot
+
+        snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
+        destination = self.tempdir / "restore-home"
+        self._write(destination / ".claude" / "settings.json", b"old-live\n", 0o600)
+        expected = current_destination_hash(snapshot, destination)
+        real_write = snapshot_module._write_journal
+
+        def interrupt_after_commit(*args, **kwargs):
+            result = real_write(*args, **kwargs)
+            if args[-1]["status"] == "committed":
+                raise KeyboardInterrupt("injected after committed journal")
+            return result
+
+        with patch("kingstack.snapshot._write_journal", side_effect=interrupt_after_commit):
+            with self.assertRaises(KeyboardInterrupt):
+                restore_snapshot(snapshot, destination, dry_run=False, expected_current_hash=expected)
+        journal = destination / ".kingstack-restore-journal.json"
+        backup_dirs = list(destination.glob(".kingstack-restore-backup-*"))
+        self.assertTrue(journal.exists())
+        (destination / ".claude" / "settings.json").unlink()
+
+        with self.assertRaisesRegex(ValueError, "committed|journal"):
+            restore_snapshot(snapshot, destination, dry_run=False, expected_current_hash="0" * 64)
+        self.assertTrue(journal.exists())
+        self.assertTrue(all(path.exists() for path in backup_dirs))
+
+    def test_committed_recovery_finishes_after_backup_cleanup_crash(self):
+        """Committed after-state is sufficient once a durable backup cleanup has happened."""
+        from kingstack import snapshot as snapshot_module
+        from kingstack.snapshot import create_snapshot, current_destination_hash, restore_snapshot
+
+        snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
+        destination = self.tempdir / "restore-home"
+        self._write(destination / ".claude" / "settings.json", b"old-live\n", 0o600)
+        expected = current_destination_hash(snapshot, destination)
+        real_remove = snapshot_module._remove_tree_if_identity
+        interrupted = False
+
+        def interrupt_after_backup_cleanup(parent_fd, name, identity):
+            nonlocal interrupted
+            result = real_remove(parent_fd, name, identity)
+            if not interrupted and name.startswith(".kingstack-restore-backup-"):
+                interrupted = True
+                raise KeyboardInterrupt("injected after durable backup cleanup")
+            return result
+
+        with patch(
+            "kingstack.snapshot._remove_tree_if_identity",
+            side_effect=interrupt_after_backup_cleanup,
+        ):
+            with self.assertRaises(KeyboardInterrupt):
+                restore_snapshot(
+                    snapshot,
+                    destination,
+                    dry_run=False,
+                    expected_current_hash=expected,
+                )
+        self.assertTrue(interrupted)
+        journal = destination / ".kingstack-restore-journal.json"
+        self.assertTrue(journal.exists())
+        self.assertFalse(any(destination.glob(".kingstack-restore-backup-*")))
+
+        with self.assertRaisesRegex(ValueError, "expected current hash"):
+            restore_snapshot(
+                snapshot,
+                destination,
+                dry_run=False,
+                expected_current_hash="0" * 64,
+            )
+        self.assertEqual(
+            (destination / ".claude" / "settings.json").read_bytes(),
+            b'{"theme":"dark"}\n',
+        )
+        self.assertFalse(journal.exists())
+
+    def test_cleanup_refuses_transaction_directory_created_after_validation(self):
+        """An absent transaction directory cannot be rebound to attacker data for cleanup."""
+        from kingstack import snapshot as snapshot_module
+        from kingstack.snapshot import create_snapshot, current_destination_hash, restore_snapshot
+
+        snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
+        destination = self.tempdir / "restore-home"
+        self._write(destination / ".claude" / "settings.json", b"old-live\n", 0o600)
+        expected = current_destination_hash(snapshot, destination)
+        real_write = snapshot_module._write_journal
+
+        def interrupt_after_commit(*args, **kwargs):
+            result = real_write(*args, **kwargs)
+            if args[-1]["status"] == "committed":
+                raise KeyboardInterrupt("injected after committed journal")
+            return result
+
+        with patch("kingstack.snapshot._write_journal", side_effect=interrupt_after_commit):
+            with self.assertRaises(KeyboardInterrupt):
+                restore_snapshot(
+                    snapshot,
+                    destination,
+                    dry_run=False,
+                    expected_current_hash=expected,
+                )
+        journal_path = destination / ".kingstack-restore-journal.json"
+        transaction = json.loads(journal_path.read_text(encoding="utf-8"))
+        stage = destination / transaction["stage"]
+        shutil.rmtree(stage)
+        replacement_sentinel = stage / "sentinel"
+        real_validate = snapshot_module._validate_journal_physical
+
+        def replace_after_validation(*args, **kwargs):
+            context = real_validate(*args, **kwargs)
+            stage.mkdir(mode=0o700)
+            self._write(replacement_sentinel, b"attacker-data\n", 0o600)
+            return context
+
+        with patch(
+            "kingstack.snapshot._validate_journal_physical",
+            side_effect=replace_after_validation,
+        ):
+            with self.assertRaises(ValueError):
+                restore_snapshot(
+                    snapshot,
+                    destination,
+                    dry_run=False,
+                    expected_current_hash="0" * 64,
+                )
+        self.assertEqual(replacement_sentinel.read_bytes(), b"attacker-data\n")
+        self.assertTrue(journal_path.exists())
+
+    def test_nested_mutations_use_dir_fds_and_fsync_every_renamed_parent(self):
+        """Every actual rename is descriptor-relative and synced in both affected parents."""
+        from kingstack.snapshot import create_snapshot, current_destination_hash, restore_snapshot
+
+        snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
+        destination = self.tempdir / "restore-home"
+        self._write(destination / ".claude" / "settings.json", b"old-live\n", 0o600)
+        expected = current_destination_hash(snapshot, destination)
+        events = []
+        real_rename = os.rename
+        real_fsync = os.fsync
+        real_mkdir = os.mkdir
+        real_fchmod = os.fchmod
+
+        def inode(descriptor):
+            details = os.fstat(descriptor)
+            return details.st_dev, details.st_ino
+
+        def traced_rename(source, target, *args, **kwargs):
+            source_fd = kwargs.get("src_dir_fd")
+            target_fd = kwargs.get("dst_dir_fd")
+            self.assertIsNotNone(source_fd)
+            self.assertIsNotNone(target_fd)
+            source_identity = os.stat(source, dir_fd=source_fd, follow_symlinks=False)
+            events.append(("rename", os.fspath(source), os.fspath(target), inode(source_fd), inode(target_fd),
+                           (source_identity.st_dev, source_identity.st_ino)))
+            return real_rename(source, target, *args, **kwargs)
+
+        def traced_fsync(descriptor):
+            events.append(("fsync", inode(descriptor)))
+            return real_fsync(descriptor)
+
+        def traced_mkdir(path, *args, **kwargs):
+            parent_fd = kwargs.get("dir_fd")
+            self.assertIsNotNone(parent_fd)
+            result = real_mkdir(path, *args, **kwargs)
+            child = os.stat(path, dir_fd=parent_fd, follow_symlinks=False)
+            events.append(("mkdir", os.fspath(path), inode(parent_fd), (child.st_dev, child.st_ino)))
+            return result
+
+        def traced_fchmod(descriptor, mode):
+            events.append(("chmod", inode(descriptor), mode))
+            return real_fchmod(descriptor, mode)
+
+        with patch("kingstack.snapshot.os.rename", side_effect=traced_rename), \
+                patch("kingstack.snapshot.os.fsync", side_effect=traced_fsync), \
+                patch("kingstack.snapshot.os.mkdir", side_effect=traced_mkdir), \
+                patch("kingstack.snapshot.os.fchmod", side_effect=traced_fchmod):
+            restore_snapshot(snapshot, destination, dry_run=False, expected_current_hash=expected)
+
+        rename_indexes = [index for index, event in enumerate(events) if event[0] == "rename"]
+        self.assertTrue(rename_indexes, events)
+        for position, event_index in enumerate(rename_indexes):
+            event = events[event_index]
+            stop = rename_indexes[position + 1] if position + 1 < len(rename_indexes) else len(events)
+            sync_events = [item[1] for item in events[event_index + 1:stop] if item[0] == "fsync"]
+            synced = set(sync_events)
+            self.assertIn(event[3], synced, (event, events[event_index + 1:stop]))
+            self.assertIn(event[4], synced, (event, events[event_index + 1:stop]))
+            if event[3] != event[4]:
+                self.assertEqual(
+                    sync_events[:2],
+                    [event[4], event[3]],
+                    (event, events[event_index + 1:stop]),
+                )
+            if event[2] == ".kingstack-restore-journal.json":
+                already_synced = {item[1] for item in events[:event_index] if item[0] == "fsync"}
+                self.assertIn(event[5], already_synced, events[:event_index])
+        for event_index, event in enumerate(events):
+            if event[0] == "mkdir":
+                first_rename = next((index for index in rename_indexes if index > event_index), len(events))
+                synced = {item[1] for item in events[event_index + 1:first_rename] if item[0] == "fsync"}
+                self.assertIn(event[2], synced, (event, events[event_index + 1:first_rename]))
+                self.assertIn(event[3], synced, (event, events[event_index + 1:first_rename]))
+            elif event[0] == "chmod":
+                first_rename = next((index for index in rename_indexes if index > event_index), len(events))
+                synced = {item[1] for item in events[event_index + 1:first_rename] if item[0] == "fsync"}
+                self.assertIn(event[1], synced, (event, events[event_index + 1:first_rename]))
