@@ -1,0 +1,6 @@
+[model]
+api_key = "codex-private-value"
+name = "example"
+
+[projects."/Users/test/private"]
+trust_level = "trusted"

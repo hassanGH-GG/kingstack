@@ -1,0 +1,6 @@
+{
+  "api": {
+    "token": "top-secret-value",
+    "enabled": true
+  }
+}
