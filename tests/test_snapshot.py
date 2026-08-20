@@ -372,3 +372,72 @@ class SnapshotTest(TestCase):
         self.assertEqual((destination / ".claude" / "settings.json").read_bytes(), b"old-live\n")
         self.assertEqual(sentinel.read_bytes(), b"unchanged\n")
         self.assertEqual(temporary.read_bytes(), b"occupied\n")
+
+    def test_dry_run_with_complete_pending_journal_is_byte_for_byte_read_only(self):
+        """Even a valid pending transaction is only reported, never recovered by dry-run."""
+        from kingstack.snapshot import create_snapshot, restore_snapshot
+
+        snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
+        destination = self.tempdir / "restore-home"
+        destination.mkdir()
+        stage = destination / ".kingstack-restore-stage-valid"
+        backup = destination / ".kingstack-restore-backup-valid"
+        stage.mkdir()
+        backup.mkdir()
+        journal = destination / ".kingstack-restore-journal.json"
+        payload = {
+            "version": 1, "status": "prepared", "expected": "0" * 64,
+            "destination": str(destination.resolve()), "snapshot": snapshot.name,
+            "stage": stage.name, "backup": backup.name, "entries": [], "parents": [],
+        }
+        journal.write_text(json.dumps(payload), encoding="utf-8")
+        journal.chmod(0o600)
+        before = (journal.read_bytes(), stat.S_IMODE(journal.stat().st_mode), stage.stat().st_mtime_ns, backup.stat().st_mtime_ns)
+
+        restore_snapshot(snapshot, destination, dry_run=True)
+
+        after = (journal.read_bytes(), stat.S_IMODE(journal.stat().st_mode), stage.stat().st_mtime_ns, backup.stat().st_mtime_ns)
+        self.assertEqual(after, before)
+
+    def test_apply_refuses_symlinked_valid_journal_backup_without_outside_mutation(self):
+        """A syntactically valid journal cannot redirect recovery through a backup symlink."""
+        from kingstack.snapshot import create_snapshot, current_destination_hash, restore_snapshot
+
+        snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
+        destination = self.tempdir / "restore-home"
+        destination.mkdir()
+        outside = self.tempdir / "outside"
+        outside.mkdir()
+        sentinel = outside / "sentinel"
+        self._write(sentinel, b"unchanged\n", 0o640)
+        stage = destination / ".kingstack-restore-stage-valid"
+        stage.mkdir()
+        backup = destination / ".kingstack-restore-backup-valid"
+        backup.symlink_to(outside, target_is_directory=True)
+        journal = destination / ".kingstack-restore-journal.json"
+        journal.write_text(json.dumps({
+            "version": 1, "status": "prepared", "expected": "0" * 64,
+            "destination": str(destination.resolve()), "snapshot": snapshot.name,
+            "stage": stage.name, "backup": backup.name, "entries": [], "parents": [],
+        }), encoding="utf-8")
+        journal.chmod(0o600)
+
+        with self.assertRaisesRegex(ValueError, "journal"):
+            restore_snapshot(snapshot, destination, dry_run=False, expected_current_hash=current_destination_hash(snapshot, destination))
+        self.assertEqual(sentinel.read_bytes(), b"unchanged\n")
+        self.assertEqual(stat.S_IMODE(sentinel.stat().st_mode), 0o640)
+
+    def test_verify_reports_control_character_and_bad_type_records(self):
+        """Hostile JSON types, NULs, and control characters must never escape verification."""
+        from kingstack.snapshot import create_snapshot, verify_snapshot
+
+        snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
+        manifest_path = snapshot / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["files"].append({"path": "claude/evil\u0000name", "kind": [], "sha256": [], "mode": [], "target": {}})
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        manifest_path.chmod(0o600)
+
+        problems = verify_snapshot(snapshot, check_permissions=True)
+        self.assertTrue(problems)
+        self.assertTrue(any("invalid" in problem or "denylisted" in problem for problem in problems), problems)

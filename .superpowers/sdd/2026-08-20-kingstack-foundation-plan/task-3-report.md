@@ -345,3 +345,110 @@ verified snapshot-20260820-094710
 ```
 
 No open concerns from this round.
+
+## Fix Round 3 — Physical journal confinement
+
+Commit status: committed with this round's Task 3 code, tests, and report.
+
+### Exact RED command and output
+
+```sh
+PYTHONPATH=lib python3 -m unittest tests.test_snapshot.SnapshotTest.test_dry_run_with_complete_pending_journal_is_byte_for_byte_read_only tests.test_snapshot.SnapshotTest.test_apply_refuses_symlinked_valid_journal_backup_without_outside_mutation tests.test_snapshot.SnapshotTest.test_verify_reports_control_character_and_bad_type_records -v
+```
+
+```text
+test_dry_run_with_complete_pending_journal_is_byte_for_byte_read_only (tests.test_snapshot.SnapshotTest)
+Even a valid pending transaction is only reported, never recovered by dry-run. ... ok
+test_apply_refuses_symlinked_valid_journal_backup_without_outside_mutation (tests.test_snapshot.SnapshotTest)
+A syntactically valid journal cannot redirect recovery through a backup symlink. ... ERROR
+test_verify_reports_control_character_and_bad_type_records (tests.test_snapshot.SnapshotTest)
+Hostile JSON types, NULs, and control characters must never escape verification. ... ok
+
+======================================================================
+ERROR: test_apply_refuses_symlinked_valid_journal_backup_without_outside_mutation (tests.test_snapshot.SnapshotTest)
+A syntactically valid journal cannot redirect recovery through a backup symlink.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/mac/.claude/.worktrees/agent-neutral-kingstack/tests/test_snapshot.py", line 426, in test_apply_refuses_symlinked_valid_journal_backup_without_outside_mutation
+    restore_snapshot(snapshot, destination, dry_run=False, expected_current_hash=current_destination_hash(snapshot, destination))
+  File "/Users/mac/.claude/.worktrees/agent-neutral-kingstack/lib/kingstack/snapshot.py", line 134, in restore_snapshot
+    _recover_transaction(destination_home)
+  File "/Users/mac/.claude/.worktrees/agent-neutral-kingstack/lib/kingstack/snapshot.py", line 220, in _recover_transaction
+    _cleanup_transaction(destination, destination / transaction["stage"], destination / transaction["backup"], journal)
+  File "/Users/mac/.claude/.worktrees/agent-neutral-kingstack/lib/kingstack/snapshot.py", line 246, in _cleanup_transaction
+    shutil.rmtree(path)
+  File "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/shutil.py", line 728, in rmtree
+    onerror(os.path.islink, path, sys.exc_info())
+  File "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/shutil.py", line 726, in rmtree
+    raise OSError("Cannot call rmtree on a symbolic link")
+OSError: Cannot call rmtree on a symbolic link
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.326s
+
+FAILED (errors=1)
+```
+
+### Exact focused GREEN command and output
+
+```sh
+PYTHONPATH=lib python3 -m unittest tests.test_snapshot.SnapshotTest.test_apply_refuses_symlinked_valid_journal_backup_without_outside_mutation tests.test_snapshot.SnapshotTest.test_verify_reports_control_character_and_bad_type_records -v
+```
+
+```text
+test_apply_refuses_symlinked_valid_journal_backup_without_outside_mutation (tests.test_snapshot.SnapshotTest)
+A syntactically valid journal cannot redirect recovery through a backup symlink. ... ok
+test_verify_reports_control_character_and_bad_type_records (tests.test_snapshot.SnapshotTest)
+Hostile JSON types, NULs, and control characters must never escape verification. ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 1.173s
+
+OK
+```
+
+### Exact full GREEN command and output
+
+```sh
+PYTHONPATH=lib python3 -m unittest tests.test_paths tests.test_inventory tests.test_snapshot -v
+git diff --check
+```
+
+```text
+Ran 30 tests in 12.341s
+
+OK
+```
+
+Every verbose test status is `ok` in the terminal output immediately above this
+report update; no test was skipped. The focused durability/recovery additions
+are: canonical aliases and NUL/type records, complete pending-journal dry-run,
+physically symlinked backup refusal, malformed unconfined journal refusal,
+journal-temp collision rollback, and interrupted recovery.
+
+### Fresh real snapshot
+
+```sh
+ks_snapshot_id=$(./scripts/kingstack snapshot --label pre-neutral-migration-round-3 --print-id)
+printf '%s\n' "$ks_snapshot_id"
+./scripts/kingstack snapshot verify "$ks_snapshot_id" --check-permissions
+```
+
+```text
+snapshot-20260820-101106
+verified snapshot-20260820-101106
+```
+
+All old snapshots were preserved: `snapshot-20260820-093104`,
+`snapshot-20260820-094710`, and the fresh `snapshot-20260820-101106`.
+
+### Self-review
+
+Journal recovery now opens the trusted destination and stage/backup directories
+with mandatory `O_DIRECTORY|O_NOFOLLOW`, validates every journal relative path
+and before-state schema before rollback/cleanup, and opens target ancestors
+relative to the destination descriptor. Journal temporaries use exclusive,
+no-follow descriptor writes and fsync their file plus parent directory.
+Staged regular files, staging/backup directories, backup moves, and target
+renames are fsynced in order. Source-root creation uses no-follow directory
+descriptors and source identity rechecks. No open blocker remains.

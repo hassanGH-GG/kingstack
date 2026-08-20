@@ -215,6 +215,7 @@ def _recover_transaction(destination: Path) -> None:
         return
     _assert_no_symlink_ancestors(journal)
     transaction = _read_journal(journal, destination)
+    _validate_journal_physical(destination, transaction)
     if transaction.get("status") != "committed":
         _rollback_transaction(destination, transaction)
     _cleanup_transaction(destination, destination / transaction["stage"], destination / transaction["backup"], journal)
@@ -246,6 +247,26 @@ def _cleanup_transaction(destination: Path, stage: Path, backup: Path, journal: 
             shutil.rmtree(path)
     if journal.parent == destination and journal.name == _JOURNAL_NAME and os.path.lexists(journal):
         journal.unlink()
+
+
+def _validate_journal_physical(destination: Path, transaction: dict) -> None:
+    """Refuse a journal whose managed directories or target parents are symlinks."""
+    root_fd = _open_directory(destination)
+    try:
+        for name in (transaction["stage"], transaction["backup"]):
+            details = os.stat(name, dir_fd=root_fd, follow_symlinks=False)
+            if not stat.S_ISDIR(details.st_mode):
+                raise ValueError("invalid restore transaction journal")
+            child_fd = _open_child_directory(root_fd, name)
+            os.close(child_fd)
+        for entry in transaction["entries"]:
+            _open_journal_parent(root_fd, entry["target"])
+        for parent in transaction["parents"]:
+            _open_journal_directory(root_fd, parent["path"])
+    except OSError as error:
+        raise ValueError("invalid restore transaction journal") from error
+    finally:
+        os.close(root_fd)
 
 
 def _write_journal(path: Path, transaction: dict) -> None:
@@ -489,7 +510,7 @@ def _record_is_usable(record: object) -> bool:
 def _assert_safe_manifest_path(path: object) -> None:
     if not isinstance(path, str):
         raise ValueError("invalid snapshot manifest path")
-    if "\\" in path or path != str(PurePosixPath(path)):
+    if "\\" in path or any(ord(character) < 32 for character in path) or path != str(PurePosixPath(path)):
         raise ValueError("invalid snapshot manifest path")
     relative = Path(path)
     if relative.is_absolute() or len(relative.parts) < 2 or relative.parts[0] not in {"claude", "codex"}:
@@ -630,6 +651,35 @@ def _open_directory(path: Path) -> int:
         os.close(descriptor)
         raise ValueError("refusing non-directory anchor")
     return descriptor
+
+
+def _open_child_directory(parent_fd: int, name: str) -> int:
+    if not hasattr(os, "O_DIRECTORY") or not hasattr(os, "O_NOFOLLOW"):
+        raise ValueError("platform lacks required no-follow directory primitives")
+    descriptor = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent_fd)
+    if not stat.S_ISDIR(os.fstat(descriptor).st_mode):
+        os.close(descriptor)
+        raise ValueError("refusing non-directory journal child")
+    return descriptor
+
+
+def _open_journal_parent(root_fd: int, relative: str) -> None:
+    _open_journal_parts(root_fd, PurePosixPath(relative).parts[:-1])
+
+
+def _open_journal_directory(root_fd: int, relative: str) -> None:
+    _open_journal_parts(root_fd, PurePosixPath(relative).parts)
+
+
+def _open_journal_parts(root_fd: int, parts: Tuple[str, ...]) -> None:
+    descriptor = os.dup(root_fd)
+    try:
+        for part in parts:
+            child = _open_child_directory(descriptor, part)
+            os.close(descriptor)
+            descriptor = child
+    finally:
+        os.close(descriptor)
 
 
 def _identity_from_fd(descriptor: int) -> Tuple[int, int]:
