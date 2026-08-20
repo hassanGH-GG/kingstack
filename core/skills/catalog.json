@@ -25,7 +25,12 @@
         "claude",
         "codex"
       ],
-      "dependencies": [],
+      "dependencies": [
+        "how",
+        "why",
+        "arena",
+        "interrogate"
+      ],
       "transform": "cursor-host"
     },
     {
@@ -58,7 +63,11 @@
         "claude",
         "codex"
       ],
-      "dependencies": [],
+      "dependencies": [
+        "how",
+        "why",
+        "arena"
+      ],
       "transform": "cursor-host"
     },
     {
@@ -185,7 +194,11 @@
         "claude",
         "codex"
       ],
-      "dependencies": [],
+      "dependencies": [
+        "poteto-mode",
+        "show-me-your-work",
+        "architect"
+      ],
       "transform": "cursor-host"
     },
     {
@@ -276,7 +289,8 @@
         "codex"
       ],
       "dependencies": [],
-      "transform": "cursor-host"
+      "transform": "cursor-host",
+      "frontmatter_name": "Poteto Mode"
     },
     {
       "name": "principle-boundary-discipline",
@@ -451,7 +465,9 @@
         "claude",
         "codex"
       ],
-      "dependencies": [],
+      "dependencies": [
+        "show-me-your-work"
+      ],
       "transform": "cursor-host"
     },
     {
@@ -591,7 +607,10 @@
         "claude",
         "codex"
       ],
-      "dependencies": [],
+      "dependencies": [
+        "how",
+        "why"
+      ],
       "transform": "cursor-host"
     },
     {

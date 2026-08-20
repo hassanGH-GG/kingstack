@@ -15,7 +15,7 @@ from typing import Any, Mapping, Optional, Sequence, Tuple
 from kingstack.adapter_contract import (
     AdapterContractError,
     canonicalize_portable_relative_path,
-    load_adapter,
+    load_adapter_document,
     portable_path_key,
 )
 
@@ -26,11 +26,14 @@ class SkillCatalogError(ValueError):
 
 _OWNERS = frozenset({"kingstack", "pstack", "adopted", "plugin-manager"})
 _ENTRY_REQUIRED = frozenset({"name", "owner", "source", "targets", "dependencies"})
-_ENTRY_ALLOWED = _ENTRY_REQUIRED | {"transform"}
+_ENTRY_ALLOWED = _ENTRY_REQUIRED | {"transform", "frontmatter_name"}
 _CATALOG_KEYS = frozenset({"schema_version", "upstreams", "entries"})
 _ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 _TRANSFORM_KINDS = frozenset({"frontmatter", "model", "tool", "path", "host"})
 _TEXT_EXTENSIONS = frozenset({".md", ".ts", ".sh", ".json"})
+_MODEL_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
+_TOOL_TOKEN = re.compile(r"[A-Za-z_][A-Za-z0-9_-]{0,127}\Z")
+_HOST_TOKEN = re.compile(r"[A-Z][A-Za-z]*(?: [A-Z][A-Za-z]*)?\Z")
 _UNSUPPORTED_CONSTRUCT_TOKENS = MappingProxyType({
     "Task syntax": b"Task",
     "subagent_type": b"subagent_type",
@@ -49,6 +52,7 @@ class SkillEntry:
     targets: Tuple[str, ...]
     dependencies: Tuple[str, ...]
     transform: Optional[str] = None
+    frontmatter_name: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -262,6 +266,8 @@ def _frontmatter(content: bytes, label: str) -> Tuple[Mapping[str, str], str]:
         if key in fields:
             raise SkillCatalogError("{} has duplicate frontmatter key '{}'".format(label, key))
         if value in (">", ">-", "|", "|-"):
+            if key == "description" and value != ">-":
+                raise SkillCatalogError("{} description must use folded >- frontmatter".format(label))
             block = []
             index += 1
             while index < len(lines) and lines[index].startswith("  "):
@@ -270,8 +276,25 @@ def _frontmatter(content: bytes, label: str) -> Tuple[Mapping[str, str], str]:
             if not block:
                 raise SkillCatalogError("{} has malformed frontmatter block".format(label))
             fields[key] = "\n".join(block)
+            if key == "description" and not fields[key].strip():
+                raise SkillCatalogError("{} description frontmatter must be nonempty".format(label))
             continue
-        if value.startswith(('"', "'")):
+        if key == "description":
+            if value.startswith('"'):
+                try:
+                    parsed = json.loads(value)
+                except json.JSONDecodeError as error:
+                    raise SkillCatalogError("{} has malformed quoted description frontmatter".format(label)) from error
+                if not isinstance(parsed, str) or not parsed.strip():
+                    raise SkillCatalogError("{} description frontmatter must be nonempty".format(label))
+                value = parsed
+            elif (
+                not value.strip()
+                or value.startswith(("#", "'", "[", "{", "&", "*", "!", "?", "- "))
+                or value.casefold() in {"null", "~", "true", "false"}
+            ):
+                raise SkillCatalogError("{} description frontmatter must be a nonempty string".format(label))
+        elif value.startswith(('"', "'")):
             quote = value[0]
             if len(value) < 2 or not value.endswith(quote):
                 raise SkillCatalogError("{} has unterminated frontmatter value".format(label))
@@ -280,7 +303,7 @@ def _frontmatter(content: bytes, label: str) -> Tuple[Mapping[str, str], str]:
             raise SkillCatalogError("{} has unsupported frontmatter value".format(label))
         fields[key] = value
         index += 1
-    if not fields.get("name") or "description" not in fields:
+    if not fields.get("name") or not fields.get("description", "").strip():
         raise SkillCatalogError("{} frontmatter requires name and description".format(label))
     return MappingProxyType(fields), text[end + 5:]
 
@@ -290,7 +313,8 @@ def _frontmatter_name(content: bytes, label: str) -> str:
 
 
 def _read_source_tree(
-    root_fd: int, source: str, expected_name: str, validate_frontmatter: bool = True
+    root_fd: int, source: str, expected_name: str, validate_frontmatter: bool = True,
+    expected_frontmatter_name: Optional[str] = None,
 ) -> Mapping[str, bytes]:
     try:
         source_fd = _open_relative(root_fd, source, directory=True)
@@ -343,30 +367,96 @@ def _read_source_tree(
         raise SkillCatalogError("missing source SKILL.md for '{}'".format(expected_name))
     if validate_frontmatter:
         actual_name = _frontmatter_name(files["SKILL.md"], "skill '{}'".format(expected_name))
-        normalized_name = re.sub(r"[^a-z0-9]+", "-", actual_name.casefold()).strip("-")
-        if normalized_name != expected_name:
+        if actual_name != (expected_frontmatter_name or expected_name):
             raise SkillCatalogError("skill '{}' frontmatter name is '{}'".format(expected_name, actual_name))
     return files
 
 
-def _adapter_ids(root: Path) -> Tuple[str, ...]:
+def _adapter_ids(root_fd: int) -> Tuple[str, ...]:
+    """Discover validated declarations beneath the held repository descriptor."""
     identifiers = []
-    adapters_root = root / "adapters"
     try:
-        candidates = sorted(adapters_root.iterdir(), key=lambda item: item.name)
+        adapters_fd = _open_relative(root_fd, "adapters", directory=True)
     except OSError as error:
         raise SkillCatalogError("cannot enumerate adapter declarations: {}".format(error)) from error
-    for candidate in candidates:
-        declaration_path = candidate / "adapter.json"
-        if not declaration_path.exists():
-            continue
+    adapters_identity = _identity(os.fstat(adapters_fd))
+    names = sorted(os.listdir(adapters_fd))
+    try:
+        for name in names:
+            try:
+                canonical = canonicalize_portable_relative_path(name, "adapter directory")
+                candidate_fd = os.open(
+                    canonical,
+                    os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+                    dir_fd=adapters_fd,
+                )
+            except (AdapterContractError, OSError) as error:
+                raise SkillCatalogError("adapter directory is a symbolic link or unsafe: {}".format(name)) from error
+            candidate_identity = _identity(os.fstat(candidate_fd))
+            try:
+                try:
+                    probe_fd = _open_relative(candidate_fd, "adapter.json")
+                except FileNotFoundError:
+                    continue
+                else:
+                    os.close(probe_fd)
+                raw = _mapping(
+                    _read_json_bytes(
+                        _read_relative(candidate_fd, "adapter.json", "adapter '{}'".format(name)),
+                        "adapter '{}'".format(name),
+                    ),
+                    "adapter '{}'".format(name),
+                )
+                inline = dict(raw)
+                for field in ("owned_paths", "model_tiers", "capability_matrix"):
+                    reference = inline.get(field)
+                    if not isinstance(reference, str):
+                        continue
+                    try:
+                        reference = canonicalize_portable_relative_path(reference, "adapter reference")
+                    except AdapterContractError as error:
+                        raise SkillCatalogError(str(error)) from error
+                    document = _read_json_bytes(
+                        _read_relative(candidate_fd, reference, "adapter '{}' {}".format(name, field)),
+                        "adapter '{}' {}".format(name, field),
+                    )
+                    if field == "model_tiers" and isinstance(document, dict) and "model_tiers" in document:
+                        document = document["model_tiers"]
+                    elif field == "owned_paths" and isinstance(document, dict) and "owned_paths" in document:
+                        document = document["owned_paths"]
+                    inline[field] = document
+                try:
+                    declaration = load_adapter_document(inline, Path("adapters") / name / "adapter.json")
+                except AdapterContractError as error:
+                    raise SkillCatalogError("invalid adapter declaration '{}': {}".format(name, error)) from error
+                if declaration.id != name:
+                    raise SkillCatalogError("adapter declaration directory/ID mismatch")
+                identifiers.append(declaration.id)
+                try:
+                    check_fd = os.open(
+                        name,
+                        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+                        dir_fd=adapters_fd,
+                    )
+                except OSError as error:
+                    raise SkillCatalogError("adapter directory identity changed: {}".format(name)) from error
+                try:
+                    if candidate_identity != _identity(os.fstat(check_fd)):
+                        raise SkillCatalogError("adapter directory identity changed: {}".format(name))
+                finally:
+                    os.close(check_fd)
+            finally:
+                os.close(candidate_fd)
+        if names != sorted(os.listdir(adapters_fd)) or adapters_identity != _identity(os.fstat(adapters_fd)):
+            raise SkillCatalogError("adapter directory changed while reading")
+        check_adapters_fd = _open_relative(root_fd, "adapters", directory=True)
         try:
-            declaration = load_adapter(declaration_path)
-        except AdapterContractError as error:
-            raise SkillCatalogError("invalid adapter declaration '{}': {}".format(candidate.name, error)) from error
-        if declaration.id != candidate.name:
-            raise SkillCatalogError("adapter declaration directory/ID mismatch")
-        identifiers.append(declaration.id)
+            if adapters_identity != _identity(os.fstat(check_adapters_fd)):
+                raise SkillCatalogError("adapter directory identity changed while reading")
+        finally:
+            os.close(check_adapters_fd)
+    finally:
+        os.close(adapters_fd)
     if not identifiers:
         raise SkillCatalogError("no validated adapter declarations")
     return tuple(identifiers)
@@ -421,8 +511,26 @@ def _load_transforms(root_fd: int, adapter_ids: Sequence[str]) -> Tuple[Mapping[
                         raise SkillCatalogError("transform replacement must use non-destructive exact tokens")
                     if source in (".*", ".+", "^", "$") or source == target:
                         raise SkillCatalogError("transform replacement must use non-destructive exact tokens")
-                    if kind == "host" and source not in {"Cursor", "Claude", "Claude Code"}:
-                        raise SkillCatalogError("host transform source is not an explicit host token")
+                    if kind == "model" and (
+                        _MODEL_TOKEN.fullmatch(source) is None or _MODEL_TOKEN.fullmatch(target) is None
+                    ):
+                        raise SkillCatalogError("model transform must use exact model tokens")
+                    if kind == "tool" and (
+                        _TOOL_TOKEN.fullmatch(source) is None or _TOOL_TOKEN.fullmatch(target) is None
+                    ):
+                        raise SkillCatalogError("tool transform must use exact tool tokens")
+                    if kind == "path" and (
+                        any(character.isspace() or ord(character) < 32 for character in source + target)
+                        or len(source) > 512 or len(target) > 512
+                        or not any(marker in source for marker in ("/", ".", "$", "~"))
+                        or not any(marker in target for marker in ("/", ".", "$", "~"))
+                    ):
+                        raise SkillCatalogError("path transform must use exact path tokens")
+                    if kind == "host" and (
+                        source not in {"Cursor", "Claude", "Claude Code"}
+                        or _HOST_TOKEN.fullmatch(target) is None
+                    ):
+                        raise SkillCatalogError("host transform source and target must be explicit host tokens")
                 typed.append(MappingProxyType(dict(replacement)))
             if not all(isinstance(token, str) and token for token in forbidden):
                 raise SkillCatalogError("forbidden host tokens must be non-empty strings")
@@ -474,7 +582,7 @@ def _validate_dependencies(entries: Sequence[SkillEntry]) -> None:
 
 
 def load_catalog(root: Path, upstream_root: Optional[Path] = None) -> SkillCatalog:
-    """Load and validate the authoritative catalog and every owned source tree."""
+    """Load the catalog while owning each root descriptor from acquisition."""
     root = Path(os.path.abspath(str(root)))
     upstream_root = Path(os.path.abspath(str(
         upstream_root
@@ -483,10 +591,26 @@ def load_catalog(root: Path, upstream_root: Optional[Path] = None) -> SkillCatal
         )
     )))
     root_fd = _open_absolute_dir(root, "kingstack root")
-    upstream_fd = _open_absolute_dir(upstream_root, "upstream root")
+    try:
+        upstream_fd = _open_absolute_dir(upstream_root, "upstream root")
+    except BaseException:
+        os.close(root_fd)
+        raise
+    try:
+        return _load_catalog_opened(root, upstream_root, root_fd, upstream_fd)
+    finally:
+        try:
+            os.close(upstream_fd)
+        finally:
+            os.close(root_fd)
+
+
+def _load_catalog_opened(
+    root: Path, upstream_root: Path, root_fd: int, upstream_fd: int
+) -> SkillCatalog:
     root_identity = _identity(os.fstat(root_fd))
     upstream_identity = _identity(os.fstat(upstream_fd))
-    adapter_ids = _adapter_ids(root)
+    adapter_ids = _adapter_ids(root_fd)
     document = _mapping(
         _read_json_bytes(_read_relative(root_fd, "core/skills/catalog.json", "skill catalog"), "skill catalog"),
         "skill catalog",
@@ -553,7 +677,17 @@ def load_catalog(root: Path, upstream_root: Optional[Path] = None) -> SkillCatal
         transform = raw_entry.get("transform")
         if transform is not None:
             transform = _stable_id(transform, "transform")
-        entry = SkillEntry(name, owner, source, tuple(targets), tuple(dependencies), transform)
+        frontmatter_name = raw_entry.get("frontmatter_name")
+        if frontmatter_name is not None and (
+            not isinstance(frontmatter_name, str)
+            or not frontmatter_name.strip()
+            or any(ord(character) < 32 for character in frontmatter_name)
+        ):
+            raise SkillCatalogError("frontmatter_name must be a nonempty display identity")
+        entry = SkillEntry(
+            name, owner, source, tuple(targets), tuple(dependencies), transform,
+            frontmatter_name,
+        )
         _validate_owner_source(entry)
         entries.append(entry)
 
@@ -570,7 +704,10 @@ def load_catalog(root: Path, upstream_root: Optional[Path] = None) -> SkillCatal
                 if entry.transform is None or entry.transform not in transforms[adapter]:
                     raise SkillCatalogError("skill '{}' has an unknown transform for '{}'".format(entry.name, adapter))
             descriptor = root_fd if entry.owner == "kingstack" else upstream_fd
-            sources[entry.name] = _read_source_tree(descriptor, entry.source, entry.name)
+            sources[entry.name] = _read_source_tree(
+                descriptor, entry.source, entry.name,
+                expected_frontmatter_name=entry.frontmatter_name,
+            )
         for adapter, records in unsupported.items():
             for name in records:
                 if name not in {entry.name for entry in entries}:
@@ -592,22 +729,25 @@ def load_catalog(root: Path, upstream_root: Optional[Path] = None) -> SkillCatal
                         raise SkillCatalogError(
                             "unsupported evidence is not present in '{}:{}'".format(name, resource)
                         )
-        root_check = _open_absolute_dir(root, "kingstack root")
-        upstream_check = _open_absolute_dir(upstream_root, "upstream root")
+        root_check = None
+        upstream_check = None
         try:
+            root_check = _open_absolute_dir(root, "kingstack root")
+            upstream_check = _open_absolute_dir(upstream_root, "upstream root")
             if root_identity != _identity(os.fstat(root_check)) or upstream_identity != _identity(os.fstat(upstream_check)):
                 raise SkillCatalogError("source root identity changed while reading")
         finally:
-            os.close(root_check)
-            os.close(upstream_check)
+            if upstream_check is not None:
+                os.close(upstream_check)
+            if root_check is not None:
+                os.close(root_check)
         return SkillCatalog(
             entries=tuple(entries), upstreams=MappingProxyType(upstreams), root=root,
             upstream_root=upstream_root, transforms=transforms, unsupported=unsupported,
             sources=MappingProxyType(sources), adapter_ids=adapter_ids,
         )
     finally:
-        os.close(root_fd)
-        os.close(upstream_fd)
+        pass
 
 
 def _transform_content(content: bytes, path: str, rule: _TransformRule, label: str) -> bytes:

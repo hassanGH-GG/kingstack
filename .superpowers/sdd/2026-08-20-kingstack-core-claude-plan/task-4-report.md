@@ -338,3 +338,137 @@ all five checked current links: absent
 
 No live write, staging directory, native link, release, schedule, activation,
 Superpowers change, plan deletion, push, or amend occurred.
+
+## Reviewer fix round 2 — final Task 4 closure
+
+Closure base: `07cd9895ffaf02bdeaf876095127e3ed148b60a5`
+
+The standalone migration handoff was read and preserved byte-for-byte. This
+round touched only Task 4 catalog, adapter ownership, loader, tests, and this
+append-only report.
+
+### Grouped RED before production edits
+
+Five real-behavior tests covered the complete reviewer matrix before any
+production edit:
+
+```text
+$ PYTHONPATH=lib python3 -m unittest <five closure tests>
+Ran 5 tests in 1.317s
+FAILED (failures=13)
+
+FD ownership: first root descriptor leaked when the second acquisition failed
+Typed transforms: path/model/tool sentence replacements were accepted
+Dependencies: architect, blast-radius, figure-it-out,
+              principle-prove-it-works, and teach remained bundled for Codex
+Frontmatter: empty/comment/null/boolean/single-empty descriptions and
+             `name: KING MODE` were accepted
+Adapter discovery: a symlinked external adapter declaration was admitted
+```
+
+The adapter test also contains a deterministic in-tree declaration-directory
+swap. The FD test audits first-root, early catalog-validation, and fourth-open
+(second identity-check acquisition) exits and closes any leaked test descriptor
+before reporting failure.
+
+### Categorical fixes
+
+- `load_catalog` owns the first root FD immediately. If the upstream root open
+  fails, it closes the first root; otherwise a nested `finally` closes both on
+  every validation/error/return path. Second identity-check descriptors use
+  nullable ownership and close safely when either acquisition fails.
+- Adapter discovery is fully descriptor-relative beneath the held root. It
+  holds and identity-revalidates `adapters/`, each declaration directory,
+  `adapter.json`, and referenced JSON. Symlinked directories and deterministic
+  directory swaps fail closed. Declarations are validated in memory without a
+  pathname reopen or provider import.
+- Typed model/tool/path/host declarations now validate structural token
+  grammars. Models and tools are bounded identifiers; paths contain path syntax
+  and no whitespace/control characters; hosts use explicit source identities
+  and bounded host targets. A sentence or paragraph cannot masquerade as an
+  allowed replacement, so independent parity cannot bless arbitrary body
+  destruction.
+- Frontmatter accepts the observed corpus only: 52 sources have the exact
+  catalog stable ID and pstack's one legacy display identity is explicitly
+  declared as `frontmatter_name: "Poteto Mode"`. Description forms are exactly
+  39 nonempty double-quoted strings, 12 nonempty plain strings, and 2 nonempty
+  folded `>-` blocks. Empty, comment-only, null, boolean, collection,
+  single-empty, malformed, control-containing, ambiguous, and all-caps alias
+  inputs fail.
+- Catalog dependency edges are explicit and validated:
+
+```text
+architect -> how, why, arena, interrogate
+blast-radius -> how, why, arena
+figure-it-out -> poteto-mode, show-me-your-work, architect
+principle-prove-it-works -> show-me-your-work
+teach -> how, why
+```
+
+Codex unsupported status therefore closes transitively over the graph. Codex
+ownership no longer claims those five dependent skill directories.
+
+### GREEN and final evidence
+
+```text
+$ PYTHONPATH=lib python3 -m unittest <five closure tests>
+Ran 5 tests in 0.891s
+OK
+
+$ PYTHONPATH=lib python3 -m unittest tests.test_skills
+Ran 23 tests in 9.436s
+OK
+
+$ PYTHONPATH=lib python3 -m unittest discover -s tests -q
+Ran 107 tests in 16.745s
+OK
+```
+
+Pure CLI/accounting evidence:
+
+```text
+pstack check: revision=63d938c status=clean; claude parity=[]; codex parity=[]
+claude sync:   skills=65 files=130 bundled=53 plugin-managed=12 unsupported=0
+claude render: skills=65 files=131 bundled=53 plugin-managed=12 unsupported=0
+codex sync:    skills=65 files=40  bundled=36 plugin-managed=11 unsupported=18
+codex render:  skills=65 files=41  bundled=36 plugin-managed=11 unsupported=18
+direct semantic parity: claude=() codex=()
+```
+
+Static and native evidence:
+
+```text
+py_compile: clean
+catalog/transform/adapter JSON: clean
+Path.resolve/os.walk/.staging boundary scan: clean
+git diff --check: clean
+protected five hashes: exact baseline matches
+~/.claude, ~/.codex, ~/.kingstack: real directories
+all five checked current links: absent
+```
+
+No native file, live skill, link, release, schedule, activation, Superpowers
+setting, plan, or handoff document was changed. No push occurred in this Task 4
+implementer session.
+
+### Standalone final Task 4 reviewer commands
+
+Run from the repository root against the closure commit:
+
+```bash
+PYTHONPATH=lib python3 -m unittest tests.test_skills -v
+PYTHONPATH=lib python3 -m unittest discover -s tests -v
+./scripts/kingstack sync-upstream pstack --check
+./scripts/kingstack sync-upstream pstack --adapter claude --bundle-manifest
+./scripts/kingstack sync-upstream pstack --adapter codex --bundle-manifest
+./scripts/kingstack render --adapter claude --manifest
+./scripts/kingstack render --adapter codex --manifest
+git diff 07cd989..HEAD --check
+git diff 07cd989..HEAD -- adapters/codex/adapter.json core/skills/catalog.json lib/kingstack/skills.py tests/test_skills.py
+git status --short --branch
+```
+
+Independently replay the three FD failure stages, paragraph-as-path/model/tool
+declarations, the exact 53-source frontmatter corpus plus invalid scalar table,
+the five dependency closures, and symlink/swap adapter discovery. Review must
+remain read-only. Task 5 and every live/cutover action remain out of scope.

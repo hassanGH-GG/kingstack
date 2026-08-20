@@ -294,6 +294,42 @@ class SkillCatalogTest(TestCase):
                 load_catalog(swap_root, upstream_root=PLUGINS)
         self.assertTrue(swapped["done"])
 
+    def test_catalog_closes_every_acquired_root_descriptor_on_all_failures(self):
+        """Each successful root acquisition is owned immediately, even on early exits."""
+        original_open = skill_module._open_absolute_dir
+
+        def exercise(root, upstream, fail_call=None):
+            acquired = []
+            calls = {"count": 0}
+
+            def tracked_open(path, label):
+                calls["count"] += 1
+                if calls["count"] == fail_call:
+                    raise SkillCatalogError("injected root-open failure")
+                descriptor = original_open(path, label)
+                acquired.append(descriptor)
+                return descriptor
+
+            with patch("kingstack.skills._open_absolute_dir", side_effect=tracked_open):
+                with self.assertRaises(SkillCatalogError):
+                    load_catalog(root, upstream_root=upstream)
+            self.assertTrue(acquired)
+            leaked = []
+            for descriptor in acquired:
+                try:
+                    os.fstat(descriptor)
+                except OSError:
+                    continue
+                leaked.append(descriptor)
+                os.close(descriptor)
+            self.assertEqual(leaked, [])
+
+        exercise(ROOT, ROOT / "missing-upstream", fail_call=2)
+        invalid = self.payload()
+        invalid["extra"] = True
+        exercise(self.temporary_catalog(invalid), PLUGINS)
+        exercise(ROOT, PLUGINS, fail_call=4)
+
     def test_frontmatter_parser_accepts_baseline_and_rejects_malformed_subset(self):
         """The dependency-free parser accepts our subset and rejects ambiguous YAML."""
         load_catalog(ROOT, upstream_root=PLUGINS)
@@ -313,6 +349,28 @@ class SkillCatalogTest(TestCase):
             with self.subTest(label=label):
                 with self.assertRaisesRegex(SkillCatalogError, "frontmatter"):
                     load_catalog(test_root, upstream_root=PLUGINS)
+
+    def test_frontmatter_names_and_descriptions_match_the_observed_baseline_subset(self):
+        """Names are exact identities and descriptions are nonempty strings only."""
+        invalid_descriptions = ("", "# comment", "null", "true", "false", "{}", "[]", "''")
+        for value in invalid_descriptions:
+            test_root = self.temporary_catalog()
+            skill = test_root / "core/skills/authored/king-mode/SKILL.md"
+            body = skill.read_text(encoding="utf-8")
+            end = body.index("\n---\n", 4)
+            skill.write_text(
+                "---\nname: king-mode\ndescription: {}".format(value) + body[end:],
+                encoding="utf-8",
+            )
+            with self.subTest(description=value):
+                with self.assertRaisesRegex(SkillCatalogError, "frontmatter|description"):
+                    load_catalog(test_root, upstream_root=PLUGINS)
+
+        alias_root = self.temporary_catalog()
+        skill = alias_root / "core/skills/authored/king-mode/SKILL.md"
+        skill.write_text(skill.read_text(encoding="utf-8").replace("name: king-mode", "name: KING MODE", 1), encoding="utf-8")
+        with self.assertRaisesRegex(SkillCatalogError, "frontmatter name"):
+            load_catalog(alias_root, upstream_root=PLUGINS)
 
     def test_typed_transforms_reject_destructive_rules_and_parity_is_independent(self):
         """Kinds constrain edits and parity catches semantic edits independently."""
@@ -344,6 +402,23 @@ class SkillCatalogTest(TestCase):
             errors = semantic_parity_errors("claude", ROOT, upstream_root=PLUGINS)
         self.assertTrue(errors, "semantic parity accepted an out-of-engine heading edit")
 
+    def test_transform_kinds_cannot_smuggle_arbitrary_instruction_rewrites(self):
+        """Typed declarations accept tokens, not sentences or whole paragraphs."""
+        bad_rules = (
+            {"kind": "path", "source": "Runs inside poteto-mode, which supplies the playbooks and principles.", "target": "destroyed"},
+            {"kind": "model", "source": "whole model paragraph", "target": "gpt-5.6-sol"},
+            {"kind": "tool", "source": "Ask the user a destructive question", "target": "request_user_input"},
+        )
+        for rule in bad_rules:
+            test_root = self.temporary_catalog()
+            transform_path = test_root / "core/skills/transforms/claude.json"
+            document = json.loads(transform_path.read_text(encoding="utf-8"))
+            document["transforms"]["authored-host"]["replacements"].append(rule)
+            transform_path.write_text(json.dumps(document), encoding="utf-8")
+            with self.subTest(kind=rule["kind"]):
+                with self.assertRaisesRegex(SkillCatalogError, "transform|token|path|model|tool"):
+                    load_catalog(test_root, upstream_root=PLUGINS)
+
     def test_clobber_manifest_is_exact_and_descriptor_confined(self):
         """Only the exact generated set and exact installed tree may be adopted."""
         installed, generated, manifest = self.full_generated_install()
@@ -374,7 +449,10 @@ class SkillCatalogTest(TestCase):
             "arena", "automate-me", "how", "interrogate", "no-comments",
             "poteto-mode", "recall", "reflect", "show-me-your-work", "swarm", "why",
         }
-        unsupported = direct | {"king-mode", "service-migration-handover"}
+        unsupported = direct | {
+            "architect", "blast-radius", "figure-it-out", "king-mode",
+            "principle-prove-it-works", "service-migration-handover", "teach",
+        }
         manifest = bundle_manifest("codex", ROOT, upstream_root=PLUGINS)
         records = {record["name"]: record for record in manifest["skills"]}
         self.assertEqual(
@@ -388,6 +466,62 @@ class SkillCatalogTest(TestCase):
         joined = b"\n".join(files.values())
         for token in (b"subagent_type", b"run_in_background", b"AskQuestion", b"/loop", b"agent-transcripts"):
             self.assertNotIn(token, joined)
+
+    def test_codex_unsupported_status_is_dependency_closed(self):
+        """Every workflow that requires an unsupported skill is itself unsupported."""
+        expected = {
+            "arena", "architect", "automate-me", "blast-radius", "figure-it-out",
+            "how", "interrogate", "king-mode", "no-comments", "poteto-mode",
+            "principle-prove-it-works", "recall", "reflect", "service-migration-handover",
+            "show-me-your-work", "swarm", "teach", "why",
+        }
+        manifest = bundle_manifest("codex", ROOT, upstream_root=PLUGINS)
+        actual = {item["name"] for item in manifest["skills"] if item["status"] == "unsupported"}
+        self.assertEqual(actual, expected)
+        records = {item["name"]: item for item in manifest["skills"]}
+        for name in expected - {"service-migration-handover"}:
+            self.assertTrue(records[name].get("evidence"), name)
+
+    def test_adapter_discovery_rejects_symlinked_and_swapped_declarations(self):
+        """Adapter discovery remains confined to the held repository descriptor."""
+        symlink_root = self.temporary_catalog()
+        outside = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, outside)
+        shutil.copytree(symlink_root / "adapters/codex", outside / "example")
+        declaration_path = outside / "example/adapter.json"
+        declaration = json.loads(declaration_path.read_text(encoding="utf-8"))
+        declaration["id"] = "example"
+        declaration["render_module"] = "example.external"
+        declaration["capability_matrix"]["adapter_id"] = "example"
+        declaration_path.write_text(json.dumps(declaration), encoding="utf-8")
+        (symlink_root / "adapters/example").symlink_to(outside / "example", target_is_directory=True)
+        shutil.copy(symlink_root / "core/skills/transforms/claude.json", symlink_root / "core/skills/transforms/example.json")
+        transform_path = symlink_root / "core/skills/transforms/example.json"
+        transform = json.loads(transform_path.read_text(encoding="utf-8"))
+        transform["adapter"] = "example"
+        transform_path.write_text(json.dumps(transform), encoding="utf-8")
+        with self.assertRaisesRegex(SkillCatalogError, "adapter|symbolic link|unsafe"):
+            load_catalog(symlink_root, upstream_root=PLUGINS)
+
+        swap_root = self.temporary_catalog()
+        source = swap_root / "adapters/codex"
+        replacement = swap_root / "adapter-replacement"
+        shutil.copytree(source, replacement)
+        original_read = skill_module._read_fd
+        swapped = {"done": False}
+
+        def swapping_read(descriptor, label):
+            content = original_read(descriptor, label)
+            if label == "adapter 'codex'" and not swapped["done"]:
+                source.rename(source.with_name("codex-held"))
+                replacement.rename(source)
+                swapped["done"] = True
+            return content
+
+        with patch("kingstack.skills._read_fd", side_effect=swapping_read):
+            with self.assertRaisesRegex(SkillCatalogError, "adapter|changed|identity"):
+                load_catalog(swap_root, upstream_root=PLUGINS)
+        self.assertTrue(swapped["done"])
 
     def test_adapter_targets_are_declaration_driven_for_a_synthetic_third_adapter(self):
         """A valid declared adapter participates without first-party core imports."""
