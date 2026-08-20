@@ -12,7 +12,7 @@ import sys
 import uuid
 from datetime import datetime
 from pathlib import Path, PurePosixPath
-from typing import Callable, Dict, Iterable, List, Optional
+from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 from kingstack.inventory import CLAUDE_INCLUDE, CODEX_INCLUDE
 from kingstack.paths import Paths
@@ -21,8 +21,10 @@ from kingstack.paths import Paths
 ARCHIVE_VERSION = 1
 _LABEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}$")
 _DENYLISTED_NAMES = {
-    "auth.json", ".claude.json", "credentials", "keychain", "sessions",
+    "auth.json", ".claude.json",
 }
+_DENYLISTED_STEMS = {"auth", "session", "sessions", "transcript", "transcripts"}
+_DENYLISTED_PREFIXES = ("credentials", "keychain")
 _DENYLISTED_SUFFIXES = {".jsonl", ".transcript", ".transcript.json"}
 
 
@@ -43,7 +45,7 @@ def create_archive(paths: Paths, destination: Path, label: str,
 
     pre_inventory = _source_inventory(paths)
     archive_name = "archive-" + datetime.utcnow().strftime("%Y%m%d-%H%M%S")
-    destination = Path(destination).expanduser()
+    destination = Path(destination).expanduser().resolve()
     final = destination / archive_name
     if final.exists() or final.is_symlink():
         raise ValueError("archive directory already exists")
@@ -123,8 +125,10 @@ def verify_archive(archive_dir: Path, check_permissions: bool = False) -> List[s
     if check_permissions and stat.S_IMODE(manifest_stat.st_mode) != 0o600:
         problems.append("manifest permission mismatch")
 
-    records = manifest.get("files") if isinstance(manifest, dict) else None
-    inventories = manifest.get("source_inventories") if isinstance(manifest, dict) else None
+    if not isinstance(manifest, dict):
+        return problems + ["invalid archive manifest"]
+    records = manifest.get("files")
+    inventories = manifest.get("source_inventories")
     if manifest.get("version") != ARCHIVE_VERSION or not isinstance(records, list):
         return problems + ["invalid archive manifest"]
     if not isinstance(inventories, dict) or inventories.get("pre") != inventories.get("post"):
@@ -247,11 +251,8 @@ def _copy_entry(source: Path, files_root: Path,
         sha256 = None
         target = str(source_record["target"])
     else:
-        shutil.copy2(str(source), str(destination), follow_symlinks=False)
-        mode_value = int(str(source_record["mode"]), 8) & 0o700
-        destination.chmod(mode_value)
+        mode_value, sha256 = _copy_regular_file(source, destination, source_record)
         mode = format(mode_value, "04o")
-        sha256 = _hash_file(destination)
         target = None
         if sha256 != source_record["sha256"]:
             raise SourceChanged("source changed while copying " + path_text)
@@ -269,6 +270,60 @@ def _assert_source_matches(source: Path, record: Dict[str, object]) -> None:
     if (stat.S_ISLNK(details.st_mode) and record["kind"] != "symlink") or (
             stat.S_ISREG(details.st_mode) and record["kind"] != "file"):
         raise SourceChanged("source kind changed while copying " + str(source))
+
+
+def _copy_regular_file(source: Path, destination: Path,
+                       record: Dict[str, object]) -> Tuple[int, str]:
+    """Copy a verified regular source via no-follow, descriptor-relative I/O."""
+    source_fd = None
+    destination_parent_fd = None
+    destination_fd = None
+    try:
+        source_parent_fd = _open_directory_no_follow(source.parent)
+        try:
+            source_fd = os.open(
+                source.name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=source_parent_fd
+            )
+        finally:
+            os.close(source_parent_fd)
+        details = os.fstat(source_fd)
+        if (not stat.S_ISREG(details.st_mode)
+                or [details.st_dev, details.st_ino] != record["identity"]):
+            raise SourceChanged("source changed while copying " + str(source))
+        mode_value = int(str(record["mode"]), 8) & 0o700
+        destination_parent_fd = _open_directory_no_follow(destination.parent)
+        destination_fd = os.open(
+            destination.name,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            mode_value,
+            dir_fd=destination_parent_fd,
+        )
+        digest = hashlib.sha256()
+        while True:
+            chunk = os.read(source_fd, 65536)
+            if not chunk:
+                break
+            digest.update(chunk)
+            _write_all(destination_fd, chunk)
+        os.fchmod(destination_fd, mode_value)
+        return mode_value, digest.hexdigest()
+    except SourceChanged:
+        raise
+    except OSError as error:
+        raise SourceChanged("source changed while copying " + str(source)) from error
+    finally:
+        for descriptor in (destination_fd, destination_parent_fd, source_fd):
+            if descriptor is not None:
+                os.close(descriptor)
+
+
+def _write_all(descriptor: int, content: bytes) -> None:
+    offset = 0
+    while offset < len(content):
+        written = os.write(descriptor, content[offset:])
+        if written <= 0:
+            raise OSError("could not write archive payload")
+        offset += written
 
 
 def _source_path(paths: Paths, path_text: str) -> Path:
@@ -323,7 +378,10 @@ def _stored_paths(files_root: Path, check_permissions: bool,
 def _reject_denylisted(relative: str) -> None:
     for part in PurePosixPath(relative).parts:
         lower = part.lower()
-        if lower in _DENYLISTED_NAMES or any(lower.endswith(suffix) for suffix in _DENYLISTED_SUFFIXES):
+        stem = Path(lower).stem
+        if (lower in _DENYLISTED_NAMES or stem in _DENYLISTED_STEMS
+                or stem.startswith(_DENYLISTED_PREFIXES)
+                or any(lower.endswith(suffix) for suffix in _DENYLISTED_SUFFIXES)):
             raise ValueError("denylisted source path: " + relative)
 
 
@@ -348,6 +406,24 @@ def _private_directory_chain(root: Path, leaf: Path) -> None:
     for part in leaf.relative_to(root).parts:
         current = current / part
         _private_directory(current)
+
+
+def _open_directory_no_follow(path: Path) -> int:
+    """Open each absolute directory component without retaining an FD chain."""
+    path = Path(path)
+    if not path.is_absolute():
+        raise OSError("archive path must be absolute")
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    descriptor = os.open(path.anchor, flags)
+    try:
+        for part in path.parts[1:]:
+            child = os.open(part, flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        return descriptor
+    except Exception:
+        os.close(descriptor)
+        raise
 
 
 def _publish_exclusively(temporary: Path, final: Path) -> None:

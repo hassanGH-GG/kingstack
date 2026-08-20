@@ -79,6 +79,56 @@ class ArchiveTest(TestCase):
             create_archive(Paths.for_home(self.home), self.archive_root, "race", after_copy=mutate_source)
         self.assertEqual(list(self.archive_root.glob("archive-*")), [])
 
+    def test_source_swap_to_symlink_never_changes_its_target(self):
+        """Following a raced source link and chmodding its target must fail this test."""
+        from kingstack import archive as archive_module
+        from kingstack.archive import SourceChanged, create_archive
+
+        source = Paths.for_home(self.home).claude_home / "settings.json"
+        external = self.tempdir / "external-sentinel"
+        self._write(external, b"outside bytes\n", 0o640)
+        original_assert = archive_module._assert_source_matches
+
+        def swap_after_validation(path, record):
+            original_assert(path, record)
+            if path == source:
+                source.unlink()
+                source.symlink_to(external)
+
+        with patch.object(archive_module, "_assert_source_matches", side_effect=swap_after_validation):
+            with self.assertRaises(SourceChanged):
+                create_archive(Paths.for_home(self.home), self.archive_root, "raced-link")
+
+        self.assertEqual(external.read_bytes(), b"outside bytes\n")
+        self.assertEqual(stat.S_IMODE(external.stat().st_mode), 0o640)
+        self.assertEqual(list(self.archive_root.glob("archive-*")), [])
+
+    def test_nested_sensitive_component_variants_are_rejected(self):
+        """Missing a sensitive component or prefix variant must fail this test."""
+        from kingstack.archive import create_archive
+
+        for variant in (
+            "auth", "session", "sessions", "transcript", "transcripts",
+            "credentials-backup", "keychain-store",
+        ):
+            with self.subTest(variant=variant):
+                home = self.tempdir / ("variant-" + variant)
+                self._write(home / ".claude" / "settings.json", b"{}\n", 0o600)
+                self._write(home / ".claude" / "hooks" / variant / "token", b"secret\n", 0o600)
+                with self.assertRaisesRegex(ValueError, "denylisted"):
+                    create_archive(Paths.for_home(home), self.tempdir / ("archives-" + variant), "unsafe")
+
+    def test_verify_reports_a_non_object_manifest(self):
+        """Calling dict methods on a JSON array must fail this test."""
+        from kingstack.archive import create_archive, verify_archive
+
+        archive = create_archive(Paths.for_home(self.home), self.archive_root, "malformed")
+        manifest = archive / "manifest.json"
+        manifest.write_text("[]\n", encoding="utf-8")
+        manifest.chmod(0o600)
+
+        self.assertEqual(verify_archive(archive), ["invalid archive manifest"])
+
     def test_existing_archive_id_is_never_replaced(self):
         """Replacing a matching timestamp directory must fail this test."""
         from kingstack import archive as archive_module
