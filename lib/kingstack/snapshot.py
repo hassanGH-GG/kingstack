@@ -170,6 +170,7 @@ def create_snapshot(paths: Paths, destination: Path, label: str) -> Path:
     source_roots = _open_selected_source_roots(paths)
     destination_fd = None  # type: Optional[int]
     snapshot_fd = None  # type: Optional[int]
+    snapshot_directories = None  # type: Optional[_DirectoryCache]
     snapshot_name = "snapshot-" + datetime.utcnow().strftime("%Y%m%d-%H%M%S")
     snapshot_identity = None  # type: Optional[Tuple[int, int]]
     created = False
@@ -189,8 +190,8 @@ def create_snapshot(paths: Paths, destination: Path, label: str) -> Path:
         _fsync_directory_fd(snapshot_fd)
         _fsync_directory_fd(destination_fd)
         snapshot_identity = _identity(os.fstat(snapshot_fd))
-        files_fd = _mkdir_open_private(snapshot_fd, "files")
-        os.close(files_fd)
+        snapshot_directories = _DirectoryCache(snapshot_fd)
+        snapshot_directories.ensure("files")
 
         records = []
         selected = [
@@ -204,16 +205,14 @@ def create_snapshot(paths: Paths, destination: Path, label: str) -> Path:
             stored_parent = (
                 ("files", source["namespace"]) + source["parts"][:-1]
             )
-            parent_fd = _ensure_directory_parts(snapshot_fd, stored_parent)
-            try:
-                records.append(
-                    _copy_source_entry(
-                        source, parent_fd, source["parts"][-1], path_text
-                    )
+            parent_fd = snapshot_directories.ensure("/".join(stored_parent))
+            records.append(
+                _copy_source_entry(
+                    source, parent_fd, source["parts"][-1], path_text
                 )
-            finally:
-                os.close(parent_fd)
+            )
 
+        snapshot_directories.validate_links()
         for root in source_roots:
             _verify_open_path_identity(
                 root["path"], root["fd"],
@@ -233,18 +232,37 @@ def create_snapshot(paths: Paths, destination: Path, label: str) -> Path:
             (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode("utf-8"),
             0o600,
         )
+        snapshot_directories.validate_links()
+        problems = _verify_snapshot_fd(snapshot_fd, True)
+        if problems:
+            raise ValueError(
+                "created snapshot failed verification: " + "; ".join(problems)
+            )
+        snapshot_directories.validate_links()
         _verify_open_path_identity(
             destination, destination_fd, "snapshot destination root changed"
         )
+        published = _stat_optional(destination_fd, snapshot_name)
+        if (
+            published is None
+            or not stat.S_ISDIR(published.st_mode)
+            or _identity(published) != snapshot_identity
+        ):
+            raise ValueError("snapshot directory changed before publication")
         return destination / snapshot_name
     except Exception:
         if created and destination_fd is not None and snapshot_identity is not None:
+            if snapshot_directories is not None:
+                snapshot_directories.close()
+                snapshot_directories = None
             if snapshot_fd is not None:
                 os.close(snapshot_fd)
                 snapshot_fd = None
             _remove_tree_at(destination_fd, snapshot_name, snapshot_identity)
         raise
     finally:
+        if snapshot_directories is not None:
+            snapshot_directories.close()
         _close_quietly(snapshot_fd)
         _close_quietly(destination_fd)
         for root in source_roots:
@@ -623,16 +641,26 @@ def _cleanup_transaction(
 ) -> None:
     stage_identity = recovery.get("stage_identity")
     backup_identity = recovery.get("backup_identity")
-    _close_quietly(recovery.get("stage_fd"))
-    _close_quietly(recovery.get("backup_fd"))
-    recovery["stage_fd"] = None
-    recovery["backup_fd"] = None
-    _remove_tree_if_identity(
-        destination_fd, transaction["stage"], stage_identity
-    )
-    _remove_tree_if_identity(
-        destination_fd, transaction["backup"], backup_identity
-    )
+    stage_fd = recovery.get("stage_fd")
+    backup_fd = recovery.get("backup_fd")
+    try:
+        _remove_retained_tree_if_identity(
+            destination_fd,
+            transaction["stage"],
+            stage_identity,
+            stage_fd,
+        )
+        _remove_retained_tree_if_identity(
+            destination_fd,
+            transaction["backup"],
+            backup_identity,
+            backup_fd,
+        )
+    finally:
+        _close_quietly(stage_fd)
+        _close_quietly(backup_fd)
+        recovery["stage_fd"] = None
+        recovery["backup_fd"] = None
     expected_journal = recovery.get("journal_identity")
     details = _stat_optional(destination_fd, _JOURNAL_NAME)
     if details is not None:
@@ -1772,30 +1800,6 @@ def _open_relative_directory(
         raise
 
 
-def _ensure_directory_parts(
-    root_fd: int, parts: Tuple[str, ...]
-) -> int:
-    descriptor = os.dup(root_fd)
-    try:
-        for part in parts:
-            details = _stat_optional(descriptor, part)
-            if details is None:
-                _mkdir_durable(descriptor, part, 0o700)
-            elif not stat.S_ISDIR(details.st_mode):
-                raise ValueError(
-                    "private snapshot path is not a directory"
-                )
-            child = _open_child_directory(descriptor, part)
-            os.fchmod(child, 0o700)
-            _fsync_directory_fd(child)
-            os.close(descriptor)
-            descriptor = child
-        return descriptor
-    except Exception:
-        os.close(descriptor)
-        raise
-
-
 def _open_absolute_directory(
     path: Path, create: bool, private: bool
 ) -> Tuple[Optional[int], str]:
@@ -1892,14 +1896,6 @@ def _create_private_child_directory(parent_fd: int, name: str) -> int:
     return descriptor
 
 
-def _mkdir_open_private(parent_fd: int, name: str) -> int:
-    _mkdir_durable(parent_fd, name, 0o700)
-    descriptor = _open_child_directory(parent_fd, name)
-    os.fchmod(descriptor, 0o700)
-    _fsync_directory_fd(descriptor)
-    return descriptor
-
-
 def _mkdir_durable(parent_fd: int, name: str, mode: int) -> None:
     try:
         os.mkdir(name, mode, dir_fd=parent_fd)
@@ -1987,6 +1983,35 @@ def _remove_tree_if_identity(
     if not stat.S_ISDIR(details.st_mode):
         raise ValueError("invalid transaction directory during cleanup")
     _remove_tree_at(parent_fd, name, _identity(details))
+
+
+def _remove_retained_tree_if_identity(
+    parent_fd: int,
+    name: str,
+    expected: Optional[Tuple[int, int]],
+    directory_fd: Optional[int],
+) -> None:
+    """Empty the validated inode before requiring its original name for rmdir."""
+    if directory_fd is None:
+        _remove_tree_if_identity(parent_fd, name, expected)
+        return
+    opened = os.fstat(directory_fd)
+    if (
+        expected is None
+        or not stat.S_ISDIR(opened.st_mode)
+        or _identity(opened) != expected
+    ):
+        raise ValueError("transaction directory changed during cleanup")
+    _empty_directory_fd(directory_fd)
+    _fsync_directory_fd(directory_fd)
+    linked = _stat_optional(parent_fd, name)
+    if (
+        linked is None
+        or not stat.S_ISDIR(linked.st_mode)
+        or _identity(linked) != expected
+    ):
+        raise ValueError("transaction directory changed during cleanup")
+    _remove_tree_if_identity(parent_fd, name, expected)
 
 
 def _remove_tree_at(

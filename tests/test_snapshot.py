@@ -752,6 +752,100 @@ class SnapshotTest(TestCase):
         self.assertEqual(sorted(path.name for path in outside.iterdir()), ["sentinel"])
         self.assertFalse(any(relocated.glob("snapshot-*")))
 
+    def test_creation_never_succeeds_after_nested_snapshot_directory_relocation(self):
+        """Relocating an opened files/claude directory cannot publish an invalid snapshot."""
+        from kingstack import snapshot as snapshot_module
+        from kingstack.snapshot import create_snapshot, verify_snapshot
+
+        outside = self.tempdir / "outside-snapshot-data"
+        outside.mkdir()
+        sentinel = outside / "sentinel"
+        self._write(sentinel, b"outside-sentinel\n", 0o640)
+        real_copy = snapshot_module._copy_source_entry
+        real_unlink = os.unlink
+        real_rmdir = os.rmdir
+        real_fsync = os.fsync
+        relocated = False
+        events = []
+
+        def identity(descriptor):
+            details = os.fstat(descriptor)
+            return details.st_dev, details.st_ino
+
+        def relocate_open_claude_directory(*args, **kwargs):
+            nonlocal relocated
+            destination_parent_fd = args[1]
+            path_text = args[3]
+            if not relocated and path_text == "claude/settings.json":
+                files_fd = os.open(
+                    "..", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                    dir_fd=destination_parent_fd,
+                )
+                try:
+                    os.rename(
+                        "claude", "claude-relocated",
+                        src_dir_fd=files_fd, dst_dir_fd=files_fd,
+                    )
+                finally:
+                    os.close(files_fd)
+                relocated = True
+            return real_copy(*args, **kwargs)
+
+        def traced_unlink(name, *args, **kwargs):
+            parent_fd = kwargs.get("dir_fd")
+            self.assertIsNotNone(parent_fd)
+            events.append(("unlink", os.fspath(name), identity(parent_fd)))
+            return real_unlink(name, *args, **kwargs)
+
+        def traced_rmdir(name, *args, **kwargs):
+            parent_fd = kwargs.get("dir_fd")
+            self.assertIsNotNone(parent_fd)
+            events.append(("rmdir", os.fspath(name), identity(parent_fd)))
+            return real_rmdir(name, *args, **kwargs)
+
+        def traced_fsync(descriptor):
+            events.append(("fsync", "", identity(descriptor)))
+            return real_fsync(descriptor)
+
+        created = None
+        with patch(
+            "kingstack.snapshot._copy_source_entry",
+            side_effect=relocate_open_claude_directory,
+        ), patch("kingstack.snapshot.os.unlink", side_effect=traced_unlink), \
+                patch("kingstack.snapshot.os.rmdir", side_effect=traced_rmdir), \
+                patch("kingstack.snapshot.os.fsync", side_effect=traced_fsync):
+            try:
+                created = create_snapshot(
+                    Paths.for_home(self.home), self.snapshot_root,
+                    "nested-destination-relocation",
+                )
+            except ValueError:
+                pass
+
+        self.assertTrue(relocated)
+        if created is not None:
+            self.assertEqual(
+                verify_snapshot(created, check_permissions=True),
+                [],
+                "snapshot creation returned success for an invalid named tree",
+            )
+            self.assertEqual(
+                (created / "files" / "claude" / "settings.json").read_bytes(),
+                b'{"theme":"dark"}\n',
+            )
+        self.assertEqual(list(self.snapshot_root.iterdir()), [])
+        self.assertEqual(sentinel.read_bytes(), b"outside-sentinel\n")
+        self.assertEqual(stat.S_IMODE(sentinel.stat().st_mode), 0o640)
+        deletion_indexes = [
+            index for index, event in enumerate(events)
+            if event[0] in {"unlink", "rmdir"}
+        ]
+        self.assertTrue(deletion_indexes, events)
+        for index in deletion_indexes:
+            self.assertLess(index + 1, len(events), events)
+            self.assertEqual(events[index + 1][0], "fsync", events[index:index + 2])
+            self.assertEqual(events[index + 1][2], events[index][2])
+
     def test_interruption_after_backup_rename_is_recovered_to_before_state(self):
         """A crash after target-to-backup rename leaves a durable prepared rollback."""
         from kingstack.snapshot import create_snapshot, current_destination_hash, restore_snapshot
@@ -949,6 +1043,96 @@ class SnapshotTest(TestCase):
                 )
         self.assertEqual(replacement_sentinel.read_bytes(), b"attacker-data\n")
         self.assertTrue(journal_path.exists())
+
+    def test_prepared_cleanup_retains_journal_after_validated_stage_relocation(self):
+        """A relocated validated stage is emptied durably without discarding recovery state."""
+        from kingstack import snapshot as snapshot_module
+        from kingstack.snapshot import create_snapshot, current_destination_hash, restore_snapshot
+
+        snapshot = create_snapshot(
+            Paths.for_home(self.home), self.snapshot_root, "before-migration"
+        )
+        destination = self.tempdir / "restore-home"
+        self._write(
+            destination / ".claude" / "settings.json", b"partial-new\n", 0o600
+        )
+        old = b"old-before-interrupt\n"
+        before = {
+            "kind": "file",
+            "sha256": hashlib.sha256(old).hexdigest(),
+            "mode": "0600",
+        }
+        journal, stage, backup = self._plant_journal(
+            snapshot, destination, before=before, backup_payload=old
+        )
+        outside = self.tempdir / "outside-transaction-data"
+        outside.mkdir()
+        sentinel = outside / "sentinel"
+        self._write(sentinel, b"outside-sentinel\n", 0o640)
+        relocated_stage = outside / stage.name
+        expected = current_destination_hash(snapshot, destination)
+        real_validate = snapshot_module._validate_journal_physical
+        real_unlink = os.unlink
+        real_fsync = os.fsync
+        stage_identity = None
+        relocated = False
+        events = []
+
+        def identity(descriptor):
+            details = os.fstat(descriptor)
+            return details.st_dev, details.st_ino
+
+        def relocate_stage_after_validation(*args, **kwargs):
+            nonlocal relocated, stage_identity
+            context = real_validate(*args, **kwargs)
+            if not relocated:
+                stage_identity = identity(context["stage_fd"])
+                stage.rename(relocated_stage)
+                relocated = True
+            return context
+
+        def traced_unlink(name, *args, **kwargs):
+            parent_fd = kwargs.get("dir_fd")
+            self.assertIsNotNone(parent_fd)
+            events.append(("unlink", os.fspath(name), identity(parent_fd)))
+            return real_unlink(name, *args, **kwargs)
+
+        def traced_fsync(descriptor):
+            events.append(("fsync", "", identity(descriptor)))
+            return real_fsync(descriptor)
+
+        with patch(
+            "kingstack.snapshot._validate_journal_physical",
+            side_effect=relocate_stage_after_validation,
+        ), patch("kingstack.snapshot.os.unlink", side_effect=traced_unlink), \
+                patch("kingstack.snapshot.os.fsync", side_effect=traced_fsync):
+            with self.assertRaises(ValueError):
+                restore_snapshot(
+                    snapshot,
+                    destination,
+                    dry_run=False,
+                    expected_current_hash=expected,
+                )
+
+        self.assertTrue(relocated)
+        self.assertEqual(
+            (destination / ".claude" / "settings.json").read_bytes(), old
+        )
+        self.assertTrue(journal.exists(), "incomplete cleanup discarded its journal")
+        self.assertTrue(backup.exists())
+        self.assertTrue(relocated_stage.is_dir())
+        self.assertEqual(
+            list(relocated_stage.iterdir()), [],
+            "relocated staged payload survived cleanup",
+        )
+        self.assertEqual(sentinel.read_bytes(), b"outside-sentinel\n")
+        self.assertEqual(stat.S_IMODE(sentinel.stat().st_mode), 0o640)
+        self.assertFalse(any(event[1] == journal.name for event in events))
+        stage_unlink = next(
+            index for index, event in enumerate(events)
+            if event == ("unlink", "0", stage_identity)
+        )
+        self.assertEqual(events[stage_unlink + 1], ("fsync", "", stage_identity))
 
     def test_nested_mutations_use_dir_fds_and_fsync_every_renamed_parent(self):
         """Every actual rename is descriptor-relative and synced in both affected parents."""

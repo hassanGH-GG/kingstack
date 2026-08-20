@@ -1136,3 +1136,287 @@ OK
 Final result: 46 tests passed with no skips. The snapshot subset contributes 38
 tests, including the adversarial transaction, crash, schema, and root-rebinding
 coverage added or strengthened in this round.
+
+## Fix Round 5 — Nested creation and cleanup relocation integrity
+
+Commit: this report is part of the single scoped Fix Round 5 commit. Its exact
+SHA is reported by the implementer after commit creation because a Git commit
+cannot embed its own hash.
+
+### Exact focused RED command and unabridged output
+
+```sh
+PYTHONPATH=lib python3 -m unittest tests.test_snapshot.SnapshotTest.test_creation_never_succeeds_after_nested_snapshot_directory_relocation tests.test_snapshot.SnapshotTest.test_prepared_cleanup_retains_journal_after_validated_stage_relocation -v
+```
+
+```text
+test_creation_never_succeeds_after_nested_snapshot_directory_relocation (tests.test_snapshot.SnapshotTest)
+Relocating an opened files/claude directory cannot publish an invalid snapshot. ... FAIL
+test_prepared_cleanup_retains_journal_after_validated_stage_relocation (tests.test_snapshot.SnapshotTest)
+A relocated validated stage is emptied durably without discarding recovery state. ... FAIL
+
+======================================================================
+FAIL: test_creation_never_succeeds_after_nested_snapshot_directory_relocation (tests.test_snapshot.SnapshotTest)
+Relocating an opened files/claude directory cannot publish an invalid snapshot.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/mac/.claude/.worktrees/agent-neutral-kingstack/tests/test_snapshot.py", line 827, in test_creation_never_succeeds_after_nested_snapshot_directory_relocation
+    self.assertEqual(
+AssertionError: Lists differ: ['missing or wrong snapshot entry: files/c[1198 chars]son'] != []
+
+First list contains 19 additional elements.
+First extra element 0:
+'missing or wrong snapshot entry: files/claude/agents'
+
+Diff is 1313 characters long. Set self.maxDiff to None to see it. : snapshot creation returned success for an invalid named tree
+
+======================================================================
+FAIL: test_prepared_cleanup_retains_journal_after_validated_stage_relocation (tests.test_snapshot.SnapshotTest)
+A relocated validated stage is emptied durably without discarding recovery state.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/mac/.claude/.worktrees/agent-neutral-kingstack/tests/test_snapshot.py", line 1121, in test_prepared_cleanup_retains_journal_after_validated_stage_relocation
+    self.assertTrue(journal.exists(), "incomplete cleanup discarded its journal")
+AssertionError: False is not true : incomplete cleanup discarded its journal
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.115s
+
+FAILED (failures=2)
+```
+
+The first failure reproduced successful return after the trusted
+`files/claude` FD had been relocated, leaving the named snapshot invalid. The
+second reproduced prepared rollback followed by journal deletion while the
+relocated stage still contained its payload.
+
+### Exact focused GREEN command and unabridged output
+
+```sh
+PYTHONPATH=lib python3 -m unittest tests.test_snapshot.SnapshotTest.test_creation_never_succeeds_after_nested_snapshot_directory_relocation tests.test_snapshot.SnapshotTest.test_prepared_cleanup_retains_journal_after_validated_stage_relocation -v
+```
+
+```text
+test_creation_never_succeeds_after_nested_snapshot_directory_relocation (tests.test_snapshot.SnapshotTest)
+Relocating an opened files/claude directory cannot publish an invalid snapshot. ... ok
+test_prepared_cleanup_retains_journal_after_validated_stage_relocation (tests.test_snapshot.SnapshotTest)
+A relocated validated stage is emptied durably without discarding recovery state. ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.261s
+
+OK
+```
+
+### Exact complete GREEN command and unabridged output
+
+```sh
+PYTHONPATH=lib python3 -m unittest tests.test_paths tests.test_inventory tests.test_snapshot -v
+```
+
+```text
+test_defaults_are_agent_neutral_and_runtime_is_outside_repo (tests.test_paths.PathsTest) ... ok
+test_capture_excludes_sensitive_paths_at_every_depth (tests.test_inventory.InventoryTest)
+Hashing a secret in an included directory would publish its fingerprint. ... ok
+test_capture_is_deterministic_and_redacts_config_values (tests.test_inventory.InventoryTest)
+Changing a config scalar must never expose it in the public report. ... ok
+test_capture_records_symlink_mode_and_file_hash (tests.test_inventory.InventoryTest)
+Dereferencing a symlink or losing its executable mode corrupts a baseline. ... ok
+test_capture_redacts_absolute_symlink_targets (tests.test_inventory.InventoryTest)
+An absolute symlink target would disclose a home path in the report. ... ok
+test_capture_redacts_path_shaped_json_key_names (tests.test_inventory.InventoryTest)
+A path-shaped JSON key must not reveal a home path as report metadata. ... ok
+test_cli_writes_fixture_inventory_and_rejects_agent_home_output (tests.test_inventory.InventoryTest)
+A CLI regression must not write a report under a protected agent home. ... ok
+test_write_public_report_is_byte_deterministic_and_rejects_private_destinations (tests.test_inventory.InventoryTest)
+A public report must be repeatable and never land in agent-private storage. ... ok
+test_apply_recovers_a_valid_interrupted_transaction_before_new_work (tests.test_snapshot.SnapshotTest)
+A prepared journal restores its private backup before the next apply validates state. ... ok
+test_apply_refuses_full_journal_with_symlinked_backup_entry (tests.test_snapshot.SnapshotTest)
+A backup entry must physically match its recorded before-state before rollback. ... ok
+test_apply_refuses_full_journal_with_symlinked_target_ancestor (tests.test_snapshot.SnapshotTest)
+A complete journal cannot traverse a target ancestor symlink during recovery. ... ok
+test_apply_refuses_journal_temp_symlink_without_outside_mutation (tests.test_snapshot.SnapshotTest)
+The exclusive descriptor-relative journal temporary never follows a static symlink. ... ok
+test_apply_refuses_symlinked_valid_journal_backup_without_outside_mutation (tests.test_snapshot.SnapshotTest)
+A syntactically valid journal cannot redirect recovery through a backup symlink. ... ok
+test_apply_refuses_unconfined_journal_without_touching_sentinel (tests.test_snapshot.SnapshotTest)
+Malformed recovery metadata cannot name or mutate an outside target. ... ok
+test_cleanup_refuses_transaction_directory_created_after_validation (tests.test_snapshot.SnapshotTest)
+An absent transaction directory cannot be rebound to attacker data for cleanup. ... ok
+test_cli_prints_snapshot_id_and_verifies_it_by_id (tests.test_snapshot.SnapshotTest)
+The CLI identifier must resolve to the private snapshot it just created. ... ok
+test_cli_rejects_traversal_ids_and_apply_without_expected_hash (tests.test_snapshot.SnapshotTest)
+CLI identifiers stay direct children and apply cannot bypass its precondition. ... ok
+test_committed_recovery_finishes_after_backup_cleanup_crash (tests.test_snapshot.SnapshotTest)
+Committed after-state is sufficient once a durable backup cleanup has happened. ... ok
+test_committed_recovery_never_cleans_up_when_restored_content_is_absent (tests.test_snapshot.SnapshotTest)
+A committed journal remains recoverable if its claimed target is missing. ... ok
+test_creation_never_succeeds_after_nested_snapshot_directory_relocation (tests.test_snapshot.SnapshotTest)
+Relocating an opened files/claude directory cannot publish an invalid snapshot. ... ok
+test_creation_refuses_destination_root_rebind_without_writing_replacement (tests.test_snapshot.SnapshotTest)
+Snapshot writes remain on the opened destination descriptor after pathname rebind. ... ok
+test_creation_refuses_source_root_rebind_without_reading_replacement (tests.test_snapshot.SnapshotTest)
+Source reads remain on the opened root descriptor after its pathname is rebound. ... ok
+test_dry_run_leaves_planted_journals_and_sentinels_unchanged (tests.test_snapshot.SnapshotTest)
+Dry-run is observational even if a recovery journal is present or malformed. ... ok
+test_dry_run_with_complete_pending_journal_is_byte_for_byte_read_only (tests.test_snapshot.SnapshotTest)
+Even a valid pending transaction is only reported, never recovered by dry-run. ... ok
+test_expected_hash_bad_type_raises_controlled_value_error (tests.test_snapshot.SnapshotTest)
+An unhashable expected hash is rejected before membership or filesystem mutation. ... ok
+test_interruption_after_backup_rename_is_recovered_to_before_state (tests.test_snapshot.SnapshotTest)
+A crash after target-to-backup rename leaves a durable prepared rollback. ... ok
+test_interruptions_around_committed_journal_recover_correct_side (tests.test_snapshot.SnapshotTest)
+Prepared crashes roll back, while durably committed crashes retain restored bytes. ... ok
+test_journal_status_mode_and_each_control_path_raise_controlled_value_error (tests.test_snapshot.SnapshotTest)
+Malformed journal types and controls never escape as TypeError or OSError. ... ok
+test_journal_temp_collision_rolls_back_without_touching_destination (tests.test_snapshot.SnapshotTest)
+An exclusive journal-temp failure leaves the pre-apply destination intact. ... ok
+test_malformed_octal_manifest_mode_is_a_problem_not_an_exception (tests.test_snapshot.SnapshotTest)
+A hostile mode field cannot crash the verifier before reporting invalidity. ... ok
+test_manifest_mode_type_and_each_control_path_are_rejected_independently (tests.test_snapshot.SnapshotTest)
+Unhashable modes and every C0/C1 control path produce verifier problems. ... ok
+test_nested_mutations_use_dir_fds_and_fsync_every_renamed_parent (tests.test_snapshot.SnapshotTest)
+Every actual rename is descriptor-relative and synced in both affected parents. ... ok
+test_prepared_cleanup_retains_journal_after_validated_stage_relocation (tests.test_snapshot.SnapshotTest)
+A relocated validated stage is emptied durably without discarding recovery state. ... ok
+test_recovery_unlink_stays_anchored_during_post_validation_parent_rebind (tests.test_snapshot.SnapshotTest)
+Rebinding a validated target parent cannot redirect the actual rollback unlink. ... ok
+test_restore_preflights_late_namespace_before_mutating_early_namespace (tests.test_snapshot.SnapshotTest)
+A bad Codex parent must not permit any earlier Claude replacement. ... ok
+test_restore_refuses_a_symlinked_destination_parent (tests.test_snapshot.SnapshotTest)
+A restore must not follow a destination symlink outside the selected home. ... ok
+test_restore_refuses_unknown_live_file_without_current_hash (tests.test_snapshot.SnapshotTest)
+An existing destination file must not be overwritten without a precondition. ... ok
+test_restore_requires_expected_hash_for_missing_targets_and_hashes_modes (tests.test_snapshot.SnapshotTest)
+A creation-only restore still needs a state precondition, including modes. ... ok
+test_snapshot_creation_rejects_an_existing_or_symlinked_id_path (tests.test_snapshot.SnapshotTest)
+A timing collision must fail instead of reusing or chmodding an existing path. ... ok
+test_snapshot_refuses_a_denylisted_source_path (tests.test_snapshot.SnapshotTest)
+Copying auth state from an otherwise selected directory is forbidden. ... ok
+test_snapshot_round_trips_files_symlinks_and_private_modes (tests.test_snapshot.SnapshotTest)
+Following a link or broadening a mode would corrupt a private restore. ... ok
+test_valid_prepared_journal_with_missing_parents_recovers_then_applies (tests.test_snapshot.SnapshotTest)
+A journal published before parent creation remains recoverable after a crash. ... ok
+test_verify_rejects_denylisted_duplicate_and_extra_manifest_entries (tests.test_snapshot.SnapshotTest)
+A forged manifest must not smuggle auth state or unlisted payloads. ... ok
+test_verify_rejects_noncanonical_manifest_aliases_and_malformed_records (tests.test_snapshot.SnapshotTest)
+Equivalent-looking paths and incomplete records must not reach restore logic. ... ok
+test_verify_rejects_symlinked_snapshot_storage_and_manifest_ancestors (tests.test_snapshot.SnapshotTest)
+Verification must not follow a snapshot directory or files-tree symlink. ... ok
+test_verify_reports_control_character_and_bad_type_records (tests.test_snapshot.SnapshotTest)
+Hostile JSON types, NULs, and control characters must never escape verification. ... ok
+test_verify_reports_tampered_content_and_permissions (tests.test_snapshot.SnapshotTest)
+A manifest that is readable by others or no longer hashes correctly is invalid. ... ok
+test_verify_requires_exact_file_modes_and_null_symlink_mode (tests.test_snapshot.SnapshotTest)
+Private proof rejects narrow modes and symlink modes are deliberately ignored. ... ok
+
+----------------------------------------------------------------------
+Ran 48 tests in 2.793s
+
+OK
+```
+
+All 40 snapshot tests passed, including the unchanged normal create/verify
+round trip and successful prepared-journal recovery. The eight path/inventory
+tests also passed; there were no skips.
+
+Exact formatting check:
+
+```sh
+git diff --check
+```
+
+```text
+```
+
+Exit status: `0`.
+
+### Exact new private snapshot and preservation proof
+
+Before creation:
+
+```sh
+find /Users/mac/.kingstack/snapshots -mindepth 1 -maxdepth 1 -type d -name 'snapshot-*' -print | sort
+```
+
+```text
+/Users/mac/.kingstack/snapshots/snapshot-20260820-092749
+/Users/mac/.kingstack/snapshots/snapshot-20260820-092901
+/Users/mac/.kingstack/snapshots/snapshot-20260820-093002
+/Users/mac/.kingstack/snapshots/snapshot-20260820-093104
+/Users/mac/.kingstack/snapshots/snapshot-20260820-094710
+/Users/mac/.kingstack/snapshots/snapshot-20260820-101106
+/Users/mac/.kingstack/snapshots/snapshot-20260820-105637
+```
+
+Creation with the required printed identifier:
+
+```sh
+ks_snapshot_id=$(./scripts/kingstack snapshot --label pre-neutral-migration-round-5 --print-id)
+test -n "${ks_snapshot_id:?}"
+printf '%s\n' "$ks_snapshot_id"
+```
+
+```text
+snapshot-20260820-113207
+```
+
+Verification of that exact new identifier:
+
+```sh
+./scripts/kingstack snapshot verify snapshot-20260820-113207 --check-permissions
+```
+
+```text
+verified snapshot-20260820-113207
+```
+
+After creation:
+
+```sh
+find /Users/mac/.kingstack/snapshots -mindepth 1 -maxdepth 1 -type d -name 'snapshot-*' -print | sort
+```
+
+```text
+/Users/mac/.kingstack/snapshots/snapshot-20260820-092749
+/Users/mac/.kingstack/snapshots/snapshot-20260820-092901
+/Users/mac/.kingstack/snapshots/snapshot-20260820-093002
+/Users/mac/.kingstack/snapshots/snapshot-20260820-093104
+/Users/mac/.kingstack/snapshots/snapshot-20260820-094710
+/Users/mac/.kingstack/snapshots/snapshot-20260820-101106
+/Users/mac/.kingstack/snapshots/snapshot-20260820-105637
+/Users/mac/.kingstack/snapshots/snapshot-20260820-113207
+```
+
+All seven pre-existing snapshot directories remain. Exactly one new live
+artifact was created: verified `snapshot-20260820-113207`. No prior snapshot,
+live Claude file, or live Codex file was modified.
+
+### Implementation, tests, and self-review
+
+- Snapshot creation now owns a retained `_DirectoryCache` rooted at the opened
+  snapshot FD. All private destination parents remain open, their links are
+  revalidated before and after manifest publication, the complete snapshot is
+  verified through that trusted FD, and the final named root must still match
+  the created inode before success is returned. A relocated nested directory
+  therefore causes descriptor-recursive, durably fsynced failure cleanup.
+- Transaction cleanup no longer closes its validated stage/backup FDs before
+  cleanup. It empties and fsyncs each retained inode first, then requires the
+  original name to have the same identity before name removal. A missing or
+  changed name raises before journal unlink; no attacker-selected replacement
+  or outside sentinel is followed or mutated.
+- The two real temporary-directory tests reproduce the exact reviewer probes.
+  They assert no invalid success, no surviving relocated payload, no discarded
+  journal on incomplete cleanup, no outside mutation, and fsync immediately
+  after each relevant unlink/rmdir.
+
+Standing-rule rung: 1, categorical elimination through retained descriptors
+and identity-bearing data structures, backed by rung-2 regression tests. No
+higher rung exists. The correction stays inside the two reported integrity
+boundaries; no malformed-field cases or unrelated refactors were added.
+
+Self-review found no open correctness concern. The existing maintainability
+concern remains: `snapshot.py` is large, but splitting it in this final safety
+round would broaden review surface and is outside the approved Task 3 file
+plan.
