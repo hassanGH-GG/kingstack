@@ -739,3 +739,168 @@ Exact output:
 ```text
 fd-bound-320-round3-ok
 ```
+
+## Final architecture replacement — Task 3
+
+### Implementation
+
+The rejected custom recursive backup engines have been removed. This deletes
+the kingstack.archive production module and its implementation test, and
+removes the archive import, parser branches, identifier validation, and command
+handler from kingstack.cli. The snapshot production module and its test were
+already absent at dispatch base 37d7330, so there was no snapshot file left to
+delete.
+
+tests/test_cli_surface.py inventories the package's importable production
+module names and the commands advertised by the real CLI help text. It requires
+no snapshot or archive module/file/command and preserves the single supported
+inventory command.
+
+No native ~/.claude or ~/.codex path was read or changed. Historical
+~/.kingstack/snapshots and ~/.kingstack/archives were only enumerated at their
+top level for the before/after preservation proof below.
+
+### TDD evidence
+
+#### RED
+
+Command:
+
+    PYTHONPATH=lib python3 -m unittest tests.test_cli_surface -v
+
+Exact output:
+
+    test_no_recursive_backup_or_restore_surface (tests.test_cli_surface.CliSurfaceTest) ... FAIL
+
+    ======================================================================
+    FAIL: test_no_recursive_backup_or_restore_surface (tests.test_cli_surface.CliSurfaceTest)
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "/Users/mac/.claude/.worktrees/agent-neutral-kingstack/tests/test_cli_surface.py", line 36, in test_no_recursive_backup_or_restore_surface
+        self.assertFalse((ROOT / "lib/kingstack/archive.py").exists())
+    AssertionError: True is not false
+
+    ----------------------------------------------------------------------
+    Ran 1 test in 0.001s
+
+    FAILED (failures=1)
+
+This was expected: archive.py existed at the point the public-surface test was
+written.
+
+After the engine removal, the focused test exposed an over-escaped regular
+expression in the newly written test helper (it returned no advertised command
+names). The helper was corrected; this was a test-only correction, not a
+production change.
+
+#### GREEN
+
+Command:
+
+    PYTHONPATH=lib python3 -m unittest tests.test_cli_surface -v
+
+Exact output:
+
+    test_no_recursive_backup_or_restore_surface (tests.test_cli_surface.CliSurfaceTest) ... ok
+
+    ----------------------------------------------------------------------
+    Ran 1 test in 0.006s
+
+    OK
+
+### Required absence and historical-preservation proof
+
+Command:
+
+    before=$(mktemp)
+    after=$(mktemp)
+    find "$HOME/.kingstack/snapshots" "$HOME/.kingstack/archives" -mindepth 1 -maxdepth 1 -type d -print 2>/dev/null | sort | tee "$before"
+    PYTHONPATH=lib python3 -m unittest tests.test_cli_surface -v
+    ! ./scripts/kingstack archive create --label forbidden --print-id
+    ! ./scripts/kingstack snapshot create --label forbidden
+    find "$HOME/.kingstack/snapshots" "$HOME/.kingstack/archives" -mindepth 1 -maxdepth 1 -type d -print 2>/dev/null | sort | tee "$after"
+    cmp "$before" "$after"
+    rm "$before" "$after"
+
+Exact output:
+
+    /Users/mac/.kingstack/archives/archive-20260820-121406
+    /Users/mac/.kingstack/archives/archive-20260820-122621
+    /Users/mac/.kingstack/snapshots/snapshot-20260820-092749
+    /Users/mac/.kingstack/snapshots/snapshot-20260820-092901
+    /Users/mac/.kingstack/snapshots/snapshot-20260820-093002
+    /Users/mac/.kingstack/snapshots/snapshot-20260820-093104
+    /Users/mac/.kingstack/snapshots/snapshot-20260820-094710
+    /Users/mac/.kingstack/snapshots/snapshot-20260820-101106
+    /Users/mac/.kingstack/snapshots/snapshot-20260820-105637
+    /Users/mac/.kingstack/snapshots/snapshot-20260820-113207
+    test_no_recursive_backup_or_restore_surface (tests.test_cli_surface.CliSurfaceTest) ... ok
+
+    ----------------------------------------------------------------------
+    Ran 1 test in 0.005s
+
+    OK
+    usage: kingstack [-h] {inventory} ...
+    kingstack: error: argument command: invalid choice: 'archive' (choose from 'inventory')
+    usage: kingstack [-h] {inventory} ...
+    kingstack: error: argument command: invalid choice: 'snapshot' (choose from 'inventory')
+    /Users/mac/.kingstack/archives/archive-20260820-121406
+    /Users/mac/.kingstack/archives/archive-20260820-122621
+    /Users/mac/.kingstack/snapshots/snapshot-20260820-092749
+    /Users/mac/.kingstack/snapshots/snapshot-20260820-092901
+    /Users/mac/.kingstack/snapshots/snapshot-20260820-093002
+    /Users/mac/.kingstack/snapshots/snapshot-20260820-093104
+    /Users/mac/.kingstack/snapshots/snapshot-20260820-094710
+    /Users/mac/.kingstack/snapshots/snapshot-20260820-101106
+    /Users/mac/.kingstack/snapshots/snapshot-20260820-105637
+    /Users/mac/.kingstack/snapshots/snapshot-20260820-113207
+
+cmp produced no output and exited successfully, proving the exact top-level
+directory list was byte-identical before and after. Both forbidden commands
+failed in top-level argument parsing, as required.
+
+### Full explicit foundation suite and diff check
+
+Command:
+
+    PYTHONPATH=lib python3 -m unittest tests.test_paths tests.test_inventory tests.test_cli_surface -v && git diff --check
+
+Exact output:
+
+    test_defaults_are_agent_neutral_and_runtime_is_outside_repo (tests.test_paths.PathsTest) ... ok
+    test_capture_excludes_sensitive_paths_at_every_depth (tests.test_inventory.InventoryTest)
+    Hashing a secret in an included directory would publish its fingerprint. ... ok
+    test_capture_is_deterministic_and_redacts_config_values (tests.test_inventory.InventoryTest)
+    Changing a config scalar must never expose it in the public report. ... ok
+    test_capture_records_symlink_mode_and_file_hash (tests.test_inventory.InventoryTest)
+    Dereferencing a symlink or losing its executable mode corrupts a baseline. ... ok
+    test_capture_redacts_absolute_symlink_targets (tests.test_inventory.InventoryTest)
+    An absolute symlink target would disclose a home path in the report. ... ok
+    test_capture_redacts_path_shaped_json_key_names (tests.test_inventory.InventoryTest)
+    A path-shaped JSON key must not reveal a home path as report metadata. ... ok
+    test_cli_writes_fixture_inventory_and_rejects_agent_home_output (tests.test_inventory.InventoryTest)
+    A CLI regression must not write a report under a protected agent home. ... ok
+    test_write_public_report_is_byte_deterministic_and_rejects_private_destinations (tests.test_inventory.InventoryTest)
+    A public report must be repeatable and never land in agent-private storage. ... ok
+    test_no_recursive_backup_or_restore_surface (tests.test_cli_surface.CliSurfaceTest) ... ok
+
+    ----------------------------------------------------------------------
+    Ran 9 tests in 0.483s
+
+    OK
+
+git diff --check produced no output and exited successfully.
+
+### Files changed
+
+- Deleted lib/kingstack/archive.py
+- Deleted tests/test_archive.py
+- Modified lib/kingstack/cli.py
+- Added tests/test_cli_surface.py
+- Appended this replacement record to this report
+
+### Self-review and concerns
+
+The deletion is limited to the rejected engine and its CLI surface. The new
+test would fail if either production module reappeared or either command were
+advertised. No concerns.
