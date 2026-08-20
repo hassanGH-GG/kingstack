@@ -9,7 +9,7 @@
     "contract_version": {"type": "integer", "const": 1},
     "adapter_id": {
       "type": "string",
-      "pattern": "^[a-z][a-z0-9_-]*$"
+      "pattern": "^(?!.*[\\r\\n])[a-z][a-z0-9_-]*$"
     },
     "capabilities": {
       "type": "array",
@@ -27,7 +27,7 @@
         "properties": {
           "capability": {
             "type": "string",
-            "pattern": "^[a-z][a-z0-9_]*$"
+            "pattern": "^(?!.*[\\r\\n])[a-z][a-z0-9_]*$"
           },
           "status": {
             "type": "string",

@@ -6,12 +6,14 @@ from pathlib import Path
 from unittest import TestCase
 
 from kingstack.adapter_contract import (
+    ADAPTER_SCHEMA,
     AdapterContractError,
     CapabilityMatrix,
     CapabilityState,
     compare_capabilities,
     load_adapter,
     load_capability_catalog,
+    _schema_errors,
     validate_adapter,
 )
 from kingstack.cli import _load_selected_adapter, main
@@ -129,6 +131,40 @@ class AdapterContractTest(TestCase):
                 with self.assertRaisesRegex(AdapterContractError, message):
                     load_adapter(self.write_adapter(payload))
 
+    def test_owned_paths_reject_windows_ambiguous_spellings(self):
+        for path in (
+            r"hooks\start",
+            r"hooks\..\outside",
+            "C:/hooks/start",
+            r"C:\hooks\start",
+            r"\\server\share\hook",
+            r"\\?\C:\hooks\start",
+            r"\\.\pipe\kingstack",
+            "hooks:alternate/start",
+            "NUL",
+            "hooks/CON.txt",
+            "hooks/trailing.",
+            "hooks/trailing ",
+        ):
+            with self.subTest(path=path):
+                payload = self.valid_payload()
+                payload["owned_paths"] = [path]
+                with self.assertRaisesRegex(
+                    AdapterContractError, "portable|Windows|drive|backslash"
+                ):
+                    load_adapter(self.write_adapter(payload))
+
+    def test_windows_alias_cannot_bypass_duplicate_ownership(self):
+        payload = self.valid_payload()
+        payload["owned_paths"] = ["hooks/start", r"hooks\start"]
+
+        with self.assertRaisesRegex(AdapterContractError, "backslash|portable"):
+            load_adapter(self.write_adapter(payload))
+
+        payload["owned_paths"] = ["Hooks/start", "hooks/start"]
+        with self.assertRaisesRegex(AdapterContractError, "duplicate"):
+            load_adapter(self.write_adapter(payload))
+
     def test_render_module_must_be_an_importable_shape(self):
         for value in ("claude", "bad-module.name", ".leading.dot", "trailing.dot."):
             with self.subTest(value=value):
@@ -154,6 +190,42 @@ class AdapterContractTest(TestCase):
 
         with self.assertRaisesRegex(AdapterContractError, "model_tiers"):
             load_adapter(self.write_adapter(payload))
+
+    def test_model_mapping_exact_id_grammar_matches_schema_helper(self):
+        adapter_schema = json.loads(ADAPTER_SCHEMA.read_text(encoding="utf-8"))
+        model_schema = adapter_schema["properties"]["model_tiers"]["oneOf"][0]
+        invalid_values = (" padded", "padded ", "model\n", "model\r\n", "model/id")
+
+        for value in invalid_values:
+            with self.subTest(value=repr(value)):
+                self.assertTrue(_schema_errors({"balanced": value}, model_schema))
+                payload = self.valid_payload()
+                payload["model_tiers"]["balanced"] = value
+                with self.assertRaisesRegex(AdapterContractError, "model_tiers"):
+                    load_adapter(self.write_adapter(payload))
+
+        self.assertEqual(
+            _schema_errors(
+                {"balanced": "gpt-5.6_terra", "frontier": "Opus-5"},
+                model_schema,
+            ),
+            [],
+        )
+
+    def test_schema_search_semantics_reject_line_terminated_contract_ids(self):
+        payload = self.valid_payload()
+        payload["id"] = "example\n"
+        adapter_path = self.write_adapter(payload)
+        matrix = json.loads(
+            (adapter_path.parent / "capabilities.json").read_text(encoding="utf-8")
+        )
+        matrix["adapter_id"] = "example\n"
+        (adapter_path.parent / "capabilities.json").write_text(
+            json.dumps(matrix), encoding="utf-8"
+        )
+
+        with self.assertRaisesRegex(AdapterContractError, "required pattern"):
+            load_adapter(adapter_path)
 
     def test_unknown_capability_and_status_are_rejected(self):
         for mutation, message in (
@@ -224,6 +296,29 @@ class AdapterContractTest(TestCase):
                     {state.capability for state in declaration.capability_matrix.states},
                     set(self.catalog().capabilities),
                 )
+
+    def test_codex_matrix_reports_implementation_truth_not_available_mechanisms(self):
+        declaration = load_adapter(ROOT / "adapters/codex/adapter.json")
+        states = {
+            state.capability: state
+            for state in declaration.capability_matrix.states
+        }
+        not_yet_staged = {
+            "global_guidance",
+            "skill_catalog",
+            "session_start",
+            "stop_capture",
+            "before_compaction",
+            "post_tool_use",
+            "subagent_start",
+            "schedules",
+        }
+
+        for capability in not_yet_staged:
+            with self.subTest(capability=capability):
+                self.assertIn(states[capability].status, {"degraded", "unsupported"})
+                self.assertFalse(states[capability].strict_parity)
+                self.assertIn("not", states[capability].evidence.lower())
 
     def test_capability_matrix_must_cover_catalog_exactly(self):
         payload = self.valid_payload()

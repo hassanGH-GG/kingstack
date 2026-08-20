@@ -485,3 +485,176 @@ All three checked-in matrices now declare exactly all 13 catalog IDs. Codex's
 implementation gaps are marked `degraded` or `unsupported` with false strict
 parity and concrete impact rather than being silently omitted. Nothing was
 activated, linked, removed, or pushed.
+
+## Independent-review fix round 2 (2026-08-20)
+
+The second review found that POSIX normalization alone still accepted Windows-
+ambiguous ownership spellings, the Codex matrix described harness mechanisms as
+implemented behavior, and the model-value schema used a permissive whitespace
+pattern whose semantics could differ across JSON Schema engines.
+
+### RED
+
+Command:
+
+```text
+PYTHONPATH=lib python3 -m unittest tests.test_adapter_contract -v
+```
+
+Exact result: 23 tests executed with 20 failures in 0.133 seconds. Existing
+contract tests remained green. The failures were:
+
+```text
+8 Codex implementation-truth failures
+  global_guidance: native, expected degraded|unsupported
+  skill_catalog: native, expected degraded|unsupported
+  session_start: native, expected degraded|unsupported
+  stop_capture: native, expected degraded|unsupported
+  before_compaction: native, expected degraded|unsupported
+  post_tool_use: native, expected degraded|unsupported
+  subagent_start: native, expected degraded|unsupported
+  schedules: native, expected degraded|unsupported
+
+3 schema/model-loader grammar failures
+  ' padded': schema helper returned no error
+  'padded ': schema helper returned no error
+  'model/id': schema helper returned no error
+
+8 cross-platform ownership failures
+  'hooks\\start': AdapterContractError not raised
+  'hooks\\..\\outside': AdapterContractError not raised
+  'C:/hooks/start': AdapterContractError not raised
+  'C:\\hooks\\start': AdapterContractError not raised
+  '\\\\server\\share\\hook': AdapterContractError not raised
+  '\\\\?\\C:\\hooks\\start': AdapterContractError not raised
+  '\\\\.\\pipe\\kingstack': AdapterContractError not raised
+  'hooks:alternate/start': AdapterContractError not raised
+
+1 alias-bypass failure
+  ['hooks/start', 'hooks\\start']: AdapterContractError not raised
+```
+
+The newline and CRLF model-ID cases already failed closed under the prior
+internal full-match implementation. They remained in the unchanged test so the
+switch to JSON Schema search semantics could not reopen them.
+
+### Focused GREEN
+
+Command and unabridged result:
+
+```text
+$ PYTHONPATH=lib python3 -m unittest tests.test_adapter_contract -v
+test_capability_matrix_must_cover_catalog_exactly (tests.test_adapter_contract.AdapterContractTest) ... ok
+test_catalog_rejects_boolean_version_and_unstable_ids (tests.test_adapter_contract.AdapterContractTest) ... ok
+test_codex_matrix_reports_implementation_truth_not_available_mechanisms (tests.test_adapter_contract.AdapterContractTest) ... ok
+test_contract_cli_accepts_named_and_synthetic_adapters (tests.test_adapter_contract.AdapterContractTest) ... ok
+test_contract_cli_requires_exactly_one_adapter_selector (tests.test_adapter_contract.AdapterContractTest) ... ok
+test_every_non_native_state_requires_evidence_and_impact (tests.test_adapter_contract.AdapterContractTest) ... ok
+test_model_mapping_exact_id_grammar_matches_schema_helper (tests.test_adapter_contract.AdapterContractTest) ... ok
+test_model_mapping_rejects_whitespace_only_values (tests.test_adapter_contract.AdapterContractTest) ... ok
+test_named_adapter_selector_must_match_loaded_id (tests.test_adapter_contract.AdapterContractTest) ... ok
+test_named_adapter_selector_rejects_path_syntax (tests.test_adapter_contract.AdapterContractTest) ... ok
+test_owned_paths_are_canonical_before_duplicate_and_root_checks (tests.test_adapter_contract.AdapterContractTest) ... ok
+test_owned_paths_reject_duplicates_absolute_paths_and_home_root (tests.test_adapter_contract.AdapterContractTest) ... ok
+test_owned_paths_reject_lossy_or_backtracking_spelling (tests.test_adapter_contract.AdapterContractTest) ... ok
+test_owned_paths_reject_windows_ambiguous_spellings (tests.test_adapter_contract.AdapterContractTest) ... ok
+test_render_module_must_be_an_importable_shape (tests.test_adapter_contract.AdapterContractTest) ... ok
+test_schema_and_python_reject_unknown_top_level_key (tests.test_adapter_contract.AdapterContractTest) ... ok
+test_schema_and_python_validation_agree_on_checked_in_declarations (tests.test_adapter_contract.AdapterContractTest) ... ok
+test_strict_parity_cannot_overstate_degraded_or_unsupported_state (tests.test_adapter_contract.AdapterContractTest) ... ok
+test_synthetic_adapter_has_no_first_party_dependency (tests.test_adapter_contract.AdapterContractTest) ... ok
+test_unknown_capability_and_status_are_rejected (tests.test_adapter_contract.AdapterContractTest) ... ok
+test_unknown_tier_and_unmapped_catalog_tier_are_reported (tests.test_adapter_contract.AdapterContractTest) ... ok
+test_unsupported_capability_is_visible (tests.test_adapter_contract.AdapterContractTest) ... ok
+test_windows_alias_cannot_bypass_duplicate_ownership (tests.test_adapter_contract.AdapterContractTest) ... ok
+
+----------------------------------------------------------------------
+Ran 23 tests in 0.156s
+
+OK
+```
+
+The path tests additionally cover Windows reserved device names, trailing dot
+or space components, and case-fold aliases. The model tests exercise padded,
+newline, CRLF, slash-containing, and valid mixed vendor IDs against both the
+schema helper and `load_adapter`.
+
+### Full, CLI, static, and no-live-change proof
+
+```text
+$ PYTHONPATH=lib python3 -m unittest discover -s tests -v
+Ran 54 tests in 6.490s
+
+OK
+
+$ ./scripts/kingstack check --contract --adapter claude
+claude adapter contract valid
+$ ./scripts/kingstack check --contract --adapter codex
+codex adapter contract valid
+$ ./scripts/kingstack check --contract --adapter-path tests/fixtures/adapters/example
+example adapter contract valid
+```
+
+`py_compile`, every Task 1 JSON parse, and `git diff --check` exited zero. The
+fresh native inventory remained byte-identical to the frozen baseline:
+
+```text
+8d943deaa440a279452e3af79400c6651722306936d2d90922692810722ddf27  docs/baselines/claude-codex-baseline.json
+8d943deaa440a279452e3af79400c6651722306936d2d90922692810722ddf27  <temporary>/live-baseline.json
+native homes: real directories, not symlinks
+historical count: 10
+adapter runtime current links: none
+```
+
+Codex now reports all not-yet-staged behavior as unsupported with strict parity
+false. Each lifecycle entry says that the native mechanism is available while
+the kingstack handler has not been staged or replay-proven. In particular,
+PreCompact availability remains documented without claiming that kingstack's
+checkpoint behavior exists today. Nothing was activated, linked, removed, or
+pushed.
+
+### Schema-search semantics addendum
+
+The implementation was then switched from Python full-match semantics to JSON
+Schema search semantics. A focused test demonstrated that the other anchored
+contract-ID patterns still accepted a final newline because `$` can match
+before a line terminator:
+
+```text
+$ PYTHONPATH=lib python3 -m unittest tests.test_adapter_contract.AdapterContractTest.test_schema_search_semantics_reject_line_terminated_contract_ids -v
+test_schema_search_semantics_reject_line_terminated_contract_ids (tests.test_adapter_contract.AdapterContractTest) ... FAIL
+
+======================================================================
+FAIL: test_schema_search_semantics_reject_line_terminated_contract_ids (tests.test_adapter_contract.AdapterContractTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/mac/Desktop/Work/kingstack/tests/test_adapter_contract.py", line 228, in test_schema_search_semantics_reject_line_terminated_contract_ids
+    load_adapter(adapter_path)
+AssertionError: AdapterContractError not raised
+
+----------------------------------------------------------------------
+Ran 1 test in 0.014s
+
+FAILED (failures=1)
+```
+
+All contract string-ID patterns now include an ECMA-compatible negative newline
+guard. Final focused and full results after that correction:
+
+```text
+$ PYTHONPATH=lib python3 -m unittest tests.test_adapter_contract -v
+Ran 24 tests in 0.168s
+
+OK
+
+$ PYTHONPATH=lib python3 -m unittest discover -s tests -v
+Ran 55 tests in 6.704s
+
+OK
+
+claude adapter contract valid
+codex adapter contract valid
+example adapter contract valid
+```
+
+All compile, JSON parse, diff, and no-live-change checks remained green.

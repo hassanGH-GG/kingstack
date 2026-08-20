@@ -16,7 +16,7 @@
   "properties": {
     "id": {
       "type": "string",
-      "pattern": "^[a-z][a-z0-9_-]*$"
+      "pattern": "^(?!.*[\\r\\n])[a-z][a-z0-9_-]*$"
     },
     "contract_version": {
       "type": "integer",
@@ -24,11 +24,11 @@
     },
     "render_module": {
       "type": "string",
-      "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)+$"
+      "pattern": "^(?!.*[\\r\\n])[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)+$"
     },
     "native_home": {
       "type": "string",
-      "pattern": "^\\.[A-Za-z0-9][A-Za-z0-9._-]*$"
+      "pattern": "^(?!.*[\\r\\n])\\.[A-Za-z0-9][A-Za-z0-9._-]*$"
     },
     "owned_paths": {
       "oneOf": [
@@ -48,11 +48,11 @@
         {
           "type": "object",
           "propertyNames": {
-            "pattern": "^[a-z][a-z0-9_]*$"
+            "pattern": "^(?!.*[\\r\\n])[a-z][a-z0-9_]*$"
           },
           "additionalProperties": {
             "type": "string",
-            "pattern": ".*\\S.*"
+            "pattern": "^(?!.*[\\r\\n])[A-Za-z0-9][A-Za-z0-9._-]*$"
           }
         },
         {

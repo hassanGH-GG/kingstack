@@ -14,6 +14,12 @@ CAPABILITY_SCHEMA = ROOT / "adapters/contract/capability.schema.json"
 CAPABILITY_STATUSES = frozenset({"native", "emulated", "degraded", "unsupported"})
 STABLE_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 ADAPTER_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
+MODEL_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+WINDOWS_DRIVE_PREFIX = re.compile(r"^[A-Za-z]:")
+WINDOWS_DEVICE_NAME = re.compile(
+    r"^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$", re.IGNORECASE
+)
+WINDOWS_FORBIDDEN_CHARACTERS = frozenset('<>:"|?*')
 
 
 class AdapterContractError(ValueError):
@@ -116,7 +122,7 @@ def _schema_errors(value: Any, schema: Mapping[str, Any], location: str = "$") -
         if len(value) < schema.get("minLength", 0):
             errors.append("{} must not be empty".format(location))
         pattern = schema.get("pattern")
-        if pattern is not None and re.fullmatch(pattern, value) is None:
+        if pattern is not None and re.search(pattern, value) is None:
             errors.append("{} does not match required pattern".format(location))
 
     if isinstance(value, list):
@@ -184,6 +190,16 @@ def _load_owned_paths(source: Path, value: Any) -> Tuple[str, ...]:
 
     canonical_paths = []
     for path in value:
+        if "\\" in path:
+            raise AdapterContractError(
+                "owned_paths entries must use portable POSIX separators, not backslashes"
+            )
+        if WINDOWS_DRIVE_PREFIX.match(path):
+            raise AdapterContractError("owned_paths entries may not use a Windows drive prefix")
+        if any(character in WINDOWS_FORBIDDEN_CHARACTERS for character in path):
+            raise AdapterContractError(
+                "owned_paths entries contain characters that are not portable to Windows"
+            )
         normalized = PurePosixPath(path)
         if normalized.is_absolute():
             raise AdapterContractError("owned_paths entries must be relative")
@@ -196,8 +212,18 @@ def _load_owned_paths(source: Path, value: Any) -> Tuple[str, ...]:
             raise AdapterContractError("owned_paths entries may not have a trailing slash")
         if "//" in path:
             raise AdapterContractError("owned_paths entries may not contain empty components")
+        for component in normalized.parts:
+            if component.endswith((".", " ")):
+                raise AdapterContractError(
+                    "owned_paths components may not end in a Windows-ambiguous dot or space"
+                )
+            if WINDOWS_DEVICE_NAME.fullmatch(component) is not None:
+                raise AdapterContractError(
+                    "owned_paths entries may not use a Windows device name"
+                )
         canonical_paths.append(canonical)
-    if len(canonical_paths) != len(set(canonical_paths)):
+    portable_keys = [path.casefold() for path in canonical_paths]
+    if len(portable_keys) != len(set(portable_keys)):
         raise AdapterContractError("owned_paths contains a duplicate canonical path")
     return tuple(canonical_paths)
 
@@ -216,10 +242,12 @@ def _load_model_tiers(source: Path, value: Any) -> Mapping[str, str]:
         isinstance(key, str)
         and STABLE_ID_PATTERN.fullmatch(key) is not None
         and isinstance(model, str)
-        and model.strip()
+        and MODEL_ID_PATTERN.fullmatch(model) is not None
         for key, model in value.items()
     ):
-        raise AdapterContractError("model_tiers keys and values must be non-empty strings")
+        raise AdapterContractError(
+            "model_tiers keys and values must use the portable exact-ID grammar"
+        )
     return dict(value)
 
 

@@ -15,59 +15,59 @@
     "capabilities": [
       {
         "capability": "global_guidance",
-        "status": "native",
-        "evidence": "Codex loads generated global guidance from AGENTS.md.",
-        "impact": "",
-        "strict_parity": true
+        "status": "unsupported",
+        "evidence": "Codex supports AGENTS.md, but kingstack guidance has not been rendered or staged for Codex yet.",
+        "impact": "Codex does not yet load kingstack's shared guidance.",
+        "strict_parity": false
       },
       {
         "capability": "skill_catalog",
-        "status": "native",
-        "evidence": "Codex loads skills through its native skill catalog and plugin surfaces.",
-        "impact": "",
-        "strict_parity": true
+        "status": "unsupported",
+        "evidence": "Codex provides native skills and plugins, but kingstack skills have not been staged for Codex yet.",
+        "impact": "The shared kingstack and pstack capability set is not yet available through the Codex adapter.",
+        "strict_parity": false
       },
       {
         "capability": "session_start",
-        "status": "native",
-        "evidence": "Codex exposes a native SessionStart lifecycle hook.",
-        "impact": "",
-        "strict_parity": true
+        "status": "unsupported",
+        "evidence": "Codex exposes SessionStart, but a normalized kingstack handler has not been staged or replay-proven.",
+        "impact": "Kingstack startup policy is not yet injected through Codex.",
+        "strict_parity": false
       },
       {
         "capability": "stop_capture",
-        "status": "native",
-        "evidence": "Codex exposes a native Stop lifecycle hook.",
-        "impact": "",
-        "strict_parity": true
+        "status": "unsupported",
+        "evidence": "Codex exposes Stop, but kingstack memory capture has not been staged or replay-proven.",
+        "impact": "Codex turns do not yet emit candidates to shared curated memory.",
+        "strict_parity": false
       },
       {
         "capability": "before_compaction",
-        "status": "native",
-        "evidence": "Codex exposes a PreCompact lifecycle hook.",
-        "impact": "",
-        "strict_parity": true
+        "status": "unsupported",
+        "evidence": "Codex exposes a native PreCompact mechanism, but the kingstack checkpoint and preservation handler has not been staged or replay-proven.",
+        "impact": "Codex compaction does not yet produce the shared kingstack checkpoint behavior.",
+        "strict_parity": false
       },
       {
         "capability": "post_tool_use",
-        "status": "native",
-        "evidence": "Codex exposes a native PostToolUse lifecycle hook.",
-        "impact": "",
-        "strict_parity": true
+        "status": "unsupported",
+        "evidence": "Codex exposes PostToolUse, but kingstack bulk-context observation has not been staged or replay-proven.",
+        "impact": "Oversized Codex tool results are not yet reported by kingstack.",
+        "strict_parity": false
       },
       {
         "capability": "subagent_start",
-        "status": "native",
-        "evidence": "Codex exposes a native SubagentStart lifecycle hook.",
-        "impact": "",
-        "strict_parity": true
+        "status": "unsupported",
+        "evidence": "Codex exposes SubagentStart, but kingstack model and effort visibility has not been staged or replay-proven.",
+        "impact": "Codex subagent routing choices are not yet surfaced through kingstack.",
+        "strict_parity": false
       },
       {
         "capability": "model_routing",
-        "status": "emulated",
-        "evidence": "The adapter maps portable tiers to Codex models and explicit reasoning effort.",
-        "impact": "Codex has no native portable-tier primitive; adapter mapping provides equivalent selection.",
-        "strict_parity": true
+        "status": "unsupported",
+        "evidence": "Task 1 declares Codex tier IDs, but the kingstack routing resolver has not been implemented or behaviorally proven.",
+        "impact": "Portable work classes do not yet select Codex model and effort settings.",
+        "strict_parity": false
       },
       {
         "capability": "shared_memory",
@@ -78,10 +78,10 @@
       },
       {
         "capability": "schedules",
-        "status": "native",
-        "evidence": "Codex exposes native Scheduled tasks for adapter-owned unattended workflows.",
-        "impact": "",
-        "strict_parity": true
+        "status": "unsupported",
+        "evidence": "Codex exposes Scheduled tasks, but a kingstack schedule has not been staged with a proven Codex handler.",
+        "impact": "Kingstack unattended workflows do not yet run through Codex.",
+        "strict_parity": false
       },
       {
         "capability": "health",
