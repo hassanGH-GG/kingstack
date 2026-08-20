@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import json
 from pathlib import Path, PurePosixPath
 import re
+import unicodedata
 from typing import Any, Dict, FrozenSet, List, Mapping, Set, Tuple
 
 
@@ -17,7 +18,8 @@ ADAPTER_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
 MODEL_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 WINDOWS_DRIVE_PREFIX = re.compile(r"^[A-Za-z]:")
 WINDOWS_DEVICE_NAME = re.compile(
-    r"^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$", re.IGNORECASE
+    r"^(?:con|prn|aux|nul|com(?:[1-9]|[¹²³])|lpt(?:[1-9]|[¹²³]))(?:\..*)?$",
+    re.IGNORECASE,
 )
 WINDOWS_FORBIDDEN_CHARACTERS = frozenset('<>:"|?*')
 
@@ -190,6 +192,14 @@ def _load_owned_paths(source: Path, value: Any) -> Tuple[str, ...]:
 
     canonical_paths = []
     for path in value:
+        if any(
+            ord(character) <= 0x1F or ord(character) == 0x7F
+            for character in path
+        ):
+            raise AdapterContractError(
+                "owned_paths entries may not contain C0 or DEL control characters"
+            )
+        path = unicodedata.normalize("NFC", path)
         if "\\" in path:
             raise AdapterContractError(
                 "owned_paths entries must use portable POSIX separators, not backslashes"

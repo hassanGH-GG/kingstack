@@ -165,6 +165,35 @@ class AdapterContractTest(TestCase):
         with self.assertRaisesRegex(AdapterContractError, "duplicate"):
             load_adapter(self.write_adapter(payload))
 
+    def test_owned_paths_store_nfc_and_unicode_equivalents_collide(self):
+        payload = self.valid_payload()
+        payload["owned_paths"] = ["e\u0301/file"]
+
+        declaration = load_adapter(self.write_adapter(payload))
+
+        self.assertEqual(declaration.owned_paths, ("é/file",))
+
+        payload["owned_paths"] = ["é/file", "e\u0301/file"]
+        with self.assertRaisesRegex(AdapterContractError, "duplicate"):
+            load_adapter(self.write_adapter(payload))
+
+    def test_owned_paths_reject_c0_and_del_controls(self):
+        controls = ("\x00", "\n", "\r", "\t", "\x1f", "\x7f")
+        for control in controls:
+            with self.subTest(codepoint="U+{:04X}".format(ord(control))):
+                payload = self.valid_payload()
+                payload["owned_paths"] = ["hooks/unsafe{}name".format(control)]
+                with self.assertRaisesRegex(AdapterContractError, "control"):
+                    load_adapter(self.write_adapter(payload))
+
+    def test_owned_paths_reject_superscript_windows_device_names(self):
+        for path in ("COM¹", "com².txt", "CoM³.log", "LPT¹", "lpt².md", "LpT³"):
+            with self.subTest(path=path):
+                payload = self.valid_payload()
+                payload["owned_paths"] = ["hooks/{}".format(path)]
+                with self.assertRaisesRegex(AdapterContractError, "device"):
+                    load_adapter(self.write_adapter(payload))
+
     def test_render_module_must_be_an_importable_shape(self):
         for value in ("claude", "bad-module.name", ".leading.dot", "trailing.dot."):
             with self.subTest(value=value):

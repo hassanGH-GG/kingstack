@@ -658,3 +658,74 @@ example adapter contract valid
 ```
 
 All compile, JSON parse, diff, and no-live-change checks remained green.
+
+## Independent-review fix round 3 (2026-08-20)
+
+The third review found one remaining grouped ownership-boundary defect: the
+contract did not collapse canonically equivalent Unicode, reject control
+characters, or recognize Windows COM/LPT device names that use superscript
+digits.
+
+### RED
+
+Command:
+
+```text
+PYTHONPATH=lib python3 -m unittest tests.test_adapter_contract -v
+```
+
+Exact result: 27 tests executed with 13 failures in 0.197 seconds. The failures
+were six missing C0/DEL rejections (`U+0000`, LF, CR, tab, `U+001F`, `U+007F`),
+six missing superscript device-name rejections (`COM¹`, `com².txt`, `CoM³.log`,
+`LPT¹`, `lpt².md`, `LpT³`), and one canonical-storage failure:
+
+```text
+FAIL: test_owned_paths_store_nfc_and_unicode_equivalents_collide
+AssertionError: Tuples differ: ('é/file',) != ('é/file',)
+
+First differing element 0:
+'é/file'
+'é/file'
+
+Ran 27 tests in 0.197s
+FAILED (failures=13)
+```
+
+### GREEN and full verification
+
+```text
+$ PYTHONPATH=lib python3 -m unittest tests.test_adapter_contract -v
+Ran 27 tests in 0.134s
+
+OK
+
+$ PYTHONPATH=lib python3 -m unittest discover -s tests -v
+Ran 58 tests in 7.076s
+
+OK
+
+$ ./scripts/kingstack check --contract --adapter claude
+claude adapter contract valid
+$ ./scripts/kingstack check --contract --adapter codex
+codex adapter contract valid
+$ ./scripts/kingstack check --contract --adapter-path tests/fixtures/adapters/example
+example adapter contract valid
+```
+
+`py_compile`, every Task 1 JSON parse, and `git diff --check` exited zero. The
+fresh inventory remained byte-identical to the frozen baseline:
+
+```text
+8d943deaa440a279452e3af79400c6651722306936d2d90922692810722ddf27  docs/baselines/claude-codex-baseline.json
+8d943deaa440a279452e3af79400c6651722306936d2d90922692810722ddf27  <temporary>/live-baseline.json
+native homes: real directories, not symlinks
+historical count: 10
+adapter runtime current links: none
+```
+
+Every accepted ownership string is normalized to NFC before POSIX
+canonicalization, canonical storage, and casefold duplicate comparison. C0 and
+DEL controls are rejected. Windows device detection now covers ASCII digits and
+superscript `¹²³`, including extensions and mixed case. Unicode remains allowed
+generally; format controls were not broadened without evidence. Nothing was
+activated, linked, removed, or pushed.
