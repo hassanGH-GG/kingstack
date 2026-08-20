@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import stat
 import subprocess
 from dataclasses import asdict, dataclass
@@ -203,10 +204,95 @@ def _is_private_destination(destination: Path) -> bool:
     return any(part in {".claude", ".codex", "memory"} for part in resolved.parts)
 
 
+def open_directory_no_symlinks(path: Path, create: bool = False, mode: int = 0o755) -> int:
+    """Open an absolute directory through no-follow descriptors, optionally creating it."""
+    path = Path(path).expanduser().absolute()
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    descriptor = os.open(path.anchor, flags)
+    try:
+        for part in path.parts[1:]:
+            try:
+                child = os.open(part, flags, dir_fd=descriptor)
+            except FileNotFoundError:
+                if not create:
+                    raise ValueError("output parent does not exist: " + str(path))
+                try:
+                    os.mkdir(part, mode, dir_fd=descriptor)
+                except FileExistsError:
+                    pass
+                try:
+                    child = os.open(part, flags, dir_fd=descriptor)
+                except OSError as error:
+                    raise ValueError("refusing symlinked output parent: " + str(path)) from error
+            except OSError as error:
+                raise ValueError("refusing symlinked output parent: " + str(path)) from error
+            os.close(descriptor)
+            descriptor = child
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def atomic_write_no_clobber(
+    destination: Path,
+    payload: bytes,
+    mode: int,
+    create_parents: bool = False,
+    parent_mode: int = 0o755,
+) -> None:
+    """Atomically publish bytes without following parents or replacing any target."""
+    destination = Path(destination).expanduser().absolute()
+    parent_fd = open_directory_no_symlinks(
+        destination.parent, create=create_parents, mode=parent_mode,
+    )
+    temporary = ".{}.tmp-{}-{}".format(
+        destination.name, os.getpid(), secrets.token_hex(8),
+    )
+    descriptor = None
+    try:
+        descriptor = os.open(
+            temporary,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            mode,
+            dir_fd=parent_fd,
+        )
+        os.fchmod(descriptor, mode)
+        with os.fdopen(descriptor, "wb") as output:
+            descriptor = None
+            output.write(payload)
+            output.flush()
+            os.fsync(output.fileno())
+        try:
+            os.link(
+                temporary,
+                destination.name,
+                src_dir_fd=parent_fd,
+                dst_dir_fd=parent_fd,
+                follow_symlinks=False,
+            )
+        except FileExistsError as error:
+            raise ValueError("output destination already exists: " + str(destination)) from error
+        try:
+            os.fsync(parent_fd)
+        except OSError:
+            pass
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        try:
+            os.unlink(temporary, dir_fd=parent_fd)
+        except FileNotFoundError:
+            pass
+        os.close(parent_fd)
+
+
 def write_public_report(baseline: dict, destination: Path) -> None:
-    """Write canonical JSON, refusing agent homes and memory-bank destinations."""
+    """Publish canonical JSON once, refusing private or symlinked destinations."""
     destination = Path(destination).expanduser()
     if _is_private_destination(destination):
         raise ValueError("refusing to write a public report inside agent-private storage")
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(json.dumps(baseline, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    payload = (json.dumps(baseline, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    atomic_write_no_clobber(
+        destination, payload, mode=0o644, create_parents=True, parent_mode=0o755,
+    )

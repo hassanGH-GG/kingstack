@@ -1,10 +1,12 @@
 import json
+import os
 import shutil
 import stat
 import subprocess
 import tempfile
 from pathlib import Path
 from unittest import TestCase
+from unittest.mock import patch
 
 
 def run_git(repo: Path, *arguments: str) -> str:
@@ -18,9 +20,25 @@ def run_git(repo: Path, *arguments: str) -> str:
     return result.stdout.strip()
 
 
+def git_result(repo: Path, *arguments: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["git", "-C", str(repo), *arguments],
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+
+def remote_refs(repo: Path) -> str:
+    return run_git(
+        repo, "for-each-ref", "--format=%(refname) %(objectname)", "refs/remotes",
+    )
+
+
 class BootstrapTest(TestCase):
     def setUp(self):
-        self.tempdir = Path(tempfile.mkdtemp())
+        self.tempdir = Path(tempfile.mkdtemp()).resolve()
         self.origin = self.tempdir / "origin.git"
         self.source = self.tempdir / "source"
         self.destination = self.tempdir / "kingstack"
@@ -114,6 +132,11 @@ class BootstrapTest(TestCase):
             str(self.origin),
         )
         self.assertIn("v-test", run_git(self.destination, "tag").splitlines())
+        self.assertEqual(
+            run_git(self.destination, "rev-parse", "--abbrev-ref", "@{upstream}"),
+            run_git(self.source, "rev-parse", "--abbrev-ref", "@{upstream}"),
+        )
+        self.assertEqual(remote_refs(self.destination), remote_refs(self.source))
         self.assertEqual(run_git(self.destination, "fsck", "--full"), "")
         self.assertEqual(
             run_git(self.destination, "status", "--short", "--untracked-files=all"),
@@ -170,6 +193,117 @@ class BootstrapTest(TestCase):
             self._bootstrap()
         self.assertFalse(self.destination.exists())
         self.assertEqual(stat.S_IMODE(external.stat().st_mode), 0o755)
+
+    def test_destination_and_runtime_cannot_overlap_native_homes(self):
+        from kingstack.bootstrap import BootstrapError
+
+        cases = [
+            (self.claude_home / "kingstack", self.runtime),
+            (self.codex_home / "kingstack", self.runtime),
+            (self.destination, self.claude_home / "runtime"),
+            (self.destination, self.codex_home / "runtime"),
+            (self.destination, self.home),
+        ]
+        for destination, runtime in cases:
+            with self.subTest(destination=destination, runtime=runtime):
+                with self.assertRaisesRegex(BootstrapError, "overlap"):
+                    self._bootstrap(destination=destination, runtime=runtime)
+                self.assertFalse((self.claude_home / "kingstack").exists())
+                self.assertFalse((self.codex_home / "kingstack").exists())
+                self.assertFalse((self.claude_home / "runtime").exists())
+                self.assertFalse((self.codex_home / "runtime").exists())
+
+    def test_symlinked_destination_parent_is_refused_without_external_write(self):
+        from kingstack.bootstrap import BootstrapError
+
+        external = self.tempdir / "external-destination"
+        external.mkdir()
+        linked_parent = self.tempdir / "linked-destination"
+        linked_parent.symlink_to(external, target_is_directory=True)
+
+        with self.assertRaisesRegex(BootstrapError, "symlink"):
+            self._bootstrap(destination=linked_parent / "kingstack")
+        self.assertEqual(list(external.iterdir()), [])
+
+    def test_symlinked_runtime_parent_is_refused_without_external_write(self):
+        from kingstack.bootstrap import BootstrapError
+
+        external = self.tempdir / "external-runtime"
+        external.mkdir()
+        linked_parent = self.tempdir / "linked-runtime"
+        linked_parent.symlink_to(external, target_is_directory=True)
+
+        with self.assertRaisesRegex(BootstrapError, "symlink"):
+            self._bootstrap(runtime=linked_parent / "runtime")
+        self.assertFalse(self.destination.exists())
+        self.assertEqual(list(external.iterdir()), [])
+
+    def test_cloned_symlinked_baseline_parent_never_overwrites_external_file(self):
+        from kingstack.bootstrap import BootstrapError
+
+        external = self.tempdir / "external-baseline"
+        external.mkdir()
+        sentinel = external / "claude-codex-baseline.json"
+        sentinel.write_text("external-sentinel\n", encoding="utf-8")
+        (self.source / "docs/baselines").symlink_to(external, target_is_directory=True)
+        run_git(self.source, "add", "docs/baselines")
+        run_git(self.source, "commit", "-m", "adversarial baseline link")
+
+        with self.assertRaisesRegex(BootstrapError, "symlink"):
+            self._bootstrap(allow_unpushed=True)
+        self.assertEqual(sentinel.read_text(encoding="utf-8"), "external-sentinel\n")
+
+    def test_existing_cloned_baseline_is_never_overwritten(self):
+        from kingstack.bootstrap import BootstrapError
+
+        baseline_dir = self.source / "docs/baselines"
+        baseline_dir.mkdir()
+        baseline = baseline_dir / "claude-codex-baseline.json"
+        baseline.write_text("tracked-sentinel\n", encoding="utf-8")
+        run_git(self.source, "add", "docs/baselines/claude-codex-baseline.json")
+        run_git(self.source, "commit", "-m", "tracked baseline sentinel")
+
+        with self.assertRaisesRegex(BootstrapError, "exists"):
+            self._bootstrap(allow_unpushed=True)
+        cloned = self.destination / "docs/baselines/claude-codex-baseline.json"
+        self.assertEqual(cloned.read_text(encoding="utf-8"), "tracked-sentinel\n")
+
+    def test_manifest_publication_race_never_overwrites_contender(self):
+        from kingstack.bootstrap import BootstrapError, _write_private_manifest
+
+        private_dir = self.runtime / "bootstrap"
+        private_dir.mkdir(parents=True)
+        manifest = private_dir / "manifest.json"
+        real_link = os.link
+
+        def racing_link(source, destination, **keywords):
+            descriptor = os.open(
+                destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600,
+                dir_fd=keywords["dst_dir_fd"],
+            )
+            with os.fdopen(descriptor, "wb") as contender:
+                contender.write(b'{"contender": true}\n')
+            return real_link(source, destination, **keywords)
+
+        with patch("kingstack.inventory.os.link", side_effect=racing_link):
+            with self.assertRaisesRegex(BootstrapError, "exists"):
+                _write_private_manifest(manifest, {"bootstrap": True})
+
+        self.assertEqual(manifest.read_bytes(), b'{"contender": true}\n')
+        self.assertEqual([path.name for path in private_dir.iterdir()], ["manifest.json"])
+
+    def test_clone_with_no_source_upstream_has_no_manufactured_upstream_or_refs(self):
+        run_git(self.source, "checkout", "-b", "feature/no-upstream")
+        self._make_unpushed_commit()
+        self.assertNotEqual(git_result(self.source, "rev-parse", "@{upstream}").returncode, 0)
+
+        self._bootstrap(allow_unpushed=True)
+
+        self.assertNotEqual(
+            git_result(self.destination, "rev-parse", "@{upstream}").returncode, 0,
+        )
+        self.assertEqual(remote_refs(self.destination), remote_refs(self.source))
+        self.assertNotIn("refs/remotes/origin/feature/no-upstream", remote_refs(self.destination))
 
     def test_existing_destination_is_refused_without_mutation(self):
         from kingstack.bootstrap import BootstrapError

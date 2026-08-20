@@ -9,7 +9,12 @@ import subprocess
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
-from kingstack.inventory import capture_baseline, write_public_report
+from kingstack.inventory import (
+    atomic_write_no_clobber,
+    capture_baseline,
+    open_directory_no_symlinks,
+    write_public_report,
+)
 from kingstack.paths import Paths
 
 
@@ -72,9 +77,52 @@ def _source_state(source_repo: Path) -> Dict[str, object]:
         "branch": branch,
         "head": head,
         "origin": origin,
+        "remote_refs": _remote_refs(source_repo),
         "tags": sorted(filter(None, _git(source_repo, "tag", "--list").splitlines())),
         "upstream": upstream,
     }
+
+
+def _remote_refs(repo: Path) -> List[dict]:
+    output = _git(
+        repo,
+        "for-each-ref",
+        "--format=%(refname)%09%(objectname)%09%(symref)",
+        "refs/remotes",
+    )
+    records = []
+    for line in output.splitlines():
+        if not line:
+            continue
+        name, object_id, symbolic_target = (line.split("\t") + ["", ""])[:3]
+        records.append(
+            {"name": name, "object": object_id, "symbolic_target": symbolic_target or None}
+        )
+    return records
+
+
+def _reconcile_remote_refs(repo: Path, expected: List[dict]) -> None:
+    for record in _remote_refs(repo):
+        if record["symbolic_target"]:
+            _git(repo, "symbolic-ref", "--delete", str(record["name"]))
+        else:
+            _git(repo, "update-ref", "-d", str(record["name"]))
+    for record in expected:
+        if not record["symbolic_target"]:
+            _git(repo, "update-ref", str(record["name"]), str(record["object"]))
+    for record in expected:
+        if record["symbolic_target"]:
+            _git(repo, "symbolic-ref", str(record["name"]), str(record["symbolic_target"]))
+
+
+def _reconcile_upstream(repo: Path, branch: str, expected: Optional[str]) -> None:
+    current = _optional_git(
+        repo, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}",
+    )
+    if expected:
+        _git(repo, "branch", "--set-upstream-to=" + expected, branch)
+    elif current:
+        _git(repo, "branch", "--unset-upstream", branch)
 
 
 def _baseline_for_homes(baseline_homes: Iterable[Path]) -> dict:
@@ -95,6 +143,41 @@ def _baseline_for_homes(baseline_homes: Iterable[Path]) -> dict:
     baseline = capture_baseline(paths)
     _validate_public_baseline(baseline, homes)
     return baseline
+
+
+def _paths_overlap(first: Path, second: Path) -> bool:
+    return first == second or first in second.parents or second in first.parents
+
+
+def _validate_no_symlink_components(path: Path, require_leaf: bool = False) -> None:
+    path = Path(path).expanduser().absolute()
+    current = Path(path.anchor)
+    for part in path.parts[1:]:
+        current = current / part
+        try:
+            details = current.lstat()
+        except FileNotFoundError:
+            if require_leaf:
+                raise BootstrapError("required output parent does not exist: " + str(path))
+            return
+        if stat.S_ISLNK(details.st_mode):
+            raise BootstrapError("refusing symlinked output path: " + str(current))
+        if not stat.S_ISDIR(details.st_mode):
+            raise BootstrapError("output path component is not a directory: " + str(current))
+
+
+def _validate_output_boundaries(
+    destination: Path, runtime: Path, baseline_homes: Iterable[Path]
+) -> None:
+    homes = [Path(path).expanduser().absolute() for path in baseline_homes]
+    for owned in (destination, runtime):
+        for native in homes:
+            if _paths_overlap(owned, native):
+                raise BootstrapError("managed output paths must not overlap native agent homes")
+    if _paths_overlap(destination, runtime):
+        raise BootstrapError("destination and runtime paths must not overlap")
+    _validate_no_symlink_components(destination.parent, require_leaf=True)
+    _validate_no_symlink_components(runtime)
 
 
 def _validate_public_baseline(baseline: dict, private_roots: Iterable[Path]) -> None:
@@ -128,13 +211,14 @@ def _sha256_json(value: dict) -> str:
 
 
 def _ensure_private_directory(path: Path) -> None:
-    if path.is_symlink() or (path.exists() and not path.is_dir()):
-        raise BootstrapError("private runtime path is not a real directory: " + str(path))
-    if path.exists():
-        path.chmod(0o700)
-        return
-    path.mkdir(mode=0o700)
-    path.chmod(0o700)
+    try:
+        descriptor = open_directory_no_symlinks(path, create=True, mode=0o700)
+    except ValueError as error:
+        raise BootstrapError(str(error)) from error
+    try:
+        os.fchmod(descriptor, 0o700)
+    finally:
+        os.close(descriptor)
 
 
 def _validate_private_directory(path: Path) -> None:
@@ -143,23 +227,11 @@ def _validate_private_directory(path: Path) -> None:
 
 
 def _write_private_manifest(path: Path, value: dict) -> None:
-    if path.exists() or path.is_symlink():
-        raise BootstrapError("private bootstrap manifest already exists")
-    temporary = path.with_name(path.name + ".tmp")
-    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    payload = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as destination:
-            json.dump(value, destination, indent=2, sort_keys=True)
-            destination.write("\n")
-            destination.flush()
-            os.fsync(destination.fileno())
-        os.replace(temporary, path)
-    except BaseException:
-        try:
-            temporary.unlink()
-        except FileNotFoundError:
-            pass
-        raise
+        atomic_write_no_clobber(path, payload, mode=0o600)
+    except ValueError as error:
+        raise BootstrapError(str(error)) from error
 
 
 def bootstrap(
@@ -174,6 +246,8 @@ def bootstrap(
     source_repo = Path(source_repo).expanduser().resolve()
     destination = Path(destination).expanduser().absolute()
     runtime = Path(runtime).expanduser().absolute()
+    baseline_homes = [Path(path).expanduser().absolute() for path in baseline_homes]
+    _validate_output_boundaries(destination, runtime, baseline_homes)
     if destination.exists() or destination.is_symlink():
         raise BootstrapError("destination already exists; refusing to replace it")
 
@@ -221,14 +295,26 @@ def bootstrap(
 
     _git(destination, "remote", "set-url", "origin", str(source["origin"]))
     _git(destination, "fetch", "--tags", "--force", "origin")
+    _reconcile_remote_refs(destination, source["remote_refs"])
+    _reconcile_upstream(destination, str(source["branch"]), source["upstream"])
     if _git(destination, "rev-parse", "HEAD") != source["head"]:
         raise BootstrapError("clone HEAD does not match reviewed source HEAD")
     clone_tags = sorted(filter(None, _git(destination, "tag", "--list").splitlines()))
     if clone_tags != source["tags"]:
         raise BootstrapError("clone tags do not match reviewed source tags")
+    if _remote_refs(destination) != source["remote_refs"]:
+        raise BootstrapError("clone remote-tracking refs do not match reviewed source")
+    clone_upstream = _optional_git(
+        destination, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}",
+    )
+    if clone_upstream != source["upstream"]:
+        raise BootstrapError("clone upstream does not match reviewed source")
     _git(destination, "fsck", "--full")
 
-    write_public_report(baseline, public_report)
+    try:
+        write_public_report(baseline, public_report)
+    except ValueError as error:
+        raise BootstrapError(str(error)) from error
     _ensure_private_directory(runtime)
     _ensure_private_directory(private_directory)
     _write_private_manifest(private_manifest, result)

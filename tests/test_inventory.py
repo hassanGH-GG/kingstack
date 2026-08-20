@@ -14,7 +14,7 @@ FIXTURE_HOME = Path(__file__).parent / "fixtures" / "inventory-home"
 
 class InventoryTest(TestCase):
     def setUp(self):
-        self.tempdir = Path(tempfile.mkdtemp())
+        self.tempdir = Path(tempfile.mkdtemp()).resolve()
         shutil.copytree(FIXTURE_HOME, self.tempdir / "home", symlinks=True)
         self.home = self.tempdir / "home"
 
@@ -133,6 +133,37 @@ class InventoryTest(TestCase):
                 baseline,
                 self.home / ".claude" / "projects" / "demo" / "memory" / "report.json",
             )
+
+    def test_write_public_report_refuses_symlinked_parent_and_existing_file(self):
+        from kingstack.inventory import capture_baseline, write_public_report
+
+        baseline = capture_baseline(Paths.for_home(self.home))
+        external = self.tempdir / "external"
+        external.mkdir()
+        sentinel = external / "report.json"
+        sentinel.write_text("external-sentinel\n", encoding="utf-8")
+        linked_parent = self.tempdir / "linked-parent"
+        linked_parent.symlink_to(external, target_is_directory=True)
+
+        with self.assertRaisesRegex(ValueError, "symlink"):
+            write_public_report(baseline, linked_parent / "report.json")
+        self.assertEqual(sentinel.read_text(encoding="utf-8"), "external-sentinel\n")
+
+        existing = self.tempdir / "existing.json"
+        existing.write_text("existing-sentinel\n", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "exists"):
+            write_public_report(baseline, existing)
+        self.assertEqual(existing.read_text(encoding="utf-8"), "existing-sentinel\n")
+
+        external_file = external / "external-file.json"
+        external_file.write_text("symlink-target-sentinel\n", encoding="utf-8")
+        linked_file = self.tempdir / "linked-file.json"
+        linked_file.symlink_to(external_file)
+        with self.assertRaisesRegex(ValueError, "exists"):
+            write_public_report(baseline, linked_file)
+        self.assertEqual(
+            external_file.read_text(encoding="utf-8"), "symlink-target-sentinel\n",
+        )
 
     def test_cli_writes_fixture_inventory_and_rejects_agent_home_output(self):
         """A CLI regression must not write a report under a protected agent home."""
