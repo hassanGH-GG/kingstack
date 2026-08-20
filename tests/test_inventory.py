@@ -53,6 +53,59 @@ class InventoryTest(TestCase):
             hashlib.sha256(b"#!/bin/sh\nexit 0\n").hexdigest(),
         )
 
+    def test_capture_excludes_sensitive_paths_at_every_depth(self):
+        """Hashing a secret in an included directory would publish its fingerprint."""
+        from kingstack.inventory import capture_baseline
+
+        excluded = [
+            "hooks/auth.json", "hooks/sessions/state.json", "skills/cache/entry",
+            "agents/history/session.json", "scripts/logs/run.log", "hooks/downloads/file",
+            "skills/browser/data", "agents/credentials.txt", "agents/transcript.jsonl",
+            "agents/database.sqlite",
+        ]
+        for relative in excluded:
+            path = self.home / ".claude" / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("must-not-be-fingerprinted", encoding="utf-8")
+
+        report = capture_baseline(Paths.for_home(self.home))
+        encoded = json.dumps(report, sort_keys=True)
+        paths = [record["path"] for record in report["claude"]["records"]]
+
+        self.assertNotIn("must-not-be-fingerprinted", encoded)
+        self.assertNotIn(
+            hashlib.sha256(b"must-not-be-fingerprinted").hexdigest(), encoded,
+        )
+        for relative in excluded:
+            self.assertNotIn(relative, paths)
+
+    def test_capture_redacts_absolute_symlink_targets(self):
+        """An absolute symlink target would disclose a home path in the report."""
+        from kingstack.inventory import capture_baseline
+
+        link = self.home / ".claude" / "skills" / "absolute-target.md"
+        link.symlink_to("/Users/test/private/SKILL.md")
+
+        report = capture_baseline(Paths.for_home(self.home))
+        records = {record["path"]: record for record in report["claude"]["records"]}
+
+        self.assertEqual(records["skills/absolute-target.md"]["target"], "<redacted>")
+        self.assertNotIn("/Users/test/private", json.dumps(report, sort_keys=True))
+
+    def test_capture_redacts_path_shaped_json_key_names(self):
+        """A path-shaped JSON key must not reveal a home path as report metadata."""
+        from kingstack.inventory import capture_baseline
+
+        (self.home / ".claude" / "settings.json").write_text(
+            json.dumps({"/Users/test/private": {"token": "top-secret-value"}}),
+            encoding="utf-8",
+        )
+
+        report = capture_baseline(Paths.for_home(self.home))
+
+        self.assertEqual(report["claude"]["config_keys"], ["<redacted>.token"])
+        self.assertNotIn("/Users/test/private", json.dumps(report, sort_keys=True))
+
     def test_write_public_report_is_byte_deterministic_and_rejects_private_destinations(self):
         """A public report must be repeatable and never land in agent-private storage."""
         from kingstack.inventory import capture_baseline, write_public_report

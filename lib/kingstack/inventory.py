@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 import re
 import stat
 import subprocess
@@ -17,8 +18,10 @@ CLAUDE_INCLUDE = [
     "sweeps/", "projects/*/memory/",
 ]
 IGNORED_PARTS = {
-    "auth.json", "sessions", "cache", "caches", "history", "histories", "logs",
-    "downloads", "browser", "browsers", "databases", "backups",
+    "auth", "session", "sessions", "cache", "caches", "history", "histories",
+    "log", "logs", "download", "downloads", "browser", "browsers", "credential",
+    "credentials", "transcript", "transcripts", "database", "databases", "backup",
+    "backups",
 }
 CODEX_INCLUDE = [
     "config.toml", "AGENTS.md", "AGENTS.override.md", "hooks.json", "hooks/",
@@ -45,11 +48,13 @@ def hash_file(path: Path) -> str:
 
 
 def _record(root: Path, path: Path) -> FileRecord:
+    if _is_excluded_path(root, path):
+        raise ValueError("refusing to inventory excluded path")
     details = path.lstat()
     relative = path.relative_to(root).as_posix()
     mode = format(stat.S_IMODE(details.st_mode), "04o")
     if path.is_symlink():
-        return FileRecord(relative, "symlink", None, mode, str(path.readlink()))
+        return FileRecord(relative, "symlink", None, mode, _safe_link_target(str(path.readlink())))
     return FileRecord(relative, "file", hash_file(path), mode, None)
 
 
@@ -60,13 +65,41 @@ def walk_records(root: Path, include: List[str]) -> List[FileRecord]:
     found = set()
     for pattern in include:
         for match in root.glob(pattern):
+            if _is_excluded_path(root, match):
+                continue
             if match.is_symlink() or match.is_file():
                 found.add(match)
             elif match.is_dir():
-                for child in match.rglob("*"):
-                    if child.is_symlink() or child.is_file():
-                        found.add(child)
+                for directory, directories, filenames in os.walk(match, topdown=True, followlinks=False):
+                    current = Path(directory)
+                    for name in list(directories):
+                        child = current / name
+                        if _is_excluded_path(root, child):
+                            directories.remove(name)
+                        elif child.is_symlink():
+                            found.add(child)
+                            directories.remove(name)
+                    for name in filenames:
+                        child = current / name
+                        if not _is_excluded_path(root, child):
+                            found.add(child)
     return [_record(root, path) for path in sorted(found, key=lambda item: item.as_posix())]
+
+
+def _is_excluded_path(root: Path, path: Path) -> bool:
+    """Match sensitive names from a relative path without inspecting its content."""
+    try:
+        parts = path.relative_to(root).parts
+    except ValueError:
+        return True
+    for part in parts:
+        name = part.lower()
+        stem = Path(name).stem
+        if name in IGNORED_PARTS or stem in IGNORED_PARTS:
+            return True
+        if Path(name).suffix.lower() in {".db", ".sqlite", ".sqlite3"}:
+            return True
+    return False
 
 
 def _tracked_include(root: Path) -> List[str]:
@@ -79,7 +112,7 @@ def _tracked_include(root: Path) -> List[str]:
         return []
     return [
         line for line in result.stdout.splitlines()
-        if line and not any(part.lower() in IGNORED_PARTS for part in Path(line).parts)
+        if line and not _is_excluded_path(root, root / line)
     ]
 
 
@@ -93,7 +126,8 @@ def _json_key_paths(path: Path) -> List[str]:
     def visit(value: object, prefix: str) -> None:
         if isinstance(value, dict):
             for key in sorted(value):
-                child = str(key) if not prefix else prefix + "." + str(key)
+                child_key = _safe_key_part(str(key))
+                child = child_key if not prefix else prefix + "." + child_key
                 visit(value[key], child)
         elif prefix:
             paths.append(prefix)
@@ -126,6 +160,13 @@ def _toml_key_paths(path: Path) -> List[str]:
 def _safe_key_part(part: str) -> str:
     """Keep configuration structure while removing path-shaped key segments."""
     return "<redacted>" if "/" in part or "\\" in part else part
+
+
+def _safe_link_target(target: str) -> str:
+    """Redact absolute link targets while retaining safe relative link structure."""
+    if target.startswith(("/", "~")) or re.match(r"^[A-Za-z]:[\\/]", target):
+        return "<redacted>"
+    return target
 
 
 def _records_dict(records: List[FileRecord]) -> List[dict]:
