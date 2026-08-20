@@ -1,9 +1,11 @@
+import json
 import os
 import shutil
 import stat
 import tempfile
 from pathlib import Path
 from unittest import TestCase
+from unittest.mock import patch
 
 from kingstack.paths import Paths
 
@@ -32,7 +34,7 @@ class SnapshotTest(TestCase):
 
     def test_snapshot_round_trips_files_symlinks_and_private_modes(self):
         """Following a link or broadening a mode would corrupt a private restore."""
-        from kingstack.snapshot import create_snapshot, restore_snapshot, verify_snapshot
+        from kingstack.snapshot import create_snapshot, current_destination_hash, restore_snapshot, verify_snapshot
 
         snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
         self.assertEqual(verify_snapshot(snapshot, check_permissions=True), [])
@@ -42,7 +44,12 @@ class SnapshotTest(TestCase):
         planned = restore_snapshot(snapshot, destination)
         self.assertIn(destination / ".claude" / "settings.json", planned)
         self.assertFalse((destination / ".claude" / "settings.json").exists())
-        restored = restore_snapshot(snapshot, destination, dry_run=False)
+        restored = restore_snapshot(
+            snapshot,
+            destination,
+            dry_run=False,
+            expected_current_hash=current_destination_hash(snapshot, destination),
+        )
 
         self.assertIn(destination / ".codex" / "config.toml", restored)
         self.assertEqual((destination / ".claude" / "settings.json").read_bytes(), b'{"theme":"dark"}\n')
@@ -66,7 +73,7 @@ class SnapshotTest(TestCase):
 
     def test_restore_refuses_unknown_live_file_without_current_hash(self):
         """An existing destination file must not be overwritten without a precondition."""
-        from kingstack.snapshot import create_snapshot, restore_snapshot
+        from kingstack.snapshot import create_snapshot, current_destination_hash, restore_snapshot
 
         snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
         destination = self.tempdir / "live-home"
@@ -78,7 +85,7 @@ class SnapshotTest(TestCase):
 
     def test_restore_refuses_a_symlinked_destination_parent(self):
         """A restore must not follow a destination symlink outside the selected home."""
-        from kingstack.snapshot import create_snapshot, restore_snapshot
+        from kingstack.snapshot import create_snapshot, current_destination_hash, restore_snapshot
 
         snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
         destination = self.tempdir / "restore-home"
@@ -87,8 +94,13 @@ class SnapshotTest(TestCase):
         external.mkdir()
         (destination / ".claude").symlink_to(external, target_is_directory=True)
 
-        with self.assertRaisesRegex(ValueError, "symlinked destination directory"):
-            restore_snapshot(snapshot, destination, dry_run=False)
+        with self.assertRaisesRegex(ValueError, "destination directory"):
+            restore_snapshot(
+                snapshot,
+                destination,
+                dry_run=False,
+                expected_current_hash=current_destination_hash(snapshot, destination),
+            )
         self.assertFalse((external / "settings.json").exists())
 
     def test_verify_reports_tampered_content_and_permissions(self):
@@ -122,3 +134,120 @@ class SnapshotTest(TestCase):
             capture_output=True,
         )
         self.assertEqual(verified.returncode, 0, verified.stderr)
+
+    def test_verify_rejects_denylisted_duplicate_and_extra_manifest_entries(self):
+        """A forged manifest must not smuggle auth state or unlisted payloads."""
+        from kingstack.snapshot import create_snapshot, verify_snapshot
+
+        snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
+        manifest_path = snapshot / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["files"].append(dict(manifest["files"][0]))
+        manifest["files"][1]["path"] = "claude/hooks/auth.json"
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        manifest_path.chmod(0o600)
+        self._write(snapshot / "files" / "claude" / "unlisted.json", b"extra\n", 0o600)
+
+        problems = verify_snapshot(snapshot, check_permissions=True)
+        self.assertTrue(any("denylisted" in problem for problem in problems), problems)
+        self.assertTrue(any("duplicate" in problem for problem in problems), problems)
+        self.assertTrue(any("unexpected snapshot entry" in problem for problem in problems), problems)
+
+    def test_verify_rejects_symlinked_snapshot_storage_and_manifest_ancestors(self):
+        """Verification must not follow a snapshot directory or files-tree symlink."""
+        from kingstack.snapshot import create_snapshot, verify_snapshot
+
+        snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
+        alias = self.tempdir / "snapshot-alias"
+        alias.symlink_to(snapshot, target_is_directory=True)
+        self.assertTrue(any("symlink" in problem for problem in verify_snapshot(alias)))
+
+        files = snapshot / "files"
+        relocated = snapshot / "stored-files"
+        files.rename(relocated)
+        files.symlink_to(relocated, target_is_directory=True)
+        self.assertTrue(any("symlink" in problem for problem in verify_snapshot(snapshot)))
+
+    def test_restore_requires_expected_hash_for_missing_targets_and_hashes_modes(self):
+        """A creation-only restore still needs a state precondition, including modes."""
+        from kingstack.snapshot import create_snapshot, current_destination_hash, restore_snapshot
+
+        snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
+        destination = self.tempdir / "restore-home"
+        with self.assertRaisesRegex(ValueError, "expected current hash"):
+            restore_snapshot(snapshot, destination, dry_run=False)
+
+        expected = current_destination_hash(snapshot, destination)
+        restore_snapshot(snapshot, destination, dry_run=False, expected_current_hash=expected)
+        before_mode_change = current_destination_hash(snapshot, destination)
+        (destination / ".claude" / "settings.json").chmod(0o700)
+        self.assertNotEqual(before_mode_change, current_destination_hash(snapshot, destination))
+
+    def test_restore_preflights_late_namespace_before_mutating_early_namespace(self):
+        """A bad Codex parent must not permit any earlier Claude replacement."""
+        from kingstack.snapshot import create_snapshot, current_destination_hash, restore_snapshot
+
+        snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
+        destination = self.tempdir / "restore-home"
+        destination.mkdir()
+        self._write(destination / ".codex", b"not a directory\n", 0o600)
+        expected = current_destination_hash(snapshot, destination)
+
+        with self.assertRaisesRegex(ValueError, "destination directory"):
+            restore_snapshot(snapshot, destination, dry_run=False, expected_current_hash=expected)
+        self.assertFalse((destination / ".claude" / "settings.json").exists())
+
+    def test_verify_requires_exact_file_modes_and_null_symlink_mode(self):
+        """Private proof rejects narrow modes and symlink modes are deliberately ignored."""
+        from kingstack.snapshot import create_snapshot, verify_snapshot
+
+        snapshot = create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
+        manifest = json.loads((snapshot / "manifest.json").read_text(encoding="utf-8"))
+        symlink = next(record for record in manifest["files"] if record["kind"] == "symlink")
+        self.assertIsNone(symlink["mode"])
+        (snapshot / "files" / "claude" / "settings.json").chmod(0o400)
+
+        problems = verify_snapshot(snapshot, check_permissions=True)
+        self.assertTrue(any("permission mismatch" in problem for problem in problems), problems)
+
+    def test_cli_rejects_traversal_ids_and_apply_without_expected_hash(self):
+        """CLI identifiers stay direct children and apply cannot bypass its precondition."""
+        import subprocess
+
+        created = subprocess.run(
+            ["./scripts/kingstack", "snapshot", "--home", str(self.home), "--print-id"],
+            cwd=Path(__file__).parents[1], text=True, capture_output=True,
+        )
+        self.assertEqual(created.returncode, 0, created.stderr)
+        identifier = created.stdout.strip()
+        traversal = subprocess.run(
+            ["./scripts/kingstack", "snapshot", "verify", "../" + identifier, "--home", str(self.home)],
+            cwd=Path(__file__).parents[1], text=True, capture_output=True,
+        )
+        self.assertNotEqual(traversal.returncode, 0)
+        apply = subprocess.run(
+            [
+                "./scripts/kingstack", "snapshot", "restore", identifier, "--home", str(self.home),
+                "--destination-home", str(self.tempdir / "new-destination"), "--apply",
+            ],
+            cwd=Path(__file__).parents[1], text=True, capture_output=True,
+        )
+        self.assertNotEqual(apply.returncode, 0)
+
+    def test_snapshot_creation_rejects_an_existing_or_symlinked_id_path(self):
+        """A timing collision must fail instead of reusing or chmodding an existing path."""
+        from kingstack.snapshot import create_snapshot
+        from kingstack import snapshot as snapshot_module
+
+        fixed_time = snapshot_module.datetime(2026, 8, 20, 12, 0, 0)
+        occupied = self.snapshot_root / "snapshot-20260820-120000"
+        occupied.parent.mkdir(parents=True)
+        external = self.tempdir / "external"
+        external.mkdir()
+        occupied.symlink_to(external, target_is_directory=True)
+
+        with patch("kingstack.snapshot.datetime") as clock:
+            clock.utcnow.return_value = fixed_time
+            with self.assertRaisesRegex(ValueError, "already exists|symlinked"):
+                create_snapshot(Paths.for_home(self.home), self.snapshot_root, "before-migration")
+        self.assertEqual(stat.S_IMODE(external.stat().st_mode), 0o755)

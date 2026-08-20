@@ -8,6 +8,7 @@ from kingstack.snapshot import (
     create_snapshot,
     current_destination_hash,
     restore_snapshot,
+    snapshot_path,
     verify_snapshot,
 )
 
@@ -52,7 +53,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                     print(created)
                 return 0
             if arguments.snapshot_action == "verify":
-                snapshot_dir = Paths.for_home(arguments.home).runtime / "snapshots" / arguments.identifier
+                snapshot_dir = snapshot_path(Paths.for_home(arguments.home).runtime / "snapshots", arguments.identifier)
                 problems = verify_snapshot(snapshot_dir, arguments.check_permissions)
                 if problems:
                     for problem in problems:
@@ -61,7 +62,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print("verified " + arguments.identifier)
                 return 0
             if arguments.snapshot_action == "restore":
-                snapshot_dir = Paths.for_home(arguments.home).runtime / "snapshots" / arguments.identifier
+                if arguments.apply and not arguments.expected_current_hash:
+                    parser.error("--apply requires --expected-current-hash")
+                snapshot_dir = snapshot_path(Paths.for_home(arguments.home).runtime / "snapshots", arguments.identifier)
                 planned = restore_snapshot(
                     snapshot_dir,
                     arguments.destination_home,
