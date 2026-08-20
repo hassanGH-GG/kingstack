@@ -179,63 +179,70 @@ class RoutingTest(TestCase):
                 with self.assertRaisesRegex(RoutingError, message):
                     routing_from_documents(policy, models, adapter)
 
-    def test_non_string_unknown_keys_raise_stable_routing_errors(self):
-        """Diagnostic formatting must never leak TypeError for malformed keys."""
-        policy_route = portable_policy()
-        policy_route["precise"][7] = "bad"
+    def test_every_routing_mapping_rejects_every_non_string_key_class(self):
+        """No external mapping boundary may leak native key-operation errors."""
+        bad_keys = (
+            None,
+            7,
+            1.5,
+            True,
+            b"bytes",
+            ("tuple",),
+            frozenset({"frozen"}),
+        )
+        boundaries = (
+            "policy document",
+            "route record",
+            "model document",
+            "model_tiers document",
+            "declaration model_tiers",
+            "fallback record",
+            "availability override",
+        )
 
-        model_top = model_map()
-        model_top[7] = "bad"
+        for boundary in boundaries:
+            for bad_key in bad_keys:
+                with self.subTest(boundary=boundary, bad_key=bad_key):
+                    policy = portable_policy()
+                    models = model_map()
+                    declared_tiers = dict(models["model_tiers"])
+                    overrides = None
 
-        fallback_record = model_map()
-        fallback_record["fallbacks"][0][7] = "bad"
-
-        cases = (
-            (
-                "policy route",
-                lambda: routing_from_documents(
-                    policy_route,
-                    model_map(),
-                    declaration("sample", model_map()["model_tiers"]),
-                ),
-            ),
-            (
-                "model top level",
-                lambda: routing_from_documents(
-                    portable_policy(),
-                    model_top,
-                    declaration("sample", model_top["model_tiers"]),
-                ),
-            ),
-            (
-                "fallback record",
-                lambda: routing_from_documents(
-                    portable_policy(),
-                    fallback_record,
-                    declaration("sample", fallback_record["model_tiers"]),
-                ),
-            ),
-            (
-                "availability override",
-                lambda: resolve(
-                    "codex",
-                    "precise",
-                    root=ROOT,
-                    availability_overrides=(
-                        {
+                    if boundary == "policy document":
+                        policy[bad_key] = {"tier": "economical", "effort": "low"}
+                    elif boundary == "route record":
+                        policy["precise"][bad_key] = "bad"
+                    elif boundary == "model document":
+                        models[bad_key] = "bad"
+                    elif boundary == "model_tiers document":
+                        models["model_tiers"][bad_key] = "bad"
+                    elif boundary == "declaration model_tiers":
+                        declared_tiers[bad_key] = "bad"
+                    elif boundary == "fallback record":
+                        models["fallbacks"][0][bad_key] = "bad"
+                    else:
+                        override = {
                             "tier": "balanced",
                             "model": "private",
                             "reason": "available",
-                            7: "bad",
-                        },
-                    ),
-                ),
-            ),
-        )
-        for label, operation in cases:
-            with self.subTest(label=label):
-                with self.assertRaisesRegex(RoutingError, "keys must be strings"):
-                    operation()
+                        }
+                        override[bad_key] = "bad"
+                        overrides = (override,)
+
+                    with self.assertRaises(RoutingError):
+                        if overrides is not None:
+                            resolve(
+                                "codex",
+                                "precise",
+                                root=ROOT,
+                                availability_overrides=overrides,
+                            )
+                        else:
+                            routing_from_documents(
+                                policy,
+                                models,
+                                declaration("sample", declared_tiers),
+                            )
 
     def test_model_map_must_exactly_match_declaration_and_known_tiers(self):
         """A missing, extra, malformed, or declaration-divergent tier must fail."""

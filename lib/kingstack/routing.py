@@ -37,9 +37,13 @@ def _immutable(values: Mapping[str, Any]) -> Mapping[str, Any]:
     return MappingProxyType(dict(values))
 
 
-def _require_exact_keys(value: Mapping[str, Any], expected, label: str) -> None:
+def _require_string_keys(value: Mapping[str, Any], label: str) -> None:
     if not all(isinstance(key, str) for key in value):
         raise RoutingError("{} keys must be strings".format(label))
+
+
+def _require_exact_keys(value: Mapping[str, Any], expected, label: str) -> None:
+    _require_string_keys(value, label)
     actual = set(value)
     if actual != set(expected):
         missing = sorted(set(expected) - actual)
@@ -55,6 +59,7 @@ def _require_exact_keys(value: Mapping[str, Any], expected, label: str) -> None:
 def _validate_policy(document: Any) -> Mapping[str, Mapping[str, str]]:
     if not isinstance(document, dict):
         raise RoutingError("routing policy must be an object of work classes")
+    _require_string_keys(document, "routing policy")
     if set(document) != set(WORK_CLASS_POLICY):
         raise RoutingError("routing policy must contain exactly the portable work classes")
 
@@ -101,6 +106,7 @@ def _validate_model_map(
     tiers = document["model_tiers"]
     if not isinstance(tiers, dict):
         raise RoutingError("model_tiers must be an object")
+    _require_string_keys(tiers, "model_tiers")
     missing = sorted(set(PORTABLE_TIERS) - set(tiers))
     extra = sorted(set(tiers) - set(PORTABLE_TIERS))
     if missing:
@@ -112,6 +118,7 @@ def _validate_model_map(
             raise RoutingError("portable tier must use the stable ID grammar")
         if not isinstance(model, str) or MODEL_ID_PATTERN.fullmatch(model) is None:
             raise RoutingError("native model must use the exact model ID grammar")
+    _require_string_keys(declaration.model_tiers, "declaration model_tiers")
     if dict(declaration.model_tiers) != tiers:
         raise RoutingError("adapter model map does not match declaration model_tiers")
 

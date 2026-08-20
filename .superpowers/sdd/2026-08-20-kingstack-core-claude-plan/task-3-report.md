@@ -529,3 +529,198 @@ OK
 - Live Claude guidance/settings and Codex config hashes remained unchanged;
   both native homes remained real directories and both adapter `current` links
   remained absent. No live path was changed and nothing was pushed.
+
+## Independent review fix round 2 (2026-08-20)
+
+Base: `a4f4dc9`
+
+The exhaustive review exercised seven routing mapping boundaries with seven
+non-string key classes. Six boundaries already returned `RoutingError`, while
+the nested adapter `model_tiers` document leaked diagnostic-formatting
+`TypeError` for every key class. One `_require_string_keys()` boundary now runs
+before key operations in policy documents, exact-key records, adapter model
+tiers, and declaration model tiers.
+
+### RED
+
+Command:
+
+```text
+PYTHONPATH=lib python3 -m unittest tests.test_routing -v
+```
+
+Unabridged output before the production fix:
+
+```text
+test_availability_overrides_reject_ambiguous_and_malformed_records (tests.test_routing.RoutingTest)
+Two private choices for a tier or malformed values must fail. ... ok
+test_checked_in_policy_is_exactly_portable (tests.test_routing.RoutingTest)
+A vendor token or extra policy field must make this contract fail. ... ok
+test_every_routing_mapping_rejects_every_non_string_key_class (tests.test_routing.RoutingTest)
+No external mapping boundary may leak native key-operation errors. ... test_fallback_graph_rejects_duplicates_ambiguity_nonadjacency_and_cycles (tests.test_routing.RoutingTest)
+Any graph that permits zero, two, or cyclic fallback choices must fail. ... ok
+test_fallback_is_one_adjacent_step_with_a_stable_reason (tests.test_routing.RoutingTest)
+Skipping a tier, using a vendor-global override, or varying output must fail. ... ok
+test_model_map_must_exactly_match_declaration_and_known_tiers (tests.test_routing.RoutingTest)
+A missing, extra, malformed, or declaration-divergent tier must fail. ... ok
+test_policy_rejects_unknown_keys_types_and_nonportable_values (tests.test_routing.RoutingTest)
+Schema drift or model syntax in shared policy must fail at compile time. ... ok
+test_private_availability_override_is_injected_and_tier_scoped (tests.test_routing.RoutingTest)
+Ignoring or leaking a runtime-only alternate model must fail. ... ok
+test_resolve_maps_both_adapters_and_returns_explainable_immutable_data (tests.test_routing.RoutingTest)
+A wrong model, effort, tier, class, or missing evidence must fail. ... ok
+test_unknown_work_class_and_tier_fail_visibly (tests.test_routing.RoutingTest)
+Silently defaulting an unknown selector must fail. ... ok
+test_waiting_validates_malformed_and_ambiguous_availability_overrides (tests.test_routing.RoutingTest)
+The no-model branch must not bypass caller-supplied validation. ... ok
+
+======================================================================
+ERROR: test_every_routing_mapping_rejects_every_non_string_key_class (tests.test_routing.RoutingTest) (boundary='model_tiers document', bad_key=None)
+No external mapping boundary may leak native key-operation errors.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/mac/Desktop/Work/kingstack/tests/test_routing.py", line 241, in test_every_routing_mapping_rejects_every_non_string_key_class
+    routing_from_documents(
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 290, in routing_from_documents
+    model_tiers, fallbacks = _validate_model_map(model_document, declaration)
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 109, in _validate_model_map
+    raise RoutingError("adapter model map has extra tiers: {}".format(", ".join(extra)))
+TypeError: sequence item 0: expected str instance, NoneType found
+
+======================================================================
+ERROR: test_every_routing_mapping_rejects_every_non_string_key_class (tests.test_routing.RoutingTest) (boundary='model_tiers document', bad_key=7)
+No external mapping boundary may leak native key-operation errors.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/mac/Desktop/Work/kingstack/tests/test_routing.py", line 241, in test_every_routing_mapping_rejects_every_non_string_key_class
+    routing_from_documents(
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 290, in routing_from_documents
+    model_tiers, fallbacks = _validate_model_map(model_document, declaration)
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 109, in _validate_model_map
+    raise RoutingError("adapter model map has extra tiers: {}".format(", ".join(extra)))
+TypeError: sequence item 0: expected str instance, int found
+
+======================================================================
+ERROR: test_every_routing_mapping_rejects_every_non_string_key_class (tests.test_routing.RoutingTest) (boundary='model_tiers document', bad_key=1.5)
+No external mapping boundary may leak native key-operation errors.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/mac/Desktop/Work/kingstack/tests/test_routing.py", line 241, in test_every_routing_mapping_rejects_every_non_string_key_class
+    routing_from_documents(
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 290, in routing_from_documents
+    model_tiers, fallbacks = _validate_model_map(model_document, declaration)
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 109, in _validate_model_map
+    raise RoutingError("adapter model map has extra tiers: {}".format(", ".join(extra)))
+TypeError: sequence item 0: expected str instance, float found
+
+======================================================================
+ERROR: test_every_routing_mapping_rejects_every_non_string_key_class (tests.test_routing.RoutingTest) (boundary='model_tiers document', bad_key=True)
+No external mapping boundary may leak native key-operation errors.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/mac/Desktop/Work/kingstack/tests/test_routing.py", line 241, in test_every_routing_mapping_rejects_every_non_string_key_class
+    routing_from_documents(
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 290, in routing_from_documents
+    model_tiers, fallbacks = _validate_model_map(model_document, declaration)
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 109, in _validate_model_map
+    raise RoutingError("adapter model map has extra tiers: {}".format(", ".join(extra)))
+TypeError: sequence item 0: expected str instance, bool found
+
+======================================================================
+ERROR: test_every_routing_mapping_rejects_every_non_string_key_class (tests.test_routing.RoutingTest) (boundary='model_tiers document', bad_key=b'bytes')
+No external mapping boundary may leak native key-operation errors.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/mac/Desktop/Work/kingstack/tests/test_routing.py", line 241, in test_every_routing_mapping_rejects_every_non_string_key_class
+    routing_from_documents(
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 290, in routing_from_documents
+    model_tiers, fallbacks = _validate_model_map(model_document, declaration)
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 109, in _validate_model_map
+    raise RoutingError("adapter model map has extra tiers: {}".format(", ".join(extra)))
+TypeError: sequence item 0: expected str instance, bytes found
+
+======================================================================
+ERROR: test_every_routing_mapping_rejects_every_non_string_key_class (tests.test_routing.RoutingTest) (boundary='model_tiers document', bad_key=('tuple',))
+No external mapping boundary may leak native key-operation errors.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/mac/Desktop/Work/kingstack/tests/test_routing.py", line 241, in test_every_routing_mapping_rejects_every_non_string_key_class
+    routing_from_documents(
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 290, in routing_from_documents
+    model_tiers, fallbacks = _validate_model_map(model_document, declaration)
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 109, in _validate_model_map
+    raise RoutingError("adapter model map has extra tiers: {}".format(", ".join(extra)))
+TypeError: sequence item 0: expected str instance, tuple found
+
+======================================================================
+ERROR: test_every_routing_mapping_rejects_every_non_string_key_class (tests.test_routing.RoutingTest) (boundary='model_tiers document', bad_key=frozenset({'frozen'}))
+No external mapping boundary may leak native key-operation errors.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/mac/Desktop/Work/kingstack/tests/test_routing.py", line 241, in test_every_routing_mapping_rejects_every_non_string_key_class
+    routing_from_documents(
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 290, in routing_from_documents
+    model_tiers, fallbacks = _validate_model_map(model_document, declaration)
+  File "/Users/mac/Desktop/Work/kingstack/lib/kingstack/routing.py", line 109, in _validate_model_map
+    raise RoutingError("adapter model map has extra tiers: {}".format(", ".join(extra)))
+TypeError: sequence item 0: expected str instance, frozenset found
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.020s
+
+FAILED (errors=7)
+```
+
+### GREEN
+
+Command:
+
+```text
+PYTHONPATH=lib python3 -m unittest tests.test_routing -v
+```
+
+Unabridged output after the class fix:
+
+```text
+test_availability_overrides_reject_ambiguous_and_malformed_records (tests.test_routing.RoutingTest)
+Two private choices for a tier or malformed values must fail. ... ok
+test_checked_in_policy_is_exactly_portable (tests.test_routing.RoutingTest)
+A vendor token or extra policy field must make this contract fail. ... ok
+test_every_routing_mapping_rejects_every_non_string_key_class (tests.test_routing.RoutingTest)
+No external mapping boundary may leak native key-operation errors. ... ok
+test_fallback_graph_rejects_duplicates_ambiguity_nonadjacency_and_cycles (tests.test_routing.RoutingTest)
+Any graph that permits zero, two, or cyclic fallback choices must fail. ... ok
+test_fallback_is_one_adjacent_step_with_a_stable_reason (tests.test_routing.RoutingTest)
+Skipping a tier, using a vendor-global override, or varying output must fail. ... ok
+test_model_map_must_exactly_match_declaration_and_known_tiers (tests.test_routing.RoutingTest)
+A missing, extra, malformed, or declaration-divergent tier must fail. ... ok
+test_policy_rejects_unknown_keys_types_and_nonportable_values (tests.test_routing.RoutingTest)
+Schema drift or model syntax in shared policy must fail at compile time. ... ok
+test_private_availability_override_is_injected_and_tier_scoped (tests.test_routing.RoutingTest)
+Ignoring or leaking a runtime-only alternate model must fail. ... ok
+test_resolve_maps_both_adapters_and_returns_explainable_immutable_data (tests.test_routing.RoutingTest)
+A wrong model, effort, tier, class, or missing evidence must fail. ... ok
+test_unknown_work_class_and_tier_fail_visibly (tests.test_routing.RoutingTest)
+Silently defaulting an unknown selector must fail. ... ok
+test_waiting_validates_malformed_and_ambiguous_availability_overrides (tests.test_routing.RoutingTest)
+The no-model branch must not bypass caller-supplied validation. ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.023s
+
+OK
+```
+
+### Fix-round verification
+
+- The table exercises 49 boundary/key-class combinations.
+- Focused routing + contract + render: 53/53 passed.
+- Full suite: 84/84 passed.
+- `py_compile`, five Task 3 JSON parses, `git diff --check`, both foreign-name
+  scans, three contract CLI selectors, and both pure render manifests passed.
+- Claude and Codex rendered hashes remained unchanged at
+  `0792f1a7fd19f92db0d04a27ca47927bc37114ca8ab07a11e9b00c01b8d01107`
+  and `4bb4d923aa0fed97867a5020c2072776787c05cc0521bee23eac5872cfa010df`.
+- Live Claude guidance/settings and Codex config hashes remained unchanged;
+  both native homes remained real directories and both adapter `current` links
+  remained absent. No live path was changed and nothing was pushed.
