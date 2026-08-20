@@ -213,6 +213,48 @@ class BootstrapTest(TestCase):
                 self.assertFalse((self.claude_home / "runtime").exists())
                 self.assertFalse((self.codex_home / "runtime").exists())
 
+    def test_baseline_home_parent_alias_cannot_hide_native_destination(self):
+        from kingstack.bootstrap import BootstrapError
+
+        alias = self.tempdir / "home-alias"
+        alias.symlink_to(self.home, target_is_directory=True)
+        native_destination = self.claude_home / "nested-kingstack"
+
+        with self.assertRaisesRegex(BootstrapError, "overlap|symlink"):
+            self._bootstrap(
+                destination=native_destination,
+                baseline_homes=[alias / ".claude", alias / ".codex"],
+            )
+
+        self.assertFalse(native_destination.exists())
+        self.assertFalse(self.runtime.exists())
+
+    def test_destination_parent_swap_during_source_check_never_redirects_clone(self):
+        from kingstack import bootstrap as bootstrap_module
+        from kingstack.bootstrap import BootstrapError
+
+        safe_parent = self.tempdir / "safe-parent"
+        safe_parent.mkdir()
+        original_parent = self.tempdir / "safe-parent-original"
+        external = self.tempdir / "external-parent"
+        external.mkdir()
+        destination = safe_parent / "kingstack"
+        original_source_state = bootstrap_module._source_state
+
+        def swap_parent(source_repo):
+            state = original_source_state(source_repo)
+            safe_parent.rename(original_parent)
+            safe_parent.symlink_to(external, target_is_directory=True)
+            return state
+
+        with patch("kingstack.bootstrap._source_state", side_effect=swap_parent):
+            with self.assertRaisesRegex(BootstrapError, "changed|symlink"):
+                self._bootstrap(destination=destination)
+
+        self.assertFalse((external / "kingstack").exists())
+        self.assertFalse((original_parent / "kingstack").exists())
+        self.assertFalse(self.runtime.exists())
+
     def test_symlinked_destination_parent_is_refused_without_external_write(self):
         from kingstack.bootstrap import BootstrapError
 

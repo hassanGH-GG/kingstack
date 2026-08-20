@@ -7,6 +7,7 @@ import re
 import secrets
 import stat
 import subprocess
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -204,9 +205,66 @@ def _is_private_destination(destination: Path) -> bool:
     return any(part in {".claude", ".codex", "memory"} for part in resolved.parts)
 
 
+def _normalize_stable_os_alias(path: Path) -> Path:
+    """Resolve only macOS's immutable root-owned compatibility aliases."""
+    path = Path(path).expanduser().absolute()
+    aliases = {
+        "var": "private/var",
+        "tmp": "private/tmp",
+        "etc": "private/etc",
+    }
+    if sys.platform != "darwin" or len(path.parts) < 2:
+        return path
+    first = path.parts[1]
+    expected = aliases.get(first)
+    if expected is None:
+        return path
+    alias = Path(path.anchor) / first
+    try:
+        details = alias.lstat()
+        target = os.readlink(alias)
+    except OSError:
+        return path
+    if not stat.S_ISLNK(details.st_mode) or target.lstrip("/") != expected:
+        return path
+    return Path(path.anchor) / expected / Path(*path.parts[2:])
+
+
+def _open_relative_directory_no_symlinks(
+    root_fd: int, parts: Tuple[str, ...], create: bool, mode: int,
+) -> int:
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    descriptor = os.dup(root_fd)
+    try:
+        for part in parts:
+            if part in {"", ".", ".."} or "/" in part or "\\" in part:
+                raise ValueError("invalid relative output path component")
+            try:
+                child = os.open(part, flags, dir_fd=descriptor)
+            except FileNotFoundError:
+                if not create:
+                    raise ValueError("output parent does not exist")
+                try:
+                    os.mkdir(part, mode, dir_fd=descriptor)
+                except FileExistsError:
+                    pass
+                try:
+                    child = os.open(part, flags, dir_fd=descriptor)
+                except OSError as error:
+                    raise ValueError("refusing symlinked output parent") from error
+            except OSError as error:
+                raise ValueError("refusing symlinked output parent") from error
+            os.close(descriptor)
+            descriptor = child
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
 def open_directory_no_symlinks(path: Path, create: bool = False, mode: int = 0o755) -> int:
     """Open an absolute directory through no-follow descriptors, optionally creating it."""
-    path = Path(path).expanduser().absolute()
+    path = _normalize_stable_os_alias(path)
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
     descriptor = os.open(path.anchor, flags)
     try:
@@ -234,21 +292,10 @@ def open_directory_no_symlinks(path: Path, create: bool = False, mode: int = 0o7
         raise
 
 
-def atomic_write_no_clobber(
-    destination: Path,
-    payload: bytes,
-    mode: int,
-    create_parents: bool = False,
-    parent_mode: int = 0o755,
-) -> None:
-    """Atomically publish bytes without following parents or replacing any target."""
-    destination = Path(destination).expanduser().absolute()
-    parent_fd = open_directory_no_symlinks(
-        destination.parent, create=create_parents, mode=parent_mode,
-    )
-    temporary = ".{}.tmp-{}-{}".format(
-        destination.name, os.getpid(), secrets.token_hex(8),
-    )
+def _publish_bytes_no_clobber(parent_fd: int, name: str, payload: bytes, mode: int) -> None:
+    if name in {"", ".", ".."} or "/" in name or "\\" in name:
+        raise ValueError("invalid output file name")
+    temporary = ".{}.tmp-{}-{}".format(name, os.getpid(), secrets.token_hex(8))
     descriptor = None
     try:
         descriptor = os.open(
@@ -266,13 +313,13 @@ def atomic_write_no_clobber(
         try:
             os.link(
                 temporary,
-                destination.name,
+                name,
                 src_dir_fd=parent_fd,
                 dst_dir_fd=parent_fd,
                 follow_symlinks=False,
             )
         except FileExistsError as error:
-            raise ValueError("output destination already exists: " + str(destination)) from error
+            raise ValueError("output destination already exists: " + name) from error
         try:
             os.fsync(parent_fd)
         except OSError:
@@ -284,6 +331,47 @@ def atomic_write_no_clobber(
             os.unlink(temporary, dir_fd=parent_fd)
         except FileNotFoundError:
             pass
+
+
+def atomic_write_no_clobber_at(
+    root_fd: int,
+    relative_destination: Path,
+    payload: bytes,
+    mode: int,
+    create_parents: bool = False,
+    parent_mode: int = 0o755,
+) -> None:
+    """Publish below an already-open directory identity without path re-resolution."""
+    relative_destination = Path(relative_destination)
+    if relative_destination.is_absolute():
+        raise ValueError("output path must be relative to its held root")
+    parts = relative_destination.parts
+    if not parts:
+        raise ValueError("output path is empty")
+    parent_fd = _open_relative_directory_no_symlinks(
+        root_fd, tuple(parts[:-1]), create=create_parents, mode=parent_mode,
+    )
+    try:
+        _publish_bytes_no_clobber(parent_fd, parts[-1], payload, mode)
+    finally:
+        os.close(parent_fd)
+
+
+def atomic_write_no_clobber(
+    destination: Path,
+    payload: bytes,
+    mode: int,
+    create_parents: bool = False,
+    parent_mode: int = 0o755,
+) -> None:
+    """Atomically publish bytes without following parents or replacing any target."""
+    destination = _normalize_stable_os_alias(destination)
+    parent_fd = open_directory_no_symlinks(
+        destination.parent, create=create_parents, mode=parent_mode,
+    )
+    try:
+        _publish_bytes_no_clobber(parent_fd, destination.name, payload, mode)
+    finally:
         os.close(parent_fd)
 
 
@@ -295,4 +383,17 @@ def write_public_report(baseline: dict, destination: Path) -> None:
     payload = (json.dumps(baseline, indent=2, sort_keys=True) + "\n").encode("utf-8")
     atomic_write_no_clobber(
         destination, payload, mode=0o644, create_parents=True, parent_mode=0o755,
+    )
+
+
+def write_public_report_at(baseline: dict, root_fd: int, relative_destination: Path) -> None:
+    """Publish a redacted report below a held clone root without re-resolving it."""
+    payload = (json.dumps(baseline, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    atomic_write_no_clobber_at(
+        root_fd,
+        relative_destination,
+        payload,
+        mode=0o644,
+        create_parents=True,
+        parent_mode=0o755,
     )

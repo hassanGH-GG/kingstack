@@ -165,6 +165,22 @@ class InventoryTest(TestCase):
             external_file.read_text(encoding="utf-8"), "symlink-target-sentinel\n",
         )
 
+    def test_write_public_report_supports_real_macos_mktemp_var_alias(self):
+        from kingstack.inventory import capture_baseline, write_public_report
+
+        raw_directory = Path(
+            subprocess.run(
+                ["mktemp", "-d"], check=True, text=True, stdout=subprocess.PIPE,
+            ).stdout.strip()
+        )
+        self.addCleanup(shutil.rmtree, raw_directory, True)
+        output = raw_directory / "baseline.json"
+
+        write_public_report(capture_baseline(Paths.for_home(self.home)), output)
+
+        self.assertTrue(output.is_file())
+        self.assertTrue(str(raw_directory).startswith("/var/"))
+
     def test_cli_writes_fixture_inventory_and_rejects_agent_home_output(self):
         """A CLI regression must not write a report under a protected agent home."""
         output = self.tempdir / "inventory.json"
