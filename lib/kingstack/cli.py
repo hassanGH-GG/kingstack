@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional, List
 
 from kingstack.adapter_contract import (
+    ADAPTER_ID_PATTERN,
     AdapterContractError,
     load_adapter,
     load_capability_catalog,
@@ -13,6 +14,32 @@ from kingstack.adapter_contract import (
 from kingstack.bootstrap import BootstrapError, bootstrap
 from kingstack.inventory import capture_baseline, write_public_report
 from kingstack.paths import Paths
+
+
+def _adapter_id(value: str) -> str:
+    if ADAPTER_ID_PATTERN.fullmatch(value) is None:
+        raise argparse.ArgumentTypeError(
+            "adapter must be a stable ID containing lowercase letters, digits, '_' or '-'"
+        )
+    return value
+
+
+def _load_selected_adapter(
+    root: Path, adapter: Optional[str], adapter_path: Optional[Path]
+):
+    if adapter is not None:
+        declaration = load_adapter(root / "adapters" / adapter / "adapter.json")
+        if declaration.id != adapter:
+            raise AdapterContractError(
+                "adapter selector '{}' loaded declaration id '{}'".format(
+                    adapter, declaration.id
+                )
+            )
+        return declaration
+    path = adapter_path
+    if path is not None and not path.is_absolute():
+        path = root / path
+    return load_adapter(path)
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -37,7 +64,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     check_command = commands.add_parser("check")
     check_command.add_argument("--contract", action="store_true")
     adapter_selector = check_command.add_mutually_exclusive_group(required=True)
-    adapter_selector.add_argument("--adapter")
+    adapter_selector.add_argument("--adapter", type=_adapter_id)
     adapter_selector.add_argument("--adapter-path", type=Path)
     arguments = parser.parse_args(argv)
 
@@ -65,15 +92,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         if not arguments.contract:
             check_command.error("--contract is required")
         root = Path(__file__).resolve().parents[2]
-        adapter_path = (
-            root / "adapters" / arguments.adapter / "adapter.json"
-            if arguments.adapter is not None
-            else arguments.adapter_path
-        )
-        if adapter_path is not None and not adapter_path.is_absolute():
-            adapter_path = root / adapter_path
         try:
-            declaration = load_adapter(adapter_path)
+            declaration = _load_selected_adapter(
+                root, arguments.adapter, arguments.adapter_path
+            )
             catalog = load_capability_catalog(root / "core/capabilities/catalog.json")
             errors = validate_adapter(declaration, catalog)
         except AdapterContractError as error:

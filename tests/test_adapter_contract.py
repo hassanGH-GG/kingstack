@@ -14,7 +14,7 @@ from kingstack.adapter_contract import (
     load_capability_catalog,
     validate_adapter,
 )
-from kingstack.cli import main
+from kingstack.cli import _load_selected_adapter, main
 
 
 ROOT = Path(__file__).parents[1]
@@ -90,7 +90,7 @@ class AdapterContractTest(TestCase):
             (["/tmp/start"], "relative"),
             (["."], "home root"),
             ([""], "empty"),
-            (["../escape"], "escape"),
+            (["../escape"], "backtracking"),
         )
         for owned_paths, message in invalid_sets:
             with self.subTest(owned_paths=owned_paths):
@@ -99,6 +99,35 @@ class AdapterContractTest(TestCase):
                 path = self.write_adapter(payload)
                 with self.assertRaisesRegex(AdapterContractError, message):
                     load_adapter(path)
+
+    def test_owned_paths_are_canonical_before_duplicate_and_root_checks(self):
+        payload = self.valid_payload()
+        payload["owned_paths"] = ["hooks/start", "hooks/./start"]
+        with self.assertRaisesRegex(AdapterContractError, "duplicate"):
+            load_adapter(self.write_adapter(payload))
+
+        payload["owned_paths"] = ["./hooks/./start"]
+        declaration = load_adapter(self.write_adapter(payload))
+        self.assertEqual(declaration.owned_paths, ("hooks/start",))
+
+        for path in (".", "./", "./."):
+            with self.subTest(root=path):
+                payload["owned_paths"] = [path]
+                with self.assertRaisesRegex(AdapterContractError, "home root"):
+                    load_adapter(self.write_adapter(payload))
+
+    def test_owned_paths_reject_lossy_or_backtracking_spelling(self):
+        for path, message in (
+            ("hooks/start/", "trailing"),
+            ("hooks//start", "empty"),
+            ("../start", "backtracking"),
+            ("hooks/../start", "backtracking"),
+        ):
+            with self.subTest(path=path):
+                payload = self.valid_payload()
+                payload["owned_paths"] = [path]
+                with self.assertRaisesRegex(AdapterContractError, message):
+                    load_adapter(self.write_adapter(payload))
 
     def test_render_module_must_be_an_importable_shape(self):
         for value in ("claude", "bad-module.name", ".leading.dot", "trailing.dot."):
@@ -118,6 +147,13 @@ class AdapterContractTest(TestCase):
         self.assertTrue(any("unknown model tier 'mystery'" in error for error in errors))
         self.assertTrue(any("unmapped model tier 'balanced'" in error for error in errors))
         self.assertTrue(any("unmapped model tier 'frontier'" in error for error in errors))
+
+    def test_model_mapping_rejects_whitespace_only_values(self):
+        payload = self.valid_payload()
+        payload["model_tiers"]["balanced"] = " \t "
+
+        with self.assertRaisesRegex(AdapterContractError, "model_tiers"):
+            load_adapter(self.write_adapter(payload))
 
     def test_unknown_capability_and_status_are_rejected(self):
         for mutation, message in (
@@ -184,6 +220,38 @@ class AdapterContractTest(TestCase):
             with self.subTest(adapter=adapter_path):
                 declaration = load_adapter(adapter_path)
                 self.assertEqual(validate_adapter(declaration, self.catalog()), [])
+                self.assertEqual(
+                    {state.capability for state in declaration.capability_matrix.states},
+                    set(self.catalog().capabilities),
+                )
+
+    def test_capability_matrix_must_cover_catalog_exactly(self):
+        payload = self.valid_payload()
+        adapter_path = self.write_adapter(payload)
+        matrix_path = adapter_path.parent / "capabilities.json"
+        matrix = json.loads(matrix_path.read_text(encoding="utf-8"))
+        matrix["capabilities"] = matrix["capabilities"][:-1]
+        matrix_path.write_text(json.dumps(matrix), encoding="utf-8")
+        declaration = load_adapter(adapter_path)
+        errors = validate_adapter(declaration, self.catalog())
+        self.assertTrue(any("missing capability" in error for error in errors))
+
+        matrix = json.loads(
+            (FIXTURES / "adapters/example/capabilities.json").read_text(encoding="utf-8")
+        )
+        matrix["capabilities"].append(
+            {
+                "capability": "invented",
+                "status": "unsupported",
+                "evidence": "The fixture does not define this capability.",
+                "impact": "It cannot participate in strict parity.",
+                "strict_parity": False,
+            }
+        )
+        matrix_path.write_text(json.dumps(matrix), encoding="utf-8")
+        declaration = load_adapter(adapter_path)
+        errors = validate_adapter(declaration, self.catalog())
+        self.assertTrue(any("unknown capability 'invented'" in error for error in errors))
 
     def test_contract_cli_accepts_named_and_synthetic_adapters(self):
         commands = (
@@ -214,3 +282,52 @@ class AdapterContractTest(TestCase):
                     with self.assertRaises(SystemExit) as raised:
                         main(command)
                 self.assertEqual(raised.exception.code, 2)
+
+    def test_named_adapter_selector_rejects_path_syntax(self):
+        for selector in ("../claude", "claude/other", ".", "claude.json"):
+            with self.subTest(selector=selector):
+                with redirect_stderr(io.StringIO()):
+                    with self.assertRaises(SystemExit) as raised:
+                        main(["check", "--contract", "--adapter", selector])
+                self.assertEqual(raised.exception.code, 2)
+
+    def test_named_adapter_selector_must_match_loaded_id(self):
+        temporary_root = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(temporary_root))
+        adapter_directory = temporary_root / "adapters/expected"
+        adapter_directory.mkdir(parents=True)
+        payload = self.valid_payload()
+        payload["id"] = "different"
+        payload["capability_matrix"] = dict(
+            json.loads(
+                (FIXTURES / "adapters/example/capabilities.json").read_text(
+                    encoding="utf-8"
+                )
+            ),
+            adapter_id="different",
+        )
+        (adapter_directory / "adapter.json").write_text(
+            json.dumps(payload), encoding="utf-8"
+        )
+
+        with self.assertRaisesRegex(AdapterContractError, "selector 'expected'"):
+            _load_selected_adapter(temporary_root, "expected", None)
+
+    def test_catalog_rejects_boolean_version_and_unstable_ids(self):
+        valid = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        mutations = (
+            (("contract_version",), True, "contract_version"),
+            (("model_tiers", 0), "Bad Tier", "model tier"),
+            (("capabilities", 0, "id"), "bad-capability", "capability ID"),
+        )
+        for path_parts, value, message in mutations:
+            with self.subTest(path=path_parts):
+                document = json.loads(json.dumps(valid))
+                target = document
+                for part in path_parts[:-1]:
+                    target = target[part]
+                target[path_parts[-1]] = value
+                path = self.write_adapter(self.valid_payload()).parent / "catalog.json"
+                path.write_text(json.dumps(document), encoding="utf-8")
+                with self.assertRaisesRegex(AdapterContractError, message):
+                    load_capability_catalog(path)

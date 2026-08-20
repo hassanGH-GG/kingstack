@@ -15,6 +15,83 @@
       "evidence": "The example harness reads GUIDANCE.md at session start.",
       "impact": "",
       "strict_parity": true
+    },
+    {
+      "capability": "skill_catalog",
+      "status": "unsupported",
+      "evidence": "The example harness fixture defines no skill registration surface.",
+      "impact": "Shared skills cannot be discovered through this adapter.",
+      "strict_parity": false
+    },
+    {
+      "capability": "session_start",
+      "status": "unsupported",
+      "evidence": "The example harness fixture defines no session-start event.",
+      "impact": "Portable startup guidance cannot be injected automatically.",
+      "strict_parity": false
+    },
+    {
+      "capability": "stop_capture",
+      "status": "unsupported",
+      "evidence": "The example harness fixture defines no stop event.",
+      "impact": "Memory candidates cannot be captured after a turn.",
+      "strict_parity": false
+    },
+    {
+      "capability": "post_tool_use",
+      "status": "unsupported",
+      "evidence": "The example harness fixture defines no post-tool event.",
+      "impact": "Oversized tool results cannot be observed at ingestion time.",
+      "strict_parity": false
+    },
+    {
+      "capability": "subagent_start",
+      "status": "unsupported",
+      "evidence": "The example harness fixture defines no subagent-start event.",
+      "impact": "Subagent model and effort choices are not observable.",
+      "strict_parity": false
+    },
+    {
+      "capability": "model_routing",
+      "status": "native",
+      "evidence": "The fixture maps all portable tiers to example-native model IDs.",
+      "impact": "",
+      "strict_parity": true
+    },
+    {
+      "capability": "shared_memory",
+      "status": "unsupported",
+      "evidence": "The example harness fixture defines no curated-memory interface.",
+      "impact": "Approved memory cannot cross into or out of this adapter.",
+      "strict_parity": false
+    },
+    {
+      "capability": "schedules",
+      "status": "unsupported",
+      "evidence": "The example harness fixture defines no unattended execution surface.",
+      "impact": "Declared workflows cannot run on a schedule.",
+      "strict_parity": false
+    },
+    {
+      "capability": "health",
+      "status": "unsupported",
+      "evidence": "The example harness fixture defines no health-reporting surface.",
+      "impact": "Adapter drift cannot be detected mechanically.",
+      "strict_parity": false
+    },
+    {
+      "capability": "activation",
+      "status": "unsupported",
+      "evidence": "The example harness fixture defines no release activation surface.",
+      "impact": "A generated release cannot be selected for live use.",
+      "strict_parity": false
+    },
+    {
+      "capability": "rollback",
+      "status": "unsupported",
+      "evidence": "The example harness fixture defines no rollback surface.",
+      "impact": "A failed activation cannot be reversed by this adapter.",
+      "strict_parity": false
     }
   ]
 }

@@ -47,7 +47,13 @@
       "oneOf": [
         {
           "type": "object",
-          "additionalProperties": {"type": "string", "minLength": 1}
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "pattern": ".*\\S.*"
+          }
         },
         {
           "type": "string",

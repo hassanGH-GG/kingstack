@@ -21,11 +21,88 @@
         "strict_parity": true
       },
       {
+        "capability": "skill_catalog",
+        "status": "native",
+        "evidence": "Claude Code loads skills through its native skill catalog.",
+        "impact": "",
+        "strict_parity": true
+      },
+      {
+        "capability": "session_start",
+        "status": "native",
+        "evidence": "Claude Code exposes a native SessionStart lifecycle hook.",
+        "impact": "",
+        "strict_parity": true
+      },
+      {
+        "capability": "stop_capture",
+        "status": "native",
+        "evidence": "Claude Code exposes a native Stop lifecycle hook.",
+        "impact": "",
+        "strict_parity": true
+      },
+      {
         "capability": "before_compaction",
         "status": "native",
         "evidence": "Claude Code exposes a PreCompact lifecycle hook.",
         "impact": "",
         "strict_parity": true
+      },
+      {
+        "capability": "post_tool_use",
+        "status": "native",
+        "evidence": "Claude Code exposes a native PostToolUse lifecycle hook.",
+        "impact": "",
+        "strict_parity": true
+      },
+      {
+        "capability": "subagent_start",
+        "status": "native",
+        "evidence": "Claude Code exposes a native SubagentStart lifecycle hook.",
+        "impact": "",
+        "strict_parity": true
+      },
+      {
+        "capability": "model_routing",
+        "status": "emulated",
+        "evidence": "Kingstack maps portable tiers to Claude models and requires explicit model and effort on each spawn.",
+        "impact": "Claude has no native portable-tier primitive; generated policy supplies behaviorally equivalent routing.",
+        "strict_parity": true
+      },
+      {
+        "capability": "shared_memory",
+        "status": "degraded",
+        "evidence": "Claude has curated project memory, but the cross-agent shared store is not migrated yet.",
+        "impact": "Approved memories are not yet available to other adapters, so strict parity is unavailable.",
+        "strict_parity": false
+      },
+      {
+        "capability": "schedules",
+        "status": "emulated",
+        "evidence": "Kingstack runs Claude unattended workflows through tracked launchd jobs.",
+        "impact": "Scheduling is local rather than Claude-native, while cadence and behavior remain equivalent.",
+        "strict_parity": true
+      },
+      {
+        "capability": "health",
+        "status": "emulated",
+        "evidence": "The tracked check-setup command verifies the current Claude stack.",
+        "impact": "Health is supplied by kingstack rather than a native Claude health surface.",
+        "strict_parity": true
+      },
+      {
+        "capability": "activation",
+        "status": "unsupported",
+        "evidence": "Task 1 declares adapters but does not yet implement versioned activation.",
+        "impact": "No Claude adapter release can be activated until the cutover engine is implemented.",
+        "strict_parity": false
+      },
+      {
+        "capability": "rollback",
+        "status": "unsupported",
+        "evidence": "Task 1 declares adapters but does not yet implement manifest-owned rollback.",
+        "impact": "No Claude adapter activation may occur until rollback is implemented and proven.",
+        "strict_parity": false
       }
     ]
   }

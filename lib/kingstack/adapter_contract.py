@@ -12,6 +12,8 @@ CONTRACT_VERSION = 1
 ADAPTER_SCHEMA = ROOT / "adapters/contract/adapter.schema.json"
 CAPABILITY_SCHEMA = ROOT / "adapters/contract/capability.schema.json"
 CAPABILITY_STATUSES = frozenset({"native", "emulated", "degraded", "unsupported"})
+STABLE_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
+ADAPTER_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
 
 
 class AdapterContractError(ValueError):
@@ -131,6 +133,12 @@ def _schema_errors(value: Any, schema: Mapping[str, Any], location: str = "$") -
 
     if isinstance(value, dict):
         properties = schema.get("properties", {})
+        property_names = schema.get("propertyNames")
+        if property_names is not None:
+            for name in value:
+                errors.extend(
+                    _schema_errors(name, property_names, "{} key".format(location))
+                )
         for name in schema.get("required", []):
             if name not in value:
                 errors.append("{} missing required property '{}'".format(location, name))
@@ -174,27 +182,43 @@ def _load_owned_paths(source: Path, value: Any) -> Tuple[str, ...]:
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise AdapterContractError("owned_paths must be an array of strings")
 
-    paths = tuple(value)
-    if len(paths) != len(set(paths)):
-        raise AdapterContractError("owned_paths contains a duplicate path")
-    for path in paths:
+    canonical_paths = []
+    for path in value:
         normalized = PurePosixPath(path)
-        if path in ("", "."):
-            raise AdapterContractError("owned_paths may not own the native home root")
         if normalized.is_absolute():
             raise AdapterContractError("owned_paths entries must be relative")
         if ".." in normalized.parts:
-            raise AdapterContractError("owned_paths entries may not escape the native home")
-    return paths
+            raise AdapterContractError("owned_paths entries may not contain backtracking")
+        canonical = normalized.as_posix()
+        if canonical in ("", "."):
+            raise AdapterContractError("owned_paths may not own the native home root")
+        if path.endswith("/"):
+            raise AdapterContractError("owned_paths entries may not have a trailing slash")
+        if "//" in path:
+            raise AdapterContractError("owned_paths entries may not contain empty components")
+        canonical_paths.append(canonical)
+    if len(canonical_paths) != len(set(canonical_paths)):
+        raise AdapterContractError("owned_paths contains a duplicate canonical path")
+    return tuple(canonical_paths)
 
 
 def _load_model_tiers(source: Path, value: Any) -> Mapping[str, str]:
     if isinstance(value, str):
         document = _load_json(_resolve_reference(source, value))
-        value = document.get("model_tiers") if isinstance(document, dict) and "model_tiers" in document else document
+        value = (
+            document.get("model_tiers")
+            if isinstance(document, dict) and "model_tiers" in document
+            else document
+        )
     if not isinstance(value, dict):
         raise AdapterContractError("model_tiers must map portable tiers to native models")
-    if not all(isinstance(key, str) and isinstance(model, str) and model for key, model in value.items()):
+    if not all(
+        isinstance(key, str)
+        and STABLE_ID_PATTERN.fullmatch(key) is not None
+        and isinstance(model, str)
+        and model.strip()
+        for key, model in value.items()
+    ):
         raise AdapterContractError("model_tiers keys and values must be non-empty strings")
     return dict(value)
 
@@ -259,21 +283,28 @@ def load_capability_catalog(path: Path) -> CapabilityCatalog:
         "contract_version", "model_tiers", "capabilities"
     }:
         raise AdapterContractError("capability catalog has an invalid top-level shape")
-    if document["contract_version"] != CONTRACT_VERSION:
+    if (
+        type(document["contract_version"]) is not int
+        or document["contract_version"] != CONTRACT_VERSION
+    ):
         raise AdapterContractError("unsupported capability catalog contract_version")
     tiers = document["model_tiers"]
     entries = document["capabilities"]
-    if not isinstance(tiers, list) or not all(isinstance(tier, str) and tier for tier in tiers):
-        raise AdapterContractError("capability catalog model_tiers must be non-empty strings")
+    if not isinstance(tiers, list) or not tiers or not all(
+        isinstance(tier, str) and STABLE_ID_PATTERN.fullmatch(tier) is not None
+        for tier in tiers
+    ):
+        raise AdapterContractError("capability catalog model tier IDs are invalid")
     if not isinstance(entries, list) or not all(
         isinstance(entry, dict)
         and set(entry) == {"id", "description"}
         and isinstance(entry["id"], str)
+        and STABLE_ID_PATTERN.fullmatch(entry["id"]) is not None
         and isinstance(entry["description"], str)
         and entry["description"].strip()
         for entry in entries
     ):
-        raise AdapterContractError("capability catalog entries are invalid")
+        raise AdapterContractError("capability catalog capability IDs or entries are invalid")
     capabilities = [entry["id"] for entry in entries]
     if len(capabilities) != len(set(capabilities)) or len(tiers) != len(set(tiers)):
         raise AdapterContractError("capability catalog contains duplicate IDs")
@@ -293,6 +324,11 @@ def validate_adapter(
     for state in declaration.capability_matrix.states:
         if state.capability not in catalog.capabilities:
             errors.append("unknown capability '{}'".format(state.capability))
+    declared_capabilities = {
+        state.capability for state in declaration.capability_matrix.states
+    }
+    for capability in sorted(set(catalog.capabilities) - declared_capabilities):
+        errors.append("missing capability '{}'".format(capability))
     return errors
 
 
