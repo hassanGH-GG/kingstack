@@ -28,6 +28,65 @@ class AdapterContractError(ValueError):
     """Raised when an adapter document cannot satisfy the structural contract."""
 
 
+def canonicalize_portable_relative_path(path: str, label: str) -> str:
+    """Validate and NFC-normalize one portable path without touching the filesystem."""
+    if not isinstance(path, str):
+        raise AdapterContractError("{} must be a string".format(label))
+    if path == "":
+        raise AdapterContractError("{} may not be empty".format(label))
+    if any(
+        ord(character) <= 0x1F or ord(character) == 0x7F
+        for character in path
+    ):
+        raise AdapterContractError(
+            "{} may not contain C0 or DEL control characters".format(label)
+        )
+    path = unicodedata.normalize("NFC", path)
+    if "\\" in path:
+        raise AdapterContractError(
+            "{} must use portable POSIX separators, not backslashes".format(label)
+        )
+    if WINDOWS_DRIVE_PREFIX.match(path):
+        raise AdapterContractError(
+            "{} may not use a Windows drive prefix".format(label)
+        )
+    if any(character in WINDOWS_FORBIDDEN_CHARACTERS for character in path):
+        raise AdapterContractError(
+            "{} contains characters that are not portable to Windows".format(label)
+        )
+    normalized = PurePosixPath(path)
+    if normalized.is_absolute():
+        raise AdapterContractError("{} must be relative".format(label))
+    if ".." in normalized.parts:
+        raise AdapterContractError("{} may not contain backtracking".format(label))
+    canonical = normalized.as_posix()
+    if canonical in ("", "."):
+        raise AdapterContractError(
+            "{} may not identify the native home root".format(label)
+        )
+    if path.endswith("/"):
+        raise AdapterContractError("{} may not have a trailing slash".format(label))
+    if "//" in path:
+        raise AdapterContractError("{} may not contain empty components".format(label))
+    for component in normalized.parts:
+        if component.endswith((".", " ")):
+            raise AdapterContractError(
+                "{} components may not end in a Windows-ambiguous dot or space".format(
+                    label
+                )
+            )
+        if WINDOWS_DEVICE_NAME.fullmatch(component) is not None:
+            raise AdapterContractError(
+                "{} may not use a Windows device name".format(label)
+            )
+    return canonical
+
+
+def portable_path_key(canonical_path: str) -> str:
+    """Return the cross-platform collision key for a validated canonical path."""
+    return canonical_path.casefold()
+
+
 @dataclass(frozen=True)
 class CapabilityCatalog:
     capabilities: FrozenSet[str]
@@ -192,47 +251,10 @@ def _load_owned_paths(source: Path, value: Any) -> Tuple[str, ...]:
 
     canonical_paths = []
     for path in value:
-        if any(
-            ord(character) <= 0x1F or ord(character) == 0x7F
-            for character in path
-        ):
-            raise AdapterContractError(
-                "owned_paths entries may not contain C0 or DEL control characters"
-            )
-        path = unicodedata.normalize("NFC", path)
-        if "\\" in path:
-            raise AdapterContractError(
-                "owned_paths entries must use portable POSIX separators, not backslashes"
-            )
-        if WINDOWS_DRIVE_PREFIX.match(path):
-            raise AdapterContractError("owned_paths entries may not use a Windows drive prefix")
-        if any(character in WINDOWS_FORBIDDEN_CHARACTERS for character in path):
-            raise AdapterContractError(
-                "owned_paths entries contain characters that are not portable to Windows"
-            )
-        normalized = PurePosixPath(path)
-        if normalized.is_absolute():
-            raise AdapterContractError("owned_paths entries must be relative")
-        if ".." in normalized.parts:
-            raise AdapterContractError("owned_paths entries may not contain backtracking")
-        canonical = normalized.as_posix()
-        if canonical in ("", "."):
-            raise AdapterContractError("owned_paths may not own the native home root")
-        if path.endswith("/"):
-            raise AdapterContractError("owned_paths entries may not have a trailing slash")
-        if "//" in path:
-            raise AdapterContractError("owned_paths entries may not contain empty components")
-        for component in normalized.parts:
-            if component.endswith((".", " ")):
-                raise AdapterContractError(
-                    "owned_paths components may not end in a Windows-ambiguous dot or space"
-                )
-            if WINDOWS_DEVICE_NAME.fullmatch(component) is not None:
-                raise AdapterContractError(
-                    "owned_paths entries may not use a Windows device name"
-                )
-        canonical_paths.append(canonical)
-    portable_keys = [path.casefold() for path in canonical_paths]
+        canonical_paths.append(
+            canonicalize_portable_relative_path(path, "owned_paths entries")
+        )
+    portable_keys = [portable_path_key(path) for path in canonical_paths]
     if len(portable_keys) != len(set(portable_keys)):
         raise AdapterContractError("owned_paths contains a duplicate canonical path")
     return tuple(canonical_paths)

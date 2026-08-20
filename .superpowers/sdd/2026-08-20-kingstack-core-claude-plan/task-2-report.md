@@ -200,3 +200,53 @@ Base: `bf906ff`
 
 None. Provider modules are trusted, reviewed repository code; loading is
 path-confined and byte-stable, not a sandbox for hostile Python.
+
+## Independent review fix round 1: portable provider output paths
+
+Base: `be12312`
+
+### Finding reproduced
+
+The renderer's local path check covered traversal, separators, NFC, and
+casefold duplicates, but did not apply the adapter contract's complete portable
+component rules. When the provider owned the `hooks` directory, it accepted
+`hooks/CON`, `hooks/aux.txt`, `hooks/file.`, `hooks/file `, and
+`hooks/bad:name`. Drive, UNC/backslash, and control inputs were rejected only by
+a generic canonical-path or ownership error rather than the shared portable
+contract.
+
+The exact RED run executed 15 focused render tests and produced nine expected
+failures: five invalid outputs were accepted and four were rejected for the
+wrong reason. NFC and casefold alias tests already passed.
+
+### Fix
+
+- Factored `canonicalize_portable_relative_path()` and `portable_path_key()`
+  into `adapter_contract.py` as the single portable path authority.
+- `_load_owned_paths()` now delegates every entry to that helper while
+  preserving NFC canonical storage, cross-platform collision keys, and
+  context-specific contract errors.
+- The render output validator calls the same helper and translates its
+  `AdapterContractError` into the stable `RenderError` boundary before checking
+  declaration ownership.
+- Added provider behavior tests for Windows device names, ambiguous dot/space
+  endings, forbidden characters, drives, UNC/backslashes, controls, NFC stored
+  keys, NFC aliases, and casefold aliases under directory ownership.
+
+### Evidence
+
+- Focused contract + render:
+  `PYTHONPATH=lib python3 -m unittest tests.test_adapter_contract tests.test_instruction_render -v`
+  -> 42/42 passing.
+- Full: `PYTHONPATH=lib python3 -m unittest discover -s tests`
+  -> 73/73 passing.
+- Contract CLI validation passes for Claude, Codex, and the synthetic example.
+- Claude render check and manifest remain exactly 9,525 bytes at SHA-256
+  `7a6f34e0ff3777279053bb63713dfc109761d508f18fef0316279e9a74fdab2e`.
+- `py_compile`, adapter JSON parsing, and `git diff --check` pass.
+- Live Claude guidance/settings and Codex config hashes are unchanged; both
+  native homes remain real directories.
+
+### Concerns
+
+None.

@@ -5,17 +5,18 @@ from collections.abc import Mapping
 import errno
 import json
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 import stat
 from types import MappingProxyType
 from typing import Any, List, Tuple
-import unicodedata
 
 from kingstack.adapter_contract import (
     ADAPTER_ID_PATTERN,
     AdapterContractError,
+    canonicalize_portable_relative_path,
     load_adapter_document,
     load_capability_catalog_document,
+    portable_path_key,
     validate_adapter,
 )
 
@@ -475,18 +476,10 @@ def _provider_callable(module_name: str, source: bytes):
 
 
 def _canonical_output_path(path: object) -> str:
-    if not isinstance(path, str) or not path:
-        raise RenderError("provider output path must be a nonempty string")
-    if any(ord(character) <= 0x1F or ord(character) == 0x7F for character in path):
-        raise RenderError("provider output path must be a canonical relative path")
-    if "\\" in path or path.startswith("/") or "//" in path or path.endswith("/"):
-        raise RenderError("provider output path must be a canonical relative path")
-    normalized = unicodedata.normalize("NFC", path)
-    portable = PurePosixPath(normalized)
-    canonical = portable.as_posix()
-    if ".." in portable.parts or canonical in ("", ".") or canonical != normalized:
-        raise RenderError("provider output path must be a canonical relative path")
-    return canonical
+    try:
+        return canonicalize_portable_relative_path(path, "provider output path")
+    except AdapterContractError as error:
+        raise RenderError(str(error)) from error
 
 
 def _validate_provider_output(output: object, declaration):
@@ -496,7 +489,7 @@ def _validate_provider_output(output: object, declaration):
     seen = set()
     for raw_path, content in output.items():
         path = _canonical_output_path(raw_path)
-        portable_key = path.casefold()
+        portable_key = portable_path_key(path)
         if portable_key in seen:
             raise RenderError("render provider returned duplicate output path '{}'".format(path))
         seen.add(portable_key)

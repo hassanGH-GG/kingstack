@@ -204,7 +204,7 @@ class InstructionRenderTest(TestCase):
     def test_provider_output_must_be_bytes_canonical_and_owned(self):
         cases = (
             ("return {'GUIDANCE.md': 'text'}", "bytes"),
-            ("return {'../escape': b'bad'}", "canonical relative"),
+            ("return {'../escape': b'bad'}", "backtracking"),
             ("return {'unowned': b'bad'}", "not covered"),
         )
         for index, (statement, message) in enumerate(cases):
@@ -218,6 +218,62 @@ class InstructionRenderTest(TestCase):
                 )
                 with self.assertRaisesRegex(RenderError, message):
                     render_bundle("example", case_root)
+
+    def test_provider_output_reuses_full_portable_path_contract(self):
+        invalid_paths = (
+            ("hooks/CON", "device"),
+            ("hooks/aux.txt", "device"),
+            ("hooks/file.", "ambiguous"),
+            ("hooks/file ", "ambiguous"),
+            ("hooks/bad:name", "portable to Windows"),
+            ("C:/escape", "drive prefix"),
+            (r"\\server\share", "backslashes"),
+            (r"hooks\file", "backslashes"),
+            ("hooks/bad\nname", "control"),
+        )
+        for index, (output_path, message) in enumerate(invalid_paths):
+            with self.subTest(output_path=output_path):
+                case_root = Path(self.temporary_directory.name) / "portable-case-{}".format(index)
+                self.copy_render_inputs(case_root)
+                shutil.copytree(FIXTURES / "adapters/example", case_root / "adapters/example")
+                declaration_path = case_root / "adapters/example/adapter.json"
+                declaration = json.loads(declaration_path.read_text(encoding="utf-8"))
+                declaration["owned_paths"] = ["GUIDANCE.md", "hooks"]
+                declaration_path.write_text(json.dumps(declaration), encoding="utf-8")
+                (case_root / "adapters/example/sample_agent/render.py").write_text(
+                    "def render(root, declaration, shared_sources):\n"
+                    "    return {{{!r}: b'bad'}}\n".format(output_path),
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(RenderError, message):
+                    render_bundle("example", case_root)
+
+    def test_provider_output_stores_nfc_and_rejects_portable_aliases(self):
+        self.install_example_adapter()
+        declaration_path = self.sandbox / "adapters/example/adapter.json"
+        declaration = json.loads(declaration_path.read_text(encoding="utf-8"))
+        declaration["owned_paths"] = ["GUIDANCE.md", "hooks"]
+        declaration_path.write_text(json.dumps(declaration), encoding="utf-8")
+        provider = self.sandbox / "adapters/example/sample_agent/render.py"
+        provider.write_text(
+            "def render(root, declaration, shared_sources):\n"
+            "    return {'hooks/e\\u0301': b'nfc'}\n",
+            encoding="utf-8",
+        )
+
+        bundle = render_bundle("example", self.sandbox)
+
+        self.assertEqual(list(bundle), ["hooks/é"])
+
+        for paths in (("hooks/File", "hooks/file"), ("hooks/é", "hooks/e\u0301")):
+            with self.subTest(paths=paths):
+                provider.write_text(
+                    "def render(root, declaration, shared_sources):\n"
+                    "    return {{{!r}: b'a', {!r}: b'b'}}\n".format(*paths),
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(RenderError, "duplicate"):
+                    render_bundle("example", self.sandbox)
 
     def test_missing_or_invalid_provider_entrypoint_is_rejected(self):
         self.install_example_adapter()
