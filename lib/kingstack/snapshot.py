@@ -8,7 +8,7 @@ import shutil
 import stat
 import uuid
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Dict, Iterable, List, Optional, Tuple
 
 from kingstack.inventory import CLAUDE_INCLUDE, CODEX_INCLUDE
@@ -32,11 +32,13 @@ def create_snapshot(paths: Paths, destination: Path, label: str) -> Path:
     destination = Path(destination).expanduser()
     _mkdir_private(destination)
     snapshot_dir = destination / ("snapshot-" + datetime.utcnow().strftime("%Y%m%d-%H%M%S"))
-    _assert_no_symlink_ancestors(snapshot_dir)
+    destination_fd = _open_directory(destination)
     try:
-        os.mkdir(snapshot_dir, 0o700)
+        os.mkdir(snapshot_dir.name, 0o700, dir_fd=destination_fd)
     except FileExistsError as error:
         raise ValueError("snapshot directory already exists") from error
+    finally:
+        os.close(destination_fd)
     files_dir = snapshot_dir / "files"
     _mkdir_private(files_dir)
     records = []
@@ -121,7 +123,6 @@ def restore_snapshot(snapshot_dir: Path, destination_home: Path, dry_run: bool =
     """Plan or transactionally restore a verified snapshot into a separate home."""
     snapshot_dir = Path(snapshot_dir)
     destination_home = Path(destination_home).expanduser()
-    _recover_transaction(destination_home)
     problems = verify_snapshot(snapshot_dir, check_permissions=True)
     if problems:
         raise ValueError("refusing invalid snapshot: " + "; ".join(problems))
@@ -130,6 +131,7 @@ def restore_snapshot(snapshot_dir: Path, destination_home: Path, dry_run: bool =
     planned = [destination_home / _destination_relative(record["path"]) for record in records]
     if dry_run:
         return planned
+    _recover_transaction(destination_home)
     if not expected_current_hash:
         raise ValueError("refusing apply without expected current hash")
     if not _HASH_PATTERN.fullmatch(expected_current_hash):
@@ -173,8 +175,14 @@ def _apply_transaction(snapshot_dir: Path, destination: Path, records: List[dict
             else:
                 shutil.copy2(source, staged, follow_symlinks=False)
                 staged.chmod(int(record["mode"], 8))
+                _fsync_file(staged)
             entries.append({"target": targets[index].relative_to(destination).as_posix(), "backup": str(index), "before": _describe(targets[index])})
-        transaction = {"version": 1, "status": "prepared", "expected": expected_hash, "stage": stage.name, "backup": backup.name, "entries": entries, "parents": [{"path": path.relative_to(destination).as_posix(), "before": _describe(path)} for path in parents]}
+        _fsync_directory(stage)
+        _fsync_directory(backup)
+        transaction = {"version": 1, "status": "prepared", "expected": expected_hash,
+                       "destination": str(destination.resolve()), "snapshot": snapshot_dir.name,
+                       "stage": stage.name, "backup": backup.name, "entries": entries,
+                       "parents": [{"path": path.relative_to(destination).as_posix(), "before": _describe(path)} for path in parents]}
         _write_journal(journal, transaction)
         _preflight_destination(destination, targets)
         if current_destination_hash(snapshot_dir, destination) != expected_hash:
@@ -187,12 +195,14 @@ def _apply_transaction(snapshot_dir: Path, destination: Path, records: List[dict
                 raise ValueError("destination target changed before atomic rename")
             if entry["before"]["kind"] != "missing":
                 os.replace(target, backup / entry["backup"])
+                _fsync_directory(backup)
             os.replace(stage / str(index), target)
+            _fsync_directory(target.parent)
         transaction["status"] = "committed"
         _write_journal(journal, transaction)
     except Exception:
         if journal.exists():
-            _rollback_transaction(destination, _read_journal(journal))
+            _rollback_transaction(destination, _read_journal(journal, destination))
         _cleanup_transaction(destination, stage, backup, journal)
         raise
     _cleanup_transaction(destination, stage, backup, journal)
@@ -204,7 +214,7 @@ def _recover_transaction(destination: Path) -> None:
     if not os.path.lexists(journal):
         return
     _assert_no_symlink_ancestors(journal)
-    transaction = _read_journal(journal)
+    transaction = _read_journal(journal, destination)
     if transaction.get("status") != "committed":
         _rollback_transaction(destination, transaction)
     _cleanup_transaction(destination, destination / transaction["stage"], destination / transaction["backup"], journal)
@@ -240,21 +250,39 @@ def _cleanup_transaction(destination: Path, stage: Path, backup: Path, journal: 
 
 def _write_journal(path: Path, transaction: dict) -> None:
     temporary = path.with_name(path.name + ".tmp")
-    temporary.write_text(json.dumps(transaction, sort_keys=True), encoding="utf-8")
-    temporary.chmod(0o600)
+    payload = json.dumps(transaction, sort_keys=True).encode("utf-8")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        descriptor = os.open(str(temporary), flags, 0o600)
+    except FileExistsError as error:
+        raise ValueError("journal temporary already exists") from error
+    try:
+        os.write(descriptor, payload)
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
     os.replace(temporary, path)
+    _fsync_directory(path.parent)
 
 
-def _read_journal(path: Path) -> dict:
+def _read_journal(path: Path, destination: Path) -> dict:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
         raise ValueError("invalid restore transaction journal") from error
-    required = {"version", "status", "stage", "backup", "entries", "parents", "expected"}
-    if not isinstance(value, dict) or not required.issubset(value) or value["version"] != 1 or not isinstance(value["entries"], list) or not isinstance(value["parents"], list):
+    required = {"version", "status", "stage", "backup", "entries", "parents", "expected", "destination", "snapshot"}
+    if not isinstance(value, dict) or set(value) != required or value["version"] != 1 or value["status"] not in {"prepared", "committed"} or not isinstance(value["entries"], list) or not isinstance(value["parents"], list) or not isinstance(value["destination"], str) or value["destination"] != str(destination.resolve()) or not isinstance(value["snapshot"], str) or not _ID_PATTERN.fullmatch(value["snapshot"]) or not isinstance(value["expected"], str) or not _HASH_PATTERN.fullmatch(value["expected"]):
         raise ValueError("invalid restore transaction journal")
     for name in (value["stage"], value["backup"]):
         if not isinstance(name, str) or not name.startswith(".kingstack-restore-") or "/" in name:
+            raise ValueError("invalid restore transaction journal")
+    for entry in value["entries"]:
+        if not isinstance(entry, dict) or set(entry) != {"target", "backup", "before"} or not _valid_journal_relative(entry["target"]) or not isinstance(entry["backup"], str) or not entry["backup"].isdigit() or not _valid_state(entry["before"]):
+            raise ValueError("invalid restore transaction journal")
+    for parent in value["parents"]:
+        if not isinstance(parent, dict) or set(parent) != {"path", "before"} or not _valid_journal_relative(parent["path"]) or not _valid_state(parent["before"]):
             raise ValueError("invalid restore transaction journal")
     return value
 
@@ -303,30 +331,35 @@ def _selected_sources(paths: Paths) -> List[Tuple[str, Path, Path]]:
 
 
 def _walk_selected(root: Path, include: Iterable[str]) -> List[Path]:
-    if os.path.lexists(root) and root.is_symlink():
-        raise ValueError("refusing symlinked source root: " + str(root))
-    if not root.is_dir():
+    if not os.path.lexists(root):
         return []
+    descriptor = _open_directory(root)
+    root_identity = _identity_from_fd(descriptor)
     found = set()
-    for pattern in include:
-        for match in root.glob(pattern):
-            _assert_safe_source(root, match)
-            details = match.lstat()
-            if stat.S_ISLNK(details.st_mode) or stat.S_ISREG(details.st_mode):
-                found.add(match)
-            elif stat.S_ISDIR(details.st_mode):
-                for directory, directories, filenames in os.walk(match, topdown=True, followlinks=False):
-                    current = Path(directory)
-                    for name in list(directories):
-                        child = current / name
-                        _assert_safe_source(root, child)
-                        if child.is_symlink():
+    try:
+        for pattern in include:
+            for match in root.glob(pattern):
+                _assert_safe_source(root, match)
+                details = match.lstat()
+                if stat.S_ISLNK(details.st_mode) or stat.S_ISREG(details.st_mode):
+                    found.add(match)
+                elif stat.S_ISDIR(details.st_mode):
+                    for directory, directories, filenames in os.walk(match, topdown=True, followlinks=False):
+                        current = Path(directory)
+                        for name in list(directories):
+                            child = current / name
+                            _assert_safe_source(root, child)
+                            if child.is_symlink():
+                                found.add(child)
+                                directories.remove(name)
+                        for name in filenames:
+                            child = current / name
+                            _assert_safe_source(root, child)
                             found.add(child)
-                            directories.remove(name)
-                    for name in filenames:
-                        child = current / name
-                        _assert_safe_source(root, child)
-                        found.add(child)
+        if _identity_from_path(root) != root_identity:
+            raise ValueError("source root changed while selecting snapshot files")
+    finally:
+        os.close(descriptor)
     return sorted(found, key=lambda item: item.as_posix())
 
 
@@ -438,11 +471,25 @@ def _permission_problems(snapshot_dir: Path, actual: Dict[str, str], expected: D
 
 
 def _record_is_usable(record: object) -> bool:
-    return isinstance(record, dict) and isinstance(record.get("path"), str) and record.get("kind") in {"file", "symlink"} and not _path_is_denylisted(record["path"])
+    if not isinstance(record, dict) or set(record) != {"path", "kind", "sha256", "mode", "target"}:
+        return False
+    if not isinstance(record["path"], str):
+        return False
+    try:
+        _assert_safe_manifest_path(record["path"])
+    except ValueError:
+        return False
+    if record["kind"] == "file":
+        return (isinstance(record["sha256"], str) and bool(_HASH_PATTERN.fullmatch(record["sha256"])) and
+                record["mode"] in {"0600", "0700"} and record["target"] is None)
+    return (record["kind"] == "symlink" and record["sha256"] is None and
+            record["mode"] is None and isinstance(record["target"], str))
 
 
 def _assert_safe_manifest_path(path: object) -> None:
     if not isinstance(path, str):
+        raise ValueError("invalid snapshot manifest path")
+    if "\\" in path or path != str(PurePosixPath(path)):
         raise ValueError("invalid snapshot manifest path")
     relative = Path(path)
     if relative.is_absolute() or len(relative.parts) < 2 or relative.parts[0] not in {"claude", "codex"}:
@@ -521,3 +568,77 @@ def _assert_no_symlink_ancestors(path: Path) -> None:
         if current == Path("/var"):
             continue
         raise ValueError("refusing symlinked snapshot/storage ancestor: " + str(current))
+
+
+def _valid_journal_relative(path: object) -> bool:
+    if not isinstance(path, str) or "\\" in path or path != str(PurePosixPath(path)):
+        return False
+    relative = PurePosixPath(path)
+    return (not relative.is_absolute() and len(relative.parts) >= 1 and
+            relative.parts[0] in {".claude", ".codex"} and
+            all(part not in {"", ".", ".."} for part in relative.parts))
+
+
+def _valid_state(value: object) -> bool:
+    if not isinstance(value, dict) or not isinstance(value.get("kind"), str):
+        return False
+    kind = value["kind"]
+    if kind == "missing":
+        return set(value) == {"kind"}
+    if kind == "symlink":
+        return set(value) == {"kind", "target"} and isinstance(value.get("target"), str)
+    if kind == "file":
+        return (set(value) == {"kind", "sha256", "mode"} and
+                isinstance(value.get("sha256"), str) and bool(_HASH_PATTERN.fullmatch(value["sha256"])) and
+                isinstance(value.get("mode"), str) and bool(re.fullmatch(r"0[0-7]{3}", value["mode"])))
+    if kind in {"dir", "other"}:
+        return set(value) == {"kind", "mode"} and isinstance(value.get("mode"), str) and bool(re.fullmatch(r"0[0-7]{3}", value["mode"]))
+    return False
+
+
+def _fsync_directory(path: Path) -> None:
+    if not hasattr(os, "O_DIRECTORY"):
+        raise ValueError("platform lacks directory no-follow primitive")
+    flags = os.O_RDONLY | os.O_DIRECTORY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    descriptor = os.open(str(path), flags)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _fsync_file(path: Path) -> None:
+    flags = os.O_RDONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    descriptor = os.open(str(path), flags)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ValueError("refusing non-regular durability target")
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _open_directory(path: Path) -> int:
+    if not hasattr(os, "O_DIRECTORY") or not hasattr(os, "O_NOFOLLOW"):
+        raise ValueError("platform lacks required no-follow directory primitives")
+    descriptor = os.open(str(path), os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    if not stat.S_ISDIR(os.fstat(descriptor).st_mode):
+        os.close(descriptor)
+        raise ValueError("refusing non-directory anchor")
+    return descriptor
+
+
+def _identity_from_fd(descriptor: int) -> Tuple[int, int]:
+    details = os.fstat(descriptor)
+    return details.st_dev, details.st_ino
+
+
+def _identity_from_path(path: Path) -> Tuple[int, int]:
+    details = path.lstat()
+    if not stat.S_ISDIR(details.st_mode):
+        raise ValueError("refusing changed source root")
+    return details.st_dev, details.st_ino
