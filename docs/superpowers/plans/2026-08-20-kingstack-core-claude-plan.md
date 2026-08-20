@@ -1,10 +1,10 @@
-# Kingstack Portable Core and Claude Adapter Implementation Plan
+# Kingstack Adapter Contract, Portable Core, and Claude Adapter Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Extract portable instructions, routing, skills, and lifecycle behavior into kingstack while producing a staged Claude adapter that is behaviorally identical to the current live setup.
+**Goal:** Define a reusable agent-adapter contract, extract portable instructions, routing, skills, and lifecycle behavior into kingstack, and produce a staged Claude adapter that is behaviorally identical to the current live setup.
 
-**Architecture:** Shared source lives under `core/`; adapter declarations describe native filenames, model mappings, and event payload normalization. A deterministic renderer produces a complete adapter under `.staging/claude`. Existing Claude files remain live and unchanged throughout this plan.
+**Architecture:** Shared source lives under `core/`; a behavioral contract defines guidance, skills, lifecycle intents, routing, memory, scheduling, ownership, release, and rollback capabilities without naming a harness. Adapter declarations map that contract to native files and payloads and publish explicit capability matrices. A deterministic renderer produces a complete Claude candidate under `.staging/claude`; existing Claude files remain live and unchanged throughout this plan.
 
 **Tech Stack:** Python 3 standard library, Markdown, JSON, POSIX shell, Claude Code hooks, pstack sync scripts.
 
@@ -17,10 +17,91 @@
 - Pstack stays upstream-owned; never hand-edit rendered pstack skills.
 - Render only to `.staging/claude`; do not write into `~/.claude` in this phase.
 - An intentional transformation requires a named rule and a focused test. Silent normalization is a parity failure.
+- A synthetic third adapter fixture must satisfy the contract without importing Claude or Codex implementation modules.
+- Capability status is exactly one of `native`, `emulated`, `degraded`, or `unsupported`; every non-native status requires evidence and strict-parity impact.
 
 ---
 
-### Task 1: Split shared guidance into ordered, deterministic fragments
+### Task 1: Define the adapter contract and capability matrix
+
+**Files:**
+
+- Create: `adapters/contract/adapter.schema.json`
+- Create: `adapters/contract/capability.schema.json`
+- Create: `core/capabilities/catalog.json`
+- Create: `adapters/claude/adapter.json`
+- Create: `adapters/codex/adapter.json`
+- Create: `tests/fixtures/adapters/example/adapter.json`
+- Create: `tests/fixtures/adapters/example/capabilities.json`
+- Create: `lib/kingstack/adapter_contract.py`
+- Create: `tests/test_adapter_contract.py`
+- Modify: `lib/kingstack/cli.py`
+
+**Interfaces:**
+
+- Produces: `load_adapter(path: Path) -> AdapterDeclaration`, `validate_adapter(declaration: AdapterDeclaration, catalog: CapabilityCatalog) -> List[str]`, and `compare_capabilities(required: Set[str], matrix: CapabilityMatrix) -> CapabilityReport`.
+- Consumed by: every renderer, staged check, release manifest, installer, rollback command, and future adapter.
+
+- [ ] **Step 1: Write failing contract tests**
+
+```python
+class AdapterContractTest(TestCase):
+    def test_synthetic_adapter_has_no_first_party_dependency(self):
+        adapter = load_adapter(FIXTURES / "adapters/example/adapter.json")
+        self.assertEqual(validate_adapter(adapter, catalog()), [])
+        self.assertNotIn("claude", adapter.render_module)
+        self.assertNotIn("codex", adapter.render_module)
+
+    def test_unsupported_capability_is_visible(self):
+        report = compare_capabilities({"before_compaction"}, example_matrix())
+        self.assertEqual(report.unsupported, {"before_compaction"})
+        self.assertFalse(report.strict_parity)
+```
+
+- [ ] **Step 2: Run and confirm the missing contract module**
+
+Run: `PYTHONPATH=lib python3 -m unittest tests.test_adapter_contract -v`
+
+Expected: import failure for `kingstack.adapter_contract`.
+
+- [ ] **Step 3: Implement schemas, typed declarations, and validation**
+
+The capability catalog assigns stable IDs to guidance, skills, hooks, memory,
+routing, schedules, health, activation, and rollback. An adapter declaration
+contains `id`, `contract_version`, `render_module`, `native_home`, `owned_paths`,
+`model_tiers`, and `capability_matrix`. Reject unknown keys, duplicate owned
+paths, absolute owned paths, home-root ownership, missing evidence for non-native
+status, and a model tier not mapped by the adapter.
+
+```python
+@dataclass(frozen=True)
+class CapabilityState:
+    capability: str
+    status: str
+    evidence: str
+    strict_parity: bool
+```
+
+- [ ] **Step 4: Add and run the contract command**
+
+```bash
+./scripts/kingstack check --contract --adapter claude
+./scripts/kingstack check --contract --adapter codex
+./scripts/kingstack check --contract --adapter-path tests/fixtures/adapters/example
+PYTHONPATH=lib python3 -m unittest tests.test_adapter_contract -v
+```
+
+Expected: all three declarations validate; the example proves the extension
+point without loading either first-party adapter.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add adapters/contract adapters/claude/adapter.json adapters/codex/adapter.json core/capabilities lib/kingstack/adapter_contract.py lib/kingstack/cli.py tests/test_adapter_contract.py tests/fixtures/adapters
+git commit -m "feat: define the agent adapter contract"
+```
+
+### Task 2: Split shared guidance into ordered, deterministic fragments
 
 **Files:**
 
@@ -95,7 +176,7 @@ git add core/instructions adapters/claude/instructions-appendix.md adapters/code
 git commit -m "refactor: extract portable instruction core"
 ```
 
-### Task 2: Replace vendor model names in policy with portable capability tiers
+### Task 3: Replace vendor model names in policy with portable capability tiers
 
 **Files:**
 
@@ -160,7 +241,7 @@ git add core/routing adapters/claude adapters/codex lib/kingstack/routing.py tes
 git commit -m "feat: route work through portable capability tiers"
 ```
 
-### Task 3: Make the skill catalog single-source and pstack-safe
+### Task 4: Make the skill catalog single-source and pstack-safe
 
 **Files:**
 
@@ -224,7 +305,7 @@ git add core/skills lib/kingstack/skills.py scripts/sync-pstack.sh tests/test_sk
 git commit -m "refactor: make skills and pstack adapter-neutral"
 ```
 
-### Task 4: Normalize lifecycle events behind portable hook commands
+### Task 5: Normalize lifecycle events behind portable hook commands
 
 **Files:**
 
@@ -290,7 +371,7 @@ git add core/hooks adapters/claude/hooks lib/kingstack/render.py tests/test_hook
 git commit -m "refactor: normalize kingstack lifecycle hooks"
 ```
 
-### Task 5: Prove staged Claude parity against the frozen baseline
+### Task 6: Prove staged Claude parity against the frozen baseline
 
 **Files:**
 
@@ -336,7 +417,8 @@ git add lib/kingstack/parity.py lib/kingstack/cli.py tests/test_claude_parity.py
 git commit -m "test: prove staged Claude adapter parity"
 ```
 
-- [ ] **Step 5: Stop for Hassan's phase review**
+- [ ] **Step 5: Record the gate and continue only in staging**
 
-Do not write into `~/.claude`. The live install happens only after shared-memory
-and Codex staging are both available for cross-agent tests.
+Independent review must approve the report. Do not write into `~/.claude`. The
+mandatory Hassan review occurs only after shared-memory and Codex staging are
+both available and immediately before any live link.

@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Install a native Codex adapter that loads kingstack guidance, skills, hooks, shared curated memory, and routing while preserving every pre-existing Codex setting, plugin, MCP server, trusted project, native memory, session, and credential.
+**Goal:** Build and stage a contract-compliant native Codex adapter that loads kingstack guidance, skills, hooks, shared curated memory, and routing while preserving every pre-existing Codex setting, plugin, MCP server, trusted project, native memory, session, and credential.
 
-**Architecture:** Generate `AGENTS.md`, `hooks.json`, managed skill copies, and a narrowly owned TOML patch from the shared core. Test first in an isolated temporary `CODEX_HOME`, then snapshot, install atomically into `~/.codex`, require native hook trust, prove behavior in fresh CLI/desktop sessions, exercise rollback, and reinstall.
+**Architecture:** Generate `AGENTS.md`, `hooks.json`, managed skill copies, a capability matrix, and a narrowly owned TOML patch from the shared core into an immutable private release. Test only in isolated temporary Codex homes during this plan. Produce the exact ownership and activation briefing, but create no live Codex link; live activation, native hook trust, rollback, and re-activation occur only in the cutover plan after Hassan's pre-link approval.
 
 **Tech Stack:** Codex CLI/Desktop, AGENTS.md, Codex hooks JSON, Codex skills, TOML, Python 3 standard library, official Codex `/import` comparison.
 
@@ -19,6 +19,7 @@
 - Do not duplicate a skill already supplied equivalently by an enabled Codex plugin; record the provider and prove semantic parity.
 - Disable the Codex `superpowers` plugin only after every required overlapping skill has a verified kingstack/pstack provider; keep its installed source recoverable and prove the before/after capability set is unchanged.
 - Official `/import` is a one-time discovery comparison, not the synchronization mechanism.
+- Do not create or modify a live path under `~/.codex` in this plan.
 
 ---
 
@@ -26,7 +27,7 @@
 
 **Files:**
 
-- Create: `adapters/codex/adapter.json`
+- Modify: `adapters/codex/adapter.json`
 - Modify: `adapters/codex/instructions-appendix.md`
 - Create: `tests/test_codex_instructions.py`
 - Modify: `lib/kingstack/render.py`
@@ -262,78 +263,94 @@ git add lib/kingstack/codex_skills.py tests/test_codex_skills.py core/skills/cat
 git commit -m "feat: resolve Codex skill providers without duplication"
 ```
 
-### Task 5: Build atomic Codex install and rollback
+### Task 5: Build a versioned Codex release and manifest-owned activation plan
 
 **Files:**
 
-- Create: `lib/kingstack/install.py`
-- Create: `lib/kingstack/rollback.py`
-- Create: `tests/test_install_codex.py`
+- Create: `lib/kingstack/release.py`
+- Create: `lib/kingstack/activation.py`
+- Create: `tests/test_codex_release.py`
 - Modify: `lib/kingstack/cli.py`
 
-- [ ] **Step 1: Write destruction-style installer tests**
+- [ ] **Step 1: Write failing immutable-release and ownership tests**
 
-In a fake Codex home, test: unknown file refusal; user-modified managed file
-refusal; config conflict; interruption before rename; successful install;
-rollback restores byte-identical config/guidance/hooks/skills; auth/session/
-native-memory sentinel files stay untouched in every case.
+In a fake Codex home and private adapter store, test: deterministic release ID;
+exclusive immutable publication; capability and content manifests; unknown file
+refusal; user-modified managed path refusal; duplicate ownership refusal;
+home-root ownership refusal; config conflict; release verification; activation
+dry-run; and byte-identical preservation plans for existing owned paths. Auth,
+session, plugin, MCP, notification, and native-memory sentinels remain outside
+the plan in every case.
 
-- [ ] **Step 2: Implement staged ownership**
+- [ ] **Step 2: Implement immutable release generation**
 
-Expose `plan_install(adapter, staging, home)`, `apply_install(plan,
-snapshot_id)`, and `rollback_install(manifest_id, dry_run=True)`. Return typed
-dataclasses and Python 3.9-compatible `typing.List` annotations.
+Expose these Python 3.9-compatible interfaces:
 
-The plan contains only `AGENTS.md`, `hooks.json`, managed skill paths, and the
-owned TOML edits. Before each write verify the live hash still matches planning
-time. Write temp siblings, `fsync`, and atomically rename. Rollback verifies the
-installed hash before restoring and refuses if a human edited it afterward.
+```python
+def build_release(adapter_id: str, staged: Path, store: Path,
+                  source_hash: str) -> ReleaseManifest: ...
+def verify_release(release: Path) -> List[str]: ...
+def plan_activation(adapter: AdapterDeclaration, release: ReleaseManifest,
+                    native_home: Path, backup_root: Path) -> ActivationPlan: ...
+```
 
-- [ ] **Step 3: Run all fake-home tests**
+The release manifest includes contract and generator versions, source hash,
+capability matrix, every content hash, and owned-path mapping. Publish to
+`~/.kingstack/adapters/codex/releases/<source-hash>` only after verification.
+The activation plan is read-only and contains only `AGENTS.md`, the reviewed
+hook surface, managed skill entries, and owned TOML edits. It names the exact
+dated original location and stable `current`-release target for every path.
 
-Run: `PYTHONPATH=lib python3 -m unittest tests.test_install_codex -v`
+- [ ] **Step 3: Run all fake-home and release tests**
 
-- [ ] **Step 4: Produce and review the real dry-run diff**
+Run: `PYTHONPATH=lib python3 -m unittest tests.test_codex_release -v`
+
+- [ ] **Step 4: Build the real private release and produce a no-write activation diff**
 
 ```bash
 ./scripts/kingstack render --adapter codex --output .staging/codex
-./scripts/kingstack install --codex --dry-run
+ks_codex_release=$(./scripts/kingstack release build --adapter codex --staged .staging/codex --print-id)
+test -n "${ks_codex_release:?}"
+./scripts/kingstack release verify --adapter codex --release "$ks_codex_release"
+./scripts/kingstack activate --adapter codex --release "$ks_codex_release" --dry-run
 ```
 
 The report must state that current model, main effort, plugins, MCP servers,
 trusted projects, notifications, auth, sessions, and native memories remain
-unchanged.
+unchanged. The command must write only the private immutable release and private
+manifest; it must not create `~/.codex` links.
 
-- [ ] **Step 5: Commit; stop for explicit install approval**
+- [ ] **Step 5: Commit the release mechanism; do not activate**
 
 ```bash
-git add lib/kingstack/install.py lib/kingstack/rollback.py lib/kingstack/cli.py tests/test_install_codex.py
-git commit -m "feat: install and roll back Codex adapter atomically"
+git add lib/kingstack/release.py lib/kingstack/activation.py lib/kingstack/cli.py tests/test_codex_release.py
+git commit -m "feat: stage versioned Codex adapter releases"
 ```
 
-### Task 6: Install into live Codex, trust hooks, and prove behavior
+### Task 6: Prove Codex behavior in isolation and prepare the pre-link briefing
 
 **Files:**
 
-- Create: `docs/migration/codex-live-verification.md`
+- Create: `docs/migration/codex-staged-verification.md`
 
-- [ ] **Step 1: Capture a fresh private snapshot and apply**
+- [ ] **Step 1: Materialize an isolated Codex home from the release**
 
 ```bash
-ks_snapshot_id=$(./scripts/kingstack snapshot --label pre-codex-adapter --print-id)
-test -n "${ks_snapshot_id:?}"
-./scripts/kingstack install --codex --apply --snapshot-id "$ks_snapshot_id"
+ks_test_home=$(mktemp -d)
+test -n "${ks_test_home:?}"
+./scripts/kingstack activate --adapter codex --release "$ks_codex_release" --home "$ks_test_home" --apply
 ```
 
-- [ ] **Step 2: Review and trust exact hook hashes natively**
+- [ ] **Step 2: Exercise native hook trust only inside the isolated home**
 
-Start a fresh Codex CLI, run `/hooks`, inspect the `~/.codex/hooks.json` source,
-and have Hassan approve the five definitions. Do not proceed while any is
-untrusted or disabled.
+Start a fresh Codex CLI with the isolated home, inspect the generated hook
+source and hashes, and prove Codex exposes the native trust decision. Record the
+exact live hashes that will require Hassan's approval later; do not edit the real
+trust store.
 
 - [ ] **Step 3: Run the ten behavioral checks in fresh CLI and desktop sessions**
 
-Prove: global AGENTS instructions; king-mode/pstack activation; explicit
+Using the isolated home, prove: global AGENTS instructions; king-mode/pstack activation; explicit
 subagent model and effort visibility; bulk warning; compaction checkpoint;
 shared candidate capture; cross-agent promotion; rejection suppression;
 scheduled-health compatibility; `kingstack check --adapter codex` green.
@@ -342,18 +359,18 @@ Use disposable test project content and remove only that test content after its
 hashes are recorded. Do not manufacture success by calling hook scripts
 directly—the final evidence must come from real Codex events.
 
-- [ ] **Step 4: Exercise live rollback and reinstall**
+- [ ] **Step 4: Exercise isolated rollback and re-activation**
 
 ```bash
-ks_manifest_id=$(./scripts/kingstack install latest-manifest --adapter codex)
+ks_manifest_id=$(./scripts/kingstack activate latest-manifest --adapter codex --home "$ks_test_home")
 test -n "${ks_manifest_id:?}"
-./scripts/kingstack rollback --manifest "$ks_manifest_id" --dry-run
-./scripts/kingstack rollback --manifest "$ks_manifest_id" --apply
+./scripts/kingstack rollback --manifest "$ks_manifest_id" --home "$ks_test_home" --dry-run
+./scripts/kingstack rollback --manifest "$ks_manifest_id" --home "$ks_test_home" --apply
 ```
 
-Compare `~/.codex/config.toml` and all pre-existing managed paths with the
-snapshot; start Codex and prove its prior setup works. Then reinstall, retrust
-only if Codex invalidates changed hook hashes, and rerun the compact smoke suite.
+Compare all fake pre-existing managed paths with their dated originals; start
+Codex and prove its prior setup works. Then re-activate the versioned release and
+rerun the compact smoke suite. No path under the real `~/.codex` may change.
 
 - [ ] **Step 5: Test medium main effort without silently changing the default**
 
@@ -364,20 +381,25 @@ leave high and record the exception.
 
 - [ ] **Step 6: Run official Claude import as comparison only**
 
-In a fresh Codex CLI use `/import`, select Claude Code, and review the detected
+In the isolated Codex CLI use `/import`, select Claude Code, and review the detected
 items. Do not enable automatic sync. Export only a redacted capability checklist
 to the verification document. Reconcile any supported capability absent from
 the generated adapter; do not make imported output canonical.
 
-- [ ] **Step 7: Verify no collateral change and commit evidence**
+- [ ] **Step 7: Verify no real-home change and commit staged evidence**
 
-Compare pre/post hashes and structural reports for auth sentinels, sessions,
+Compare before/after hashes and structural reports for the real Codex home,
+including auth sentinels, sessions,
 native memories, plugin catalog, MCP config, trusted projects, and notifications.
 Run all tests and both adapter checks. Then:
 
 ```bash
-git add docs/migration/codex-live-verification.md
-git commit -m "test: prove native Codex adapter and rollback"
+git add docs/migration/codex-staged-verification.md
+git commit -m "test: prove staged Codex adapter and rollback"
 ```
 
-- [ ] **Step 8: Stop for Hassan's phase review; do not push yet**
+- [ ] **Step 8: Feed exact owned paths, capability gaps, release ID, and rollback commands into the mandatory pre-link briefing**
+
+Do not activate the live Codex adapter. The cutover plan combines this evidence
+with Claude, memory, schedules, documentation, and canonical-clone evidence and
+then stops for Hassan's explicit approval.

@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Copy the seven curated Claude memory banks into one private, agent-neutral store and let both adapters capture, review, reject, and recall approved memory without merging their native automatic memory systems.
+**Goal:** Copy the seven curated Claude memory banks into one private, agent-neutral store and let any contract-compliant adapter capture, review, reject, and recall approved memory without merging native automatic memory systems.
 
-**Architecture:** Shared memory lives under `~/.kingstack/memory` with an append-safe inbox, stable candidate IDs, per-project approved banks, and a rejection ledger. Agent hooks normalize provenance into the same schema. Migration is copy-only and hash-verified; original Claude banks remain untouched.
+**Architecture:** Shared memory lives under `~/.kingstack/memory` with an append-safe inbox, stable candidate IDs, per-project approved banks, and a rejection ledger. Adapter hooks normalize arbitrary adapter provenance into the same versioned schema; Claude and Codex are initial fixtures, not an enum. Migration is copy-only and hash-verified; original Claude banks remain untouched.
 
 **Tech Stack:** Python 3 standard library, Markdown with YAML-like frontmatter, JSON Lines, SHA-256, file locking via atomic rename and advisory directory locks.
 
@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Never merge or relocate Claude/Codex raw transcripts, native memory databases, caches, or automatic memory stores.
+- Never merge or relocate any adapter's raw transcripts, native memory databases, caches, or automatic memory stores.
 - Only approved curated facts cross agents.
 - Existing memory filenames, bodies, frontmatter, timestamps, and indexes are copied byte-for-byte before any schema evolution.
 - A candidate is never promoted automatically. `memory-review` remains the human gate.
@@ -98,10 +98,11 @@ git commit -m "feat: define private shared memory store"
 - Create: `tests/test_secret_filter.py`
 - Create: `tests/fixtures/memory/candidate-claude.json`
 - Create: `tests/fixtures/memory/candidate-codex.json`
+- Create: `tests/fixtures/memory/candidate-example-adapter.json`
 
 - [ ] **Step 1: Write failing cross-agent identity tests**
 
-Both fixtures carry the same proposed fact with different native session IDs.
+All three fixtures carry the same proposed fact with different native session IDs.
 Assert their candidate IDs differ when provenance differs, while their content
 hashes match. Repeated capture of the same source/session/content returns the
 same stable candidate ID and creates no duplicate inbox row.
@@ -112,8 +113,8 @@ same stable candidate ID and creates no duplicate inbox row.
 {
   "schema": 1,
   "id": "c_<sha256-prefix>",
-  "source_agent": "claude|codex",
-  "source_profile": "work|personal|default|unknown",
+  "source_adapter": "<validated adapter contract id>",
+  "source_profile": "<adapter-native profile label or unknown>",
   "project_id": "p_<hash>",
   "session_id_hash": "<sha256>",
   "captured_at": "RFC3339 UTC",
@@ -127,8 +128,9 @@ same stable candidate ID and creates no duplicate inbox row.
 ```
 
 Native session identifiers are hashed before persistence. The ID hashes the
-canonical JSON of agent/profile/project/session/content. Timestamps do not
-participate in the ID.
+canonical JSON of adapter/profile/project/session/content. The adapter ID must
+resolve through the adapter contract registry; it is not a Claude/Codex enum.
+Timestamps do not participate in the ID.
 
 - [ ] **Step 3: Implement two-stage secret rejection**
 
@@ -179,7 +181,7 @@ and resumes safely after an interrupted copy.
 
 ```text
 kingstack memory migrate-claude --dry-run
-kingstack memory migrate-claude --apply --snapshot-id "$(kingstack snapshot --label pre-memory-migration --print-id)"
+kingstack memory migrate-claude --apply --archive-id "$(kingstack archive create --label pre-memory-migration --print-id)"
 kingstack memory verify-migration
 ```
 
@@ -203,9 +205,9 @@ zero overwrites, zero unreadable files, and no writes.
 - [ ] **Step 4: Apply to the private store and prove hashes both ways**
 
 ```bash
-ks_snapshot_id=$(./scripts/kingstack snapshot --label pre-memory-migration --print-id)
-test -n "${ks_snapshot_id:?}"
-./scripts/kingstack memory migrate-claude --apply --snapshot-id "$ks_snapshot_id"
+ks_archive_id=$(./scripts/kingstack archive create --label pre-memory-migration --print-id)
+test -n "${ks_archive_id:?}"
+./scripts/kingstack memory migrate-claude --apply --archive-id "$ks_archive_id"
 ./scripts/kingstack memory verify-migration
 ```
 
@@ -235,9 +237,9 @@ git commit -m "feat: migrate curated memory without rewriting sources"
 - [ ] **Step 1: Port the nine existing memory tests as an immutable floor**
 
 Copy the behavior cases from `~/.claude/hooks/test_memory_inbox.py` into the new
-suite, then add cross-agent cases: Claude candidate promoted by Codex, Codex
-candidate promoted by Claude, duplicate rejection, secret rejection, and
-project isolation.
+suite, then add cross-adapter cases: Claude candidate promoted by Codex, Codex
+candidate promoted by Claude, a synthetic third-adapter candidate promoted by
+Claude, duplicate rejection, secret rejection, and project isolation.
 
 - [ ] **Step 2: Run and ensure the ported suite fails before implementation**
 
@@ -281,7 +283,7 @@ git add core/memory core/hooks/stop_capture.py core/skills/authored/memory-revie
 git commit -m "feat: share human-reviewed memory across adapters"
 ```
 
-### Task 5: Add relevant-memory injection to both staged adapters
+### Task 5: Add relevant-memory injection through the adapter contract
 
 **Files:**
 
@@ -294,7 +296,8 @@ git commit -m "feat: share human-reviewed memory across adapters"
 
 - [ ] **Step 1: Write failing relevance and bounded-context tests**
 
-Assert a session sees only its project index, an unrelated project is absent,
+Assert a session from Claude, Codex, or the synthetic adapter sees only its
+project index, an unrelated project is absent,
 the full body is not injected until explicitly recalled, missing banks are
 silent, and the index output is capped by a configured byte limit with a pointer
 to `kingstack memory recall`.
@@ -305,9 +308,10 @@ Expose `session_index(store, cwd, max_bytes=12_000)` and
 `recall(store, cwd, names)`, both returning text. Use `typing.List[str]` rather
 than Python 3.10 union or built-in generic syntax.
 
-Both native wrappers normalize `cwd`, invoke the same service, and wrap the
-result in their required hook JSON. The text names its shared origin and never
-claims to be either agent's native memory.
+Every native wrapper normalizes `cwd`, invokes the same service, and wraps the
+result in its declared hook format. The text names its shared origin and never
+claims to be an adapter's native memory. Contract validation refuses an adapter
+that claims shared-memory injection without a passing wrapper fixture.
 
 - [ ] **Step 3: Render both staged adapters and replay identical project starts**
 
@@ -361,4 +365,8 @@ git add docs/migration/shared-memory-verification.md
 git commit -m "test: prove shared curated memory without source loss"
 ```
 
-- [ ] **Step 5: Stop for Hassan's phase review**
+- [ ] **Step 5: Record the gate and continue only in staging**
+
+Independent review must approve the evidence. Continue to Codex staging with no
+live link; Hassan's mandatory review remains immediately before first live
+activation.

@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Create the neutral kingstack checkout, private runtime skeleton, and reproducible baseline/rollback snapshots without changing either live agent profile.
+**Goal:** Create the neutral kingstack checkout, private runtime skeleton, deterministic inventories, and immutable capture-only configuration archives without changing either live agent profile.
 
-**Architecture:** A dependency-free Python CLI captures typed inventories and private backups, redacts the report safe for Git, and clones the current repository with its history and real origin. All writes target only the new checkout and `~/.kingstack`; `~/.claude` and `~/.codex` are read-only inputs in this phase.
+**Architecture:** A dependency-free Python CLI captures typed inventories and immutable private archives, redacts the report safe for Git, and clones the current repository with its history and real origin. Archives have no apply operation: normal rollback later uses dated originals of manifest-owned paths, while disaster recovery materializes beside a live home. All writes target only the isolated worktree, the new checkout, and `~/.kingstack`; `~/.claude` and `~/.codex` are read-only inputs in this phase.
 
 **Tech Stack:** Python 3 standard library, Git, POSIX shell, JSON, SHA-256.
 
@@ -12,11 +12,12 @@
 
 ## Global Constraints
 
-- Run from the current clean `~/.claude` repository; abort if tracked changes or unpushed commits exist unless `--allow-unpushed` is explicitly used for the initial local clone.
+- Run from the isolated feature worktree and require its tracked state clean at each acceptance gate. Treat live `~/.claude` as the read-only baseline; `--allow-unpushed` is permitted only for the initial local clone after exact HEAD/origin evidence is recorded.
 - Do not read or copy `~/.claude.json`, `~/.codex/auth.json`, keychains, browser state, or credential stores.
 - Full configuration backups are private mode `0600`; tracked reports contain hashes and key names, never values.
 - The new checkout must retain the Git object history, branch, tags, and original remote URL.
 - No symlink under an agent home is created in this phase.
+- Delete the experimental in-place restore implementation before foundation acceptance; preserve its private snapshot directories but expose no production `snapshot apply` or `restore_snapshot` interface.
 
 ---
 
@@ -172,37 +173,67 @@ git add lib/kingstack/inventory.py lib/kingstack/cli.py tests/test_inventory.py 
 git commit -m "feat: capture deterministic agent baselines"
 ```
 
-### Task 3: Build private snapshot and restoration manifests
+### Task 3: Replace experimental restore with immutable capture-only archives
 
 **Files:**
 
-- Create: `lib/kingstack/snapshot.py`
-- Create: `tests/test_snapshot.py`
+- Delete: `lib/kingstack/snapshot.py`
+- Delete: `tests/test_snapshot.py`
+- Create: `lib/kingstack/archive.py`
+- Create: `tests/test_archive.py`
 - Modify: `lib/kingstack/cli.py`
 
-- [ ] **Step 1: Write failing round-trip and refusal tests**
+- [ ] **Step 1: Write failing capture, verification, and non-restoration tests**
 
-Use a temporary fake home. Snapshot selected Claude/Codex files, mutate them,
-restore into a separate destination, and assert byte content, symlink targets,
-and modes match. Add tests that snapshot refuses auth paths and that restore
-refuses to overwrite an unknown live file.
+Use a temporary fake home and archive root. Assert a normal capture preserves
+selected bytes, relative symlink targets, and owner permissions; a denied auth
+path is rejected; a source mutation injected between pre- and post-inventory
+rejects and publishes nothing; an existing archive ID is never replaced; and
+the CLI parser has no archive apply/restore command.
+
+```python
+class ArchiveTest(TestCase):
+    def test_source_change_aborts_without_publication(self):
+        with self.assertRaises(SourceChanged):
+            create_archive(paths, root, "race", after_copy=mutate_source)
+        self.assertEqual(list(root.glob("archive-*")), [])
+
+    def test_archive_api_is_capture_only(self):
+        self.assertFalse(hasattr(archive, "restore_snapshot"))
+        self.assertNotIn("apply", archive_cli_subcommands())
+```
 
 - [ ] **Step 2: Run the tests and confirm failure**
 
-Run: `PYTHONPATH=lib python3 -m unittest tests.test_snapshot -v`
+Run: `PYTHONPATH=lib python3 -m unittest tests.test_archive -v`
 
-- [ ] **Step 3: Implement the private snapshot format**
+Expected: import failure because `kingstack.archive` does not exist.
 
-The module exposes `create_snapshot(paths, destination, label)`,
-`verify_snapshot(snapshot_dir)`, and
-`restore_snapshot(snapshot_dir, destination_home, dry_run=True)`. Return paths
-and lists using Python 3.9-compatible annotations from `typing`.
+- [ ] **Step 3: Remove the experimental engine and implement capture-only archives**
+
+Delete the experimental snapshot module and its transaction tests. Do not delete
+any directory under `~/.kingstack/backups`; those are private evidence.
+
+The replacement exposes only:
+
+```python
+def create_archive(paths: Paths, destination: Path, label: str,
+                   after_copy: Optional[Callable[[], None]] = None) -> Path: ...
+def verify_archive(archive_dir: Path, check_permissions: bool = False) -> List[str]: ...
+```
+
+Use Python 3.9-compatible annotations from `typing`. Capture a deterministic
+pre-inventory, copy only allowlisted authored configuration into a private
+temporary sibling, capture a post-inventory, and reject if source identities or
+hashes differ. Verify copied bytes and modes against the manifest before one
+exclusive rename publishes the archive. Never keep one descriptor per copied
+directory; bound simultaneous file descriptors to a constant number.
 
 Layout:
 
 ```text
-snapshot-YYYYMMDD-HHMMSS/
-  manifest.json       # relative path, hash, mode, kind, target
+archive-YYYYMMDD-HHMMSS/
+  manifest.json       # version, source inventories, path/hash/mode/kind/target
   files/claude/...
   files/codex/...
 ```
@@ -210,28 +241,29 @@ snapshot-YYYYMMDD-HHMMSS/
 Create directories with `0700`, files with their original mode capped so group
 and other permissions are removed. Copy with `shutil.copy2`; recreate symlinks
 without following them. Use a hard denylist for `auth.json`, `.claude.json`,
-`credentials`, `keychain`, `sessions`, and transcript extensions. Restore is
-dry-run by default and requires `--apply --expected-current-hash` for a live
-destination. The CLI supports `snapshot --label LABEL --print-id`; its returned
-identifier is then passed to `snapshot verify IDENTIFIER --check-permissions`,
-so later phases never guess an identifier.
+`credentials`, `keychain`, `sessions`, and transcript extensions. The CLI
+supports only `archive create --label LABEL --print-id` and
+`archive verify IDENTIFIER --check-permissions`. It contains no restore or apply
+path.
 
-- [ ] **Step 4: Prove round-trip and permissions**
+- [ ] **Step 4: Prove capture, source-change rejection, descriptor bounds, and permissions**
 
 ```bash
-PYTHONPATH=lib python3 -m unittest tests.test_snapshot -v
-ks_snapshot_id=$(./scripts/kingstack snapshot --label pre-neutral-migration --print-id)
-test -n "${ks_snapshot_id:?}"
-./scripts/kingstack snapshot verify "$ks_snapshot_id" --check-permissions
+PYTHONPATH=lib python3 -m unittest tests.test_archive -v
+ks_archive_id=$(./scripts/kingstack archive create --label pre-neutral-migration --print-id)
+test -n "${ks_archive_id:?}"
+./scripts/kingstack archive verify "$ks_archive_id" --check-permissions
+! ./scripts/kingstack archive apply "$ks_archive_id"
 ```
 
-Expected: tests pass and both `find` commands print nothing.
+Expected: tests pass, verification prints `verified`, and the unsupported apply
+command exits nonzero without changing any live path.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add lib/kingstack/snapshot.py lib/kingstack/cli.py tests/test_snapshot.py
-git commit -m "feat: add private lossless configuration snapshots"
+git add lib/kingstack/snapshot.py tests/test_snapshot.py lib/kingstack/archive.py tests/test_archive.py lib/kingstack/cli.py
+git commit -m "fix: replace in-place restore with immutable archives"
 ```
 
 ### Task 4: Create the neutral checkout without changing live ownership
@@ -242,8 +274,10 @@ git commit -m "feat: add private lossless configuration snapshots"
 - Create: `tests/test_bootstrap.py`
 - Modify: `lib/kingstack/cli.py`
 - Create: `core/.gitkeep`
+- Create: `adapters/contract/.gitkeep`
 - Create: `adapters/claude/.gitkeep`
 - Create: `adapters/codex/.gitkeep`
+- Create: `adapters/templates/.gitkeep`
 
 - [ ] **Step 1: Write failing tests for dirty-state refusal and Git preservation**
 
@@ -284,7 +318,7 @@ Run: `PYTHONPATH=lib python3 -m unittest tests.test_bootstrap -v`
 ./scripts/kingstack bootstrap --source "$HOME/.claude" --dry-run
 ```
 
-Expected: it names the target checkout, snapshot path, HEAD, origin, and every
+Expected: it names the target checkout, archive path, HEAD, origin, and every
 would-write path; it reports zero writes.
 
 - [ ] **Step 6: Apply locally and prove the old setup is untouched**
@@ -322,7 +356,7 @@ git commit -m "feat: bootstrap neutral kingstack without live mutation"
 cd "$HOME/Desktop/Work/kingstack"
 PYTHONPATH=lib python3 -m unittest discover -s tests -v
 ./scripts/kingstack inventory --output "$(mktemp -d)/baseline.json"
-./scripts/kingstack snapshot --label foundation-acceptance --print-id
+./scripts/kingstack archive create --label foundation-acceptance --print-id
 git fsck --full
 git status --short
 "$HOME/.claude/scripts/check-setup.sh"
@@ -331,7 +365,7 @@ git status --short
 - [ ] **Step 2: Record exact before/after evidence**
 
 The verification document records: old and new HEAD, origin, tag count, public
-inventory counts, private snapshot ID, unchanged live hashes, permission checks,
+inventory counts, private archive ID, unchanged live hashes, permission checks,
 and the Claude health output. It explicitly states that no live path changed.
 
 - [ ] **Step 3: Commit; do not push yet**
@@ -341,7 +375,9 @@ git add docs/migration/foundation-verification.md
 git commit -m "test: verify neutral foundation without data loss"
 ```
 
-- [ ] **Step 4: Stop for Hassan's phase review**
+- [ ] **Step 4: Record the foundation gate and continue only while live homes remain read-only**
 
-Do not begin the portable-core plan until Hassan approves the evidence and the
-working tree is clean.
+The working tree must be clean and an independent review must approve the
+foundation evidence. Continue into the portable-core plan without a live-path
+change. The mandatory Hassan stop occurs after cloning, staging, and parity
+proof, immediately before the first manifest-owned link.

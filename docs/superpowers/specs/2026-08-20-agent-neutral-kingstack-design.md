@@ -1,7 +1,7 @@
 # Agent-neutral kingstack design
 
 Date: 2026-08-20
-Status: Revised architecture approved in conversation; written review pending
+Status: Approved revised architecture
 Owner: Hassan Ghandour
 
 ## Summary
