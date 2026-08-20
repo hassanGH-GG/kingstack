@@ -187,7 +187,8 @@ kingstack check --adapter claude
 kingstack check --adapter codex
 kingstack check --memory
 kingstack check --schedules
-kingstack check --all
+kingstack check --all --mode staged
+kingstack check --all --mode live
 ```
 
 Checks include tracked-source cleanliness, generated-manifest drift, instruction
@@ -195,6 +196,13 @@ coverage, skill capability/provider parity, hook registration/hash/trust status,
 config-owned keys, shared memory integrity, original memory source preservation,
 scheduler ownership/last run, private permissions, pstack revision, and secret/
 runtime tracking guards.
+
+`staged` verifies release manifests, staged hook/config payloads, memory-source
+parity, schedule declarations, and private permissions without requiring live
+registration or last-run evidence. `live` requires installed ownership,
+registration/trust, owned-key projections, active schedule state, and drift
+checks. Before the first activation only staged mode can pass; after activation
+both modes must pass. Omitting `--mode` is an invalid invocation.
 
 - [ ] **Step 3: Add machine-readable output**
 
@@ -206,8 +214,8 @@ required checks pass; drift exits 1; invalid invocation exits 2.
 
 ```bash
 PYTHONPATH=lib python3 -m unittest tests.test_checks -v
-./scripts/kingstack check --all
-./scripts/kingstack check --all --json | jq -e '.overall == "healthy"'
+./scripts/kingstack check --all --mode staged
+./scripts/kingstack check --all --mode staged --json | jq -e '.overall == "healthy"'
 ```
 
 Update the README with a count only after measuring it. Prefer documenting the
@@ -305,8 +313,9 @@ only at the final approved cleanup.
 Name the production break each test catches: malformed SemVer; version/tag
 mismatch; release-relevant changes with an empty `[Unreleased]`; roadmap without
 `Now`, `Next`, `Later`, and `Done`; completed roadmap item without a commit or
-version; dirty/unhealthy release refusal. Use temporary real Git repositories
-and hand-derived expected results rather than grepping source text.
+version; dirty/unhealthy release refusal; and a secret/private-runtime blob
+present only in an intermediate commit. Use temporary real Git repositories and
+hand-derived expected results rather than grepping source text.
 
 - [ ] **Step 4: Establish the single version and planning sources**
 
@@ -329,17 +338,24 @@ routing, `/loop` adoption, and team distribution where still valid. Organize the
 ```text
 kingstack check --release-hygiene
 kingstack check --docs-hygiene
+kingstack check --history-hygiene BASE..HEAD
 kingstack release prepare MAJOR.MINOR.PATCH --dry-run
 kingstack release prepare MAJOR.MINOR.PATCH --apply
-kingstack release verify MAJOR.MINOR.PATCH
+kingstack release verify MAJOR.MINOR.PATCH --state prepared
+kingstack release verify MAJOR.MINOR.PATCH --state released
 ```
 
 Preparation requires a clean tree, non-empty unreleased entries, coherent
 roadmap, and a version greater than the latest SemVer tag. Dry-run before live
 activation uses `--health-mode staged`; apply at final acceptance requires
-`--health-mode live` and `kingstack check --all` green. It atomically updates
+`--health-mode live` and `kingstack check --all --mode live` green. It atomically updates
 `VERSION`, dates the changelog section, and prints the exact annotated-tag
 command; it does not push or publish.
+
+History hygiene walks every blob introduced by the explicit revision range and
+applies the same secret/private-runtime classifier as the final-tree scan. It
+reports commit and path without printing matched values and exits nonzero on
+any forbidden content.
 
 - [ ] **Step 6: Make maintenance a shared operating rule**
 
@@ -378,7 +394,7 @@ git commit -m "docs: make kingstack agent-neutral and release-governed"
 
 - [ ] **Step 1: Freeze the final source and canonical references**
 
-Require a clean canonical checkout, full suite, `kingstack check --all`, docs
+Require a clean canonical checkout, full suite, `kingstack check --all --mode staged`, docs
 and release hygiene, Git fsck, memory-source verification, and schedule
 semantic comparison. Guidance, release payloads, and schedule declarations must
 already name `~/Desktop/Work/kingstack`; no authored or generated adapter input
@@ -455,6 +471,7 @@ preserving an injected unrelated native key. Compare bytes, modes, symlink
 targets, schedules, and health with the pre-link inventory. Then re-activate the
 same release IDs and repeat fresh-session, representative-skill, memory-index,
 subagent-visibility, schedule, and `kingstack check --adapter` smoke tests.
+Require `kingstack check --all --mode live` after each activation.
 Historical snapshot/archive artifacts are neither required nor consulted.
 
 - [ ] **Step 7: Record evidence and commit**
@@ -580,24 +597,18 @@ git add docs/migration/final-no-loss-report.md docs/markdown-surfaces.json
 git commit -m "test: record final no-loss migration evidence"
 ```
 
-- [ ] **Step 5: Run final verification from a fresh shell**
+- [ ] **Step 5: Run pre-cleanup verification from a fresh shell**
 
 ```bash
 cd "$HOME/Desktop/Work/kingstack"
 PYTHONPATH=lib python3 -m unittest discover -s tests -v
-./scripts/kingstack check --all
+./scripts/kingstack check --all --mode live
 git fsck --full
 git status --short --branch
 git log --oneline --decorate -20
 ```
 
-- [ ] **Step 6: Have Hassan review the complete diff and reports**
-
-Present before/after architecture, every intentional transform, rollback IDs,
-behavior matrix, remaining exceptions, and exact commits pending push. Do not
-push on a generic earlier approval; this is the explicit final migration gate.
-
-- [ ] **Step 7: Remove plans, prepare the release, tag, and push after approval**
+- [ ] **Step 6: Remove plans and create the release commit without tagging or pushing**
 
 Remove these six files from the canonical checkout, remove their six entries
 from `docs/markdown-surfaces.json`, run docs hygiene, and commit the removal:
@@ -611,10 +622,20 @@ docs/superpowers/plans/2026-08-20-kingstack-codex-adapter-plan.md
 docs/superpowers/plans/2026-08-20-kingstack-cutover-plan.md
 ```
 
-On the resulting clean tree, read the reviewed target from
-`docs/migration/release-target.json`, apply release preparation, commit the
-version/changelog update, create the annotated tag, and then fast-forward the
-remote main branch and push the tag:
+```bash
+git add docs/markdown-surfaces.json \
+  docs/superpowers/plans/2026-08-20-agent-neutral-kingstack-migration.md \
+  docs/superpowers/plans/2026-08-20-kingstack-foundation-plan.md \
+  docs/superpowers/plans/2026-08-20-kingstack-core-claude-plan.md \
+  docs/superpowers/plans/2026-08-20-kingstack-shared-memory-plan.md \
+  docs/superpowers/plans/2026-08-20-kingstack-codex-adapter-plan.md \
+  docs/superpowers/plans/2026-08-20-kingstack-cutover-plan.md
+git commit -m "docs: remove completed migration plans"
+```
+
+On the resulting clean tree, read the target from
+`docs/migration/release-target.json`, apply release preparation, and commit the
+version/changelog update. Do not create the tag or push yet:
 
 ```bash
 ./scripts/kingstack check --docs-hygiene
@@ -622,6 +643,38 @@ ks_release=$(jq -er '.version' docs/migration/release-target.json)
 ./scripts/kingstack release prepare "$ks_release" --apply --health-mode live
 git add VERSION CHANGELOG.md
 git commit -m "chore: release v${ks_release}"
+```
+
+- [ ] **Step 7: Re-run final verification on the exact commits pending push**
+
+Run the full suite, live health, docs/release hygiene, Git fsck, introduced-blob
+security scan, clean-status check, and tag precondition. Record the exact HEAD
+and prove no `v${ks_release}` tag exists yet.
+
+```bash
+PYTHONPATH=lib python3 -m unittest discover -s tests -v
+./scripts/kingstack check --all --mode live
+./scripts/kingstack check --docs-hygiene
+./scripts/kingstack check --history-hygiene origin/main..HEAD
+git fsck --full
+test -z "$(git status --porcelain)"
+ks_release=$(jq -er '.version' docs/migration/release-target.json)
+! git rev-parse --verify "refs/tags/v${ks_release}"
+./scripts/kingstack release verify "$ks_release" --state prepared
+git rev-parse HEAD
+```
+
+- [ ] **Step 8: Have Hassan review the exact final commits and approve tag/push**
+
+Present before/after architecture, every intentional transform, rollback IDs,
+behavior matrix, remaining exceptions, the plan-removal and release commits,
+exact HEAD, intended annotated tag, and exact push commands. Do not tag or push
+on a generic earlier approval; this is the explicit final migration gate.
+
+- [ ] **Step 9: Create the annotated tag, fast-forward main, and push after approval**
+
+```bash
+ks_release=$(jq -er '.version' docs/migration/release-target.json)
 git tag -a "v${ks_release}" -m "kingstack v${ks_release}"
 git fetch origin main
 git merge-base --is-ancestor origin/main HEAD
@@ -630,10 +683,11 @@ git push origin "v${ks_release}"
 git fetch origin main
 test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
 test "$(git rev-parse HEAD)" = "$(git rev-list -n 1 "v${ks_release}")"
-./scripts/kingstack check --all
+./scripts/kingstack release verify "$ks_release" --state released
+./scripts/kingstack check --all --mode live
 ```
 
-- [ ] **Step 8: Remove the exact legacy plan paths after the successful push**
+- [ ] **Step 10: Remove the exact legacy plan paths after the successful push**
 
 Verify each of the six files exists in the pushed Git history, then delete
 exactly the six `/Users/mac/.claude/docs/superpowers/plans/...` paths Hassan
@@ -655,7 +709,7 @@ glob, ellipsis, or recursive command is permitted.
 /Users/mac/.claude/docs/superpowers/plans/2026-08-20-kingstack-cutover-plan.md
 ```
 
-- [ ] **Step 9: Keep rollback material**
+- [ ] **Step 11: Keep rollback material**
 
 Report the untouched historical snapshots/archives, dated manifest-owned
 originals, disabled Superpowers provider, and legacy checkout location. Ask separately

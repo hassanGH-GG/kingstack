@@ -46,13 +46,17 @@ cross-agent compatibility note.
 {
   "id": "codex",
   "contract_version": 1,
-  "guidance": "AGENTS.md",
-  "hooks": "hooks.json",
-  "skill_root": "skills",
-  "models": "models.json",
-  "native_memory": true
+  "render_module": "kingstack.adapters.codex",
+  "native_home": ".codex",
+  "owned_paths": "adapters/codex/owned-paths.json",
+  "model_tiers": "adapters/codex/models.json",
+  "capability_matrix": "adapters/codex/capabilities.json"
 }
 ```
+
+Guidance, hooks, managed skills, and native-memory support are declared inside
+the owned-path and capability documents; they are not extra top-level adapter
+keys.
 
 - [ ] **Step 3: Render and validate AGENTS.md**
 
