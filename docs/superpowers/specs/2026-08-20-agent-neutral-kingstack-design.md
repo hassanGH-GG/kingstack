@@ -144,6 +144,9 @@ Generated adapter releases are private runtime artifacts, not tracked source.
 Each release is immutable and named by its source hash. A per-agent `current`
 link selects the active verified release; publishing a new release changes that
 single link only after generation and validation finish.
+Every live hook and compatibility wrapper executes a payload through that
+adapter's `current` link. No live adapter command points into the mutable
+canonical checkout.
 
 ### Preservation boundary
 
@@ -363,8 +366,9 @@ surface:
 
 The current three launchd jobs remain active through migration. Equivalent
 Codex tasks are added only after duplicate-run prevention exists. Every schedule
-has an owner, cadence, timeout, model/effort policy, output path, last-run state,
-and idempotency key.
+has a stable execution surface (`local`, `adapter`, or `cloud`), an arbitrary
+contract-validated adapter ID when applicable, cadence, timeout, model/effort
+policy, output path, last-run state, and idempotency key.
 
 ## Installation ownership
 
@@ -375,7 +379,8 @@ capability matrix, and every native path kingstack owns. Installation follows:
 1. render a complete immutable release under the private adapter store
 2. validate syntax, schemas, capability declarations, and content hashes
 3. compare its ownership manifest against the live agent home
-4. refuse unknown, modified, mixed-ownership, or agent-native paths
+4. refuse unknown, modified, undeclared mixed-ownership, or agent-native paths;
+   declared owned-key config files use the validated regular-file merge surface
 5. atomically preserve each pre-existing kingstack-owned path by renaming it
    to a unique dated sibling recorded in the activation manifest
 6. install only the reviewed wrapper or symbolic link for that owned path
@@ -387,6 +392,14 @@ an entire `~/.claude`, `~/.codex`, or future agent home. Authentication,
 sessions, transcripts, databases, caches, plugins, MCP state, trusted-project
 state, notifications, and native automatic memory are outside kingstack
 ownership.
+
+Mixed-ownership config files are a separate owned-key surface. Kingstack never
+links an individual JSON/TOML key. Activation atomically renames the original
+regular file to its unique dated sibling, publishes a parser-validated merged
+regular file, and records the original, merged, owned-key, and unowned
+projections. Rollback applies the inverse owned-key patch to the current file so
+unrelated native changes made after activation survive; the dated whole-file
+original remains available for exact comparison and immediate failure recovery.
 
 The installer has per-adapter and `--all` modes plus `--dry-run`. It never
 removes an unknown file and never performs a general file-by-file restore into a
@@ -555,6 +568,9 @@ Kingstack uses Semantic Versioning for the public framework. A tracked `VERSION`
 file is the current release version and annotated Git tags use `vMAJOR.MINOR.PATCH`.
 The migration culminates in the first reviewed agent-neutral release rather than
 inventing a version before the capability set is proven.
+Final acceptance applies the reviewed version, commits the dated changelog,
+creates an annotated `vMAJOR.MINOR.PATCH` tag at that exact commit, and pushes
+both the fast-forwarded main branch and tag.
 
 `CHANGELOG.md` follows a Keep-a-Changelog shape with an `[Unreleased]` section.
 Every material change to behavior, configuration schema, hooks, adapters,
@@ -613,6 +629,9 @@ The design is complete when implementation proves all of the following:
 - Both adapters pass static and behavioral suites.
 - Versioned activation and manifest-owned rollback have been exercised
   successfully for both initial adapters without replacing either native home.
+- Fault injection after every owned-path/config publication step proves apply is
+  idempotent, collision-safe, durable, and rollback preserves unrelated native
+  config changes.
 - No production archive/restore command exists; pre-activation inventories and
   dated manifest-owned originals prove lossless, reversible activation.
 - No secrets or runtime state are tracked.

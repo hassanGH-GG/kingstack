@@ -44,7 +44,8 @@ cross-agent compatibility note.
 
 ```json
 {
-  "agent": "codex",
+  "id": "codex",
+  "contract_version": 1,
   "guidance": "AGENTS.md",
   "hooks": "hooks.json",
   "skill_root": "skills",
@@ -156,15 +157,16 @@ Use official Codex shapes for `SessionStart`, `Stop`, `PreCompact`,
 and each core response maps back to valid Codex hook JSON. Test `Stop` with
 `stop_hook_active=true` to prevent loops.
 
-- [ ] **Step 2: Define `hooks.json` with absolute neutral commands**
+- [ ] **Step 2: Define `hooks.json` with release-selected commands**
 
 Each event has one command handler invoking:
 
 ```text
-/usr/bin/python3 /Users/mac/Desktop/Work/kingstack/adapters/codex/hooks/run.py EVENT
+/usr/bin/python3 /Users/mac/.kingstack/adapters/codex/current/hooks/run.py EVENT
 ```
 
-The renderer substitutes the resolved canonical path at install time. Set short
+The path is stable while the `current` selector chooses an immutable release;
+no hook executes the mutable canonical checkout. Set short
 timeouts, bounded `additionalContextLimit`, no asynchronous behavior for memory
 or compaction, and no matcher on `Stop` because Codex ignores it.
 
@@ -282,6 +284,12 @@ dry-run; and byte-identical preservation plans for existing owned paths. Auth,
 session, plugin, MCP, notification, and native-memory sentinels remain outside
 the plan in every case.
 
+For the mixed `config.toml` surface, inject failure after original rename and
+merged-file publication; cover dated-sibling collision, occupied rollback
+destination, parent-symlink refusal, fsync ordering, idempotent second apply,
+and inverse rollback after adding an unrelated native key. The unrelated key
+must survive while owned keys return to their prior projection.
+
 - [ ] **Step 2: Implement immutable release generation**
 
 Expose these Python 3.9-compatible interfaces:
@@ -355,7 +363,9 @@ trust store.
 Using the isolated home, prove: global AGENTS instructions; king-mode/pstack activation; explicit
 subagent model and effort visibility; bulk warning; compaction checkpoint;
 shared candidate capture; cross-agent promotion; rejection suppression;
-scheduled-health compatibility; `kingstack check --adapter codex` green.
+scheduled-health compatibility; release verification green. The unified
+`kingstack check --adapter codex` command is implemented and exercised later in
+the cutover plan, so this phase must not claim it yet.
 
 Use disposable test project content and remove only that test content after its
 hashes are recorded. Do not manufacture success by calling hook scripts

@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Run from the isolated feature worktree and require its tracked state clean at each acceptance gate. Treat live `~/.claude` as the read-only baseline; `--allow-unpushed` is permitted only for the initial local clone after exact HEAD/origin evidence is recorded.
+- Run from the isolated feature worktree and require its tracked state clean at each acceptance gate. Clone that reviewed worktree HEAD—not legacy `~/.claude`—into the canonical checkout. Treat live `~/.claude` as the read-only behavioral baseline; `--allow-unpushed` is permitted only for this initial local clone after exact source HEAD/origin/divergence evidence is recorded.
 - Do not read or copy `~/.claude.json`, `~/.codex/auth.json`, keychains, browser state, or credential stores.
 - Private manifests are mode `0600`; tracked reports contain hashes and key names, never values.
 - The new checkout must retain the Git object history, branch, tags, and original remote URL.
@@ -207,8 +207,9 @@ Expected: failure naming the still-present archive module or command.
 Delete the snapshot/archive implementations and their implementation-specific
 tests. Remove their parser branches, imports, and handlers from `cli.py`. Do not
 delete, rename, chmod, verify, or enumerate contents inside
-`~/.kingstack/snapshots` or `~/.kingstack/archives`; only record the directory
-names before and after as preservation evidence.
+`~/.kingstack/snapshots` or `~/.kingstack/archives`. Listing only their
+top-level directory names before and after is expressly allowed as preservation
+evidence.
 
 - [ ] **Step 4: Prove absence and historical preservation**
 
@@ -251,7 +252,8 @@ git commit -m "refactor: remove custom filesystem backup engines"
 Create a temporary source Git repo with a tag, branch, and fake origin. Assert:
 
 ```python
-self.assertRaises(BootstrapError, bootstrap, dirty_source, destination)
+self.assertRaises(BootstrapError, bootstrap, dirty_source, destination,
+                  runtime, [claude_home, codex_home])
 self.assertEqual(run_git(dest, "rev-parse", "HEAD"), run_git(src, "rev-parse", "HEAD"))
 self.assertEqual(run_git(dest, "remote", "get-url", "origin"), original_origin)
 self.assertIn("v-test", run_git(dest, "tag"))
@@ -264,11 +266,14 @@ Run: `PYTHONPATH=lib python3 -m unittest tests.test_bootstrap -v`
 - [ ] **Step 3: Implement clone-safe bootstrap**
 
 The module exposes
-`bootstrap(source, destination, runtime, allow_unpushed=False)` and returns the
-same dictionary written to the private bootstrap manifest.
+`bootstrap(source_repo, destination, runtime, baseline_homes,
+allow_unpushed=False)` and returns the same dictionary written to the private
+bootstrap manifest.
 
-Algorithm: verify destination absent; verify source worktree clean; record HEAD,
-branch, tags, origin, and upstream divergence; run `git clone --no-hardlinks`;
+Algorithm: verify destination absent; verify the reviewed feature worktree is
+clean; record its HEAD, branch, tags, origin, and upstream divergence; record
+but do not use the legacy live repo HEAD as clone source; run
+`git clone --no-hardlinks` from the reviewed feature worktree;
 restore the recorded origin because a local clone otherwise points at the source
 path; fetch tags; compare HEAD and `git fsck`; create `~/.kingstack` directories
 with `0700`; write the baseline into the private manifest directory; create a
@@ -279,43 +284,50 @@ it contains no home path or secret value.
 
 Run: `PYTHONPATH=lib python3 -m unittest tests.test_bootstrap -v`
 
-- [ ] **Step 5: Run the real dry-run**
+- [ ] **Step 5: Commit the bootstrap implementation in the reviewed source worktree**
 
 ```bash
-./scripts/kingstack bootstrap --source "$HOME/.claude" --dry-run
+git add core adapters lib/kingstack/bootstrap.py lib/kingstack/cli.py tests/test_bootstrap.py
+git commit -m "feat: bootstrap neutral kingstack without live mutation"
+```
+
+The canonical clone must include this commit. Do not create or commit new source
+files only after cloning.
+
+- [ ] **Step 6: Run the real dry-run**
+
+```bash
+./scripts/kingstack bootstrap --source-repo "$(git rev-parse --show-toplevel)" --baseline-home "$HOME/.claude" --baseline-home "$HOME/.codex" --allow-unpushed --dry-run
 ```
 
 Expected: it names the target checkout, HEAD, origin, and every
 would-write path; it reports zero writes.
 
-- [ ] **Step 6: Apply locally and prove the old setup is untouched**
+- [ ] **Step 7: Apply locally and prove the old setup is untouched**
 
 Capture hashes of `~/.claude/CLAUDE.md`, `settings.json`, memory indexes, and
 `~/.codex/config.toml`; run:
 
 ```bash
-./scripts/kingstack bootstrap --source "$HOME/.claude" --allow-unpushed
+./scripts/kingstack bootstrap --source-repo "$(git rev-parse --show-toplevel)" --baseline-home "$HOME/.claude" --baseline-home "$HOME/.codex" --allow-unpushed
 ```
 
-Then compare the captured hashes, run `git fsck` in both repos, compare HEAD,
-tags, and origin, and run the current `~/.claude/scripts/check-setup.sh`.
+Then compare the captured hashes, run `git fsck` in the source worktree repo,
+canonical clone, and legacy live repo; compare the source-worktree and clone
+HEAD/tags/origin; record the intentionally different legacy live HEAD; and run
+the current `~/.claude/scripts/check-setup.sh`.
 
-Expected: old hashes unchanged, both Git checks clean, neutral checkout at the
-same HEAD, current setup still `SETUP HEALTHY`.
-
-- [ ] **Step 7: Commit in the neutral checkout**
-
-```bash
-cd "$HOME/Desktop/Work/kingstack"
-git add core adapters docs/baselines lib/kingstack/bootstrap.py lib/kingstack/cli.py tests/test_bootstrap.py
-git commit -m "feat: bootstrap neutral kingstack without live mutation"
-```
+Expected: old hashes unchanged, all Git checks clean, neutral checkout at the
+same reviewed feature HEAD with the same tags/origin, current setup still
+`SETUP HEALTHY`, and the canonical working tree contains only the expected new
+redacted baseline report.
 
 ### Task 5: Foundation phase acceptance gate
 
 **Files:**
 
 - Create: `docs/migration/foundation-verification.md`
+- Create: `docs/baselines/claude-codex-baseline.json`
 
 - [ ] **Step 1: Run the complete foundation suite**
 
@@ -338,7 +350,7 @@ and the Claude health output. It explicitly states that no live path changed.
 - [ ] **Step 3: Commit; do not push yet**
 
 ```bash
-git add docs/migration/foundation-verification.md
+git add docs/migration/foundation-verification.md docs/baselines/claude-codex-baseline.json
 git commit -m "test: verify neutral foundation without data loss"
 ```
 

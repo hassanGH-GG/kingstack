@@ -34,9 +34,11 @@
 - [ ] **Step 1: Write failing project-identity tests**
 
 Cover a normal Git checkout, worktree, symlinked path, non-Git directory, and
-two paths with the same basename. The stable identity is the normalized remote
-URL plus repository root when Git exists; otherwise the resolved absolute path
-hash. Human labels are metadata, never identity.
+two paths with the same basename. With a remote, the stable identity is the
+normalized remote URL; without a remote, it is the Git common-directory
+identity so a main checkout and its worktrees match. Only non-Git directories
+fall back to a resolved absolute-path hash. Checkout roots and human labels are
+metadata, never identity.
 
 ```python
 self.assertEqual(project_id(main), project_id(worktree))
@@ -188,8 +190,9 @@ kingstack memory verify-migration
 The mapper reads each `~/.claude/projects/*/memory` directory, derives the
 project identity, copies files with `copy2` to a temporary bank, writes a
 manifest containing original relative path/hash/mode/mtime/provenance, verifies
-all bytes, then atomically renames the bank into place. It never follows links
-or edits the source.
+all bytes, caps destination directories to `0700` and files to `0600` after
+recording original modes, then atomically renames the bank into place. It never
+follows links or edits the source.
 
 - [ ] **Step 3: Prove the dry-run against the real seven-bank baseline**
 

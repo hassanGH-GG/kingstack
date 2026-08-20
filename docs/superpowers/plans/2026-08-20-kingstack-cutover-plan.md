@@ -36,10 +36,12 @@
 
 - [ ] **Step 1: Write failing schedule-schema and collision tests**
 
-Each schedule requires: stable ID, owner (`launchd`, `codex`, or `cloud`),
-cadence, command/task template, timeout, model tier/effort when applicable,
-output path, idempotency key, and enabled state. Assert two enabled owners for
-one stable ID fail. Assert no-model launchd work cannot declare a model.
+Each schedule requires: stable ID, execution surface (`local`, `adapter`, or
+`cloud`), optional arbitrary contract-validated `adapter_id`, cadence,
+command/task template, timeout, model tier/effort when applicable, output path,
+idempotency key, and enabled state. Assert two enabled executors for one stable
+ID fail. Assert no-model local work cannot declare a model and an adapter
+surface cannot omit `adapter_id`.
 
 - [ ] **Step 2: Encode the current three launchd jobs exactly**
 
@@ -90,21 +92,52 @@ publication, no-write activation planning, and dated-original rollback plans.
 Assert the plan preserves symlink targets and modes exactly and never names
 memory/auth/session/plugin sentinels.
 
+Exercise the apply transaction in temporary real homes. Inject failure after
+each owned-path rename, wrapper/link publication, merged-config publication,
+and `current` switch; every failure must leave either the untouched pre-state or
+a manifest-complete rollback state. Cover dated-sibling collision, occupied
+rollback destination, parent-symlink refusal, fsync ordering, idempotent second
+activation, and rollback after an unrelated unowned config key changes.
+
 - [ ] **Step 2: Define Claude ownership narrowly**
 
-Owned paths are generated `CLAUDE.md`, kingstack hook registrations, adapter
-wrappers, managed skills/agents, and schedule wrappers. Existing settings keys,
-plugins, native profile state, and unknown files remain unowned. The release
-manifest maps each owned path to a release-relative target and exact dated
-original location. The JSON merger adds or replaces only kingstack hook entries
-and approved defaults; it does not rewrite unrelated keys.
+Owned paths are generated `CLAUDE.md`, adapter wrappers, managed skills/agents,
+and schedule wrappers. Existing plugins, native profile state, and unknown files
+remain unowned. The release manifest maps each fully owned path to a
+release-relative target and exact unique dated sibling.
+
+`settings.json` and Codex `config.toml` are mixed-ownership regular files, not
+linkable owned paths. Their transaction is explicit: parse and hash the original,
+atomically rename it to the dated sibling, publish a validated merged regular
+file with its original mode capped to user-only, fsync file and parent, then
+record original/merged hashes plus the owned-key patch. On rollback, require the
+current owned projection to match the active release and apply the inverse patch
+to the current file so unrelated keys added after activation survive. The dated
+whole-file original remains evidence; immediate failure before commit renames it
+back byte-for-byte.
+
+The shared Python 3.9 activation interfaces are:
+
+```python
+def plan_activation(adapter: AdapterDeclaration, release: ReleaseManifest,
+                    native_home: Path, activation_id: str) -> ActivationPlan: ...
+def apply_activation(plan: ActivationPlan,
+                     fail_after: Optional[str] = None) -> ActivationManifest: ...
+def rollback_activation(manifest: ActivationManifest,
+                        fail_after: Optional[str] = None) -> RollbackResult: ...
+```
+
+`fail_after` is test-only fault injection and is never exposed by the production
+CLI.
 
 - [ ] **Step 3: Make old commands resolve the neutral checkout**
 
-Compatibility wrappers in the staged release exec the neutral
-`scripts/kingstack` or canonical scripts. They contain no business logic.
-`claude-check` becomes `kingstack check --adapter claude` while retaining the
-old command name and exit behavior. No wrapper is linked during this task.
+Compatibility wrappers and hook commands resolve only through
+`~/.kingstack/adapters/claude/current`, never through the mutable canonical
+checkout. The release contains the exact rendered hooks plus the versioned CLI
+and helper payload they execute. `claude-check` invokes the release-relative
+`kingstack check --adapter claude` while retaining the old command name and exit
+behavior. No wrapper is linked during this task.
 
 - [ ] **Step 4: Run focused install tests**
 
@@ -131,81 +164,7 @@ git add adapters/claude/owned-paths.json adapters/claude/bin lib/kingstack/relea
 git commit -m "feat: stage versioned Claude adapter releases"
 ```
 
-### Task 3: Brief, activate, prove, roll back, and re-activate both initial adapters
-
-**Files:**
-
-- Create: `docs/migration/pre-link-briefing.md`
-- Create: `docs/migration/claude-live-verification.md`
-- Create: `docs/migration/codex-live-verification.md`
-
-- [ ] **Step 1: Generate the mandatory pre-link briefing and stop**
-
-The briefing records the canonical clone HEAD/origin/history proof; Claude and
-Codex release IDs; capability matrices
-and every non-native gap; shared-memory parity; pstack revision; all proposed
-owned paths, existing types/hashes/modes, dated-original locations, and link
-targets; unchanged native-state categories; hook hashes requiring trust;
-schedule changes; exact activation commands; exact rollback commands; and
-residual risks. Run both activation commands with `--dry-run` and attach their
-machine-readable plans.
-
-Stop and ask Hassan for explicit approval. A previous design or migration
-approval is insufficient. Do not proceed to Step 2 until he approves this exact
-briefing.
-
-- [ ] **Step 2: Recheck live identities and activate the approved releases**
-
-```bash
-./scripts/kingstack activate --adapter claude --release "$ks_claude_release" --all-profiles --apply --approved-briefing docs/migration/pre-link-briefing.md
-./scripts/kingstack activate --adapter codex --release "$ks_codex_release" --apply --approved-briefing docs/migration/pre-link-briefing.md
-```
-
-Immediately re-run the live precondition hashes captured by each activation
-plan. Abort before a write on any mismatch. Hold the per-home activation lock,
-open the verified native parent directory without following symlinks, atomically
-rename each owned original to its unique dated sibling in that same directory,
-then install the stable wrapper/link descriptor-relatively. Never copy or delete
-the original and never link an entire agent home.
-
-- [ ] **Step 3: Start fresh Claude work/personal and Codex CLI/desktop sessions**
-
-For each surface prove: global instructions; pstack default process layer;
-king-mode personal layer; shared project memory index; model/effort visibility;
-bulk warning; PreCompact checkpoint; Stop candidate capture; all baseline skill
-names or recorded package-equivalent providers; current commands; and native
-authentication still works. Review and trust only the exact approved Codex hook
-hashes. Use harmless fixtures, not production repos or databases.
-
-- [ ] **Step 4: Prove the three real launchd jobs from their installed definitions**
-
-Kickstart each job with launchctl, verify its exact installed argv resolves the
-neutral checkout, validate output/ledger changes, and confirm duplicate-run
-prevention. Do not rely on running scripts directly.
-
-- [ ] **Step 5: Exercise manifest-owned rollback for both adapters**
-
-Apply rollback using each activation manifest. Compare every restored hash,
-symlink target, mode, schedule definition, and agent health with the dated
-originals and pre-link inventory. Start all four surfaces; run the old
-`claude-check` and the pre-existing Codex health/config commands to prove the
-previous setups still operate. Historical snapshot/archive artifacts are
-neither required nor consulted.
-
-- [ ] **Step 6: Re-activate the same immutable releases and rerun the smoke suite**
-
-Re-activate from the same release IDs after rechecking original/live hashes.
-Repeat fresh start, memory index, one representative skill, one subagent
-visibility event, and `kingstack check --adapter` for Claude and Codex.
-
-- [ ] **Step 7: Record exact evidence and commit**
-
-```bash
-git add docs/migration/pre-link-briefing.md docs/migration/claude-live-verification.md docs/migration/codex-live-verification.md
-git commit -m "test: prove versioned adapters and live rollback"
-```
-
-### Task 4: Implement one cross-agent health command
+### Task 3: Implement one cross-agent health command
 
 **Files:**
 
@@ -261,7 +220,7 @@ git add lib/kingstack/checks.py lib/kingstack/cli.py tests/test_checks.py README
 git commit -m "feat: verify the whole kingstack from one command"
 ```
 
-### Task 5: Rewrite Markdown surfaces and add version, changelog, and roadmap governance
+### Task 4: Rewrite Markdown surfaces and add version, changelog, and roadmap governance
 
 **Files:**
 
@@ -269,14 +228,16 @@ git commit -m "feat: verify the whole kingstack from one command"
 - Create: `CHANGELOG.md`
 - Move: `docs/BACKLOG.md` -> `docs/ROADMAP.md`
 - Create: `docs/markdown-surfaces.json`
+- Create: `docs/migration/release-target.json`
+- Create: `docs/migration/legacy-claude-checkout.md`
 - Create: `docs/migration/markdown-rewrite-report.md`
 - Modify: `README.md`
 - Modify: `CLAUDE.md`
 - Modify: `model-routing.md`
 - Modify: `pstack-models.md`
 - Modify: `hooks/poteto-mode-context.md`
-- Modify: `skills/king-mode/SKILL.md`
-- Modify: `skills/memory-review/SKILL.md`
+- Modify: `core/skills/authored/king-mode/SKILL.md`
+- Modify: `core/skills/authored/memory-review/SKILL.md`
 - Modify: `sweeps/README.md`
 - Modify: `sweeps/_template.md`
 - Modify: `sweeps/kingstack-health.md`
@@ -323,6 +284,11 @@ commands and `adapter_id`; they do not assume Claude is the parent harness.
 `docs/token-projection-2026-08.md` receives a historical-measurement banner and
 keeps its original numbers unchanged.
 
+`docs/migration/legacy-claude-checkout.md` records `~/.claude` as the live
+Claude home and legacy Git checkout, its HEAD/origin, why `.git` and native data
+remain, and the warning that new framework commits there indicate ownership
+drift after cutover.
+
 Move the failed foundation transaction evidence needed for engineering history
 into a redacted section of `docs/migration/markdown-rewrite-report.md`, then
 remove the tracked SDD task report because it contains absolute machine paths,
@@ -345,7 +311,10 @@ and hand-derived expected results rather than grepping source text.
 - [ ] **Step 4: Establish the single version and planning sources**
 
 Choose the initial version from repository history and the proven migration
-scope; do not invent it before reviewing existing tags. Create a
+scope; do not invent it before reviewing existing tags. Write the chosen next
+version plus its evidence into `docs/migration/release-target.json`. `VERSION`
+records the last released version (or `0.0.0` when no SemVer tag exists) until
+final release preparation. Create a
 Keep-a-Changelog document with `[Unreleased]`, and use `git mv` to preserve the
 history of `docs/BACKLOG.md` as `docs/ROADMAP.md`. Rewrite it for the
 agent-neutral architecture: audit every old item, preserve and clarify valid
@@ -365,10 +334,12 @@ kingstack release prepare MAJOR.MINOR.PATCH --apply
 kingstack release verify MAJOR.MINOR.PATCH
 ```
 
-Preparation requires a clean tree, `kingstack check --all` green, non-empty
-unreleased entries, coherent roadmap, and a version greater than the latest
-SemVer tag. It atomically updates `VERSION`, dates the changelog section, and
-prints the exact annotated-tag command; it does not push or publish.
+Preparation requires a clean tree, non-empty unreleased entries, coherent
+roadmap, and a version greater than the latest SemVer tag. Dry-run before live
+activation uses `--health-mode staged`; apply at final acceptance requires
+`--health-mode live` and `kingstack check --all` green. It atomically updates
+`VERSION`, dates the changelog section, and prints the exact annotated-tag
+command; it does not push or publish.
 
 - [ ] **Step 6: Make maintenance a shared operating rule**
 
@@ -386,14 +357,111 @@ PYTHONPATH=lib python3 -m unittest tests.test_release -v
 PYTHONPATH=lib python3 -m unittest tests.test_docs_hygiene -v
 ./scripts/kingstack check --docs-hygiene
 ./scripts/kingstack check --release-hygiene
-./scripts/kingstack release prepare "$(cat VERSION)" --dry-run
+./scripts/kingstack release prepare "$(jq -er '.version' docs/migration/release-target.json)" --dry-run --health-mode staged
 ```
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add VERSION CHANGELOG.md README.md CLAUDE.md model-routing.md pstack-models.md hooks/poteto-mode-context.md skills/king-mode/SKILL.md skills/memory-review/SKILL.md sweeps/README.md sweeps/_template.md sweeps/kingstack-health.md sweeps/usage-watch.md docs/token-projection-2026-08.md docs/ROADMAP.md docs/markdown-surfaces.json docs/migration/markdown-rewrite-report.md .superpowers/sdd/2026-08-20-kingstack-foundation-plan/task-3-report.md lib/kingstack/release.py lib/kingstack/docs_hygiene.py lib/kingstack/checks.py lib/kingstack/cli.py core/instructions/70-stack-iteration.md tests/test_release.py tests/test_docs_hygiene.py
+git add VERSION CHANGELOG.md README.md CLAUDE.md model-routing.md pstack-models.md hooks/poteto-mode-context.md core/skills/authored/king-mode/SKILL.md core/skills/authored/memory-review/SKILL.md sweeps/README.md sweeps/_template.md sweeps/kingstack-health.md sweeps/usage-watch.md docs/token-projection-2026-08.md docs/ROADMAP.md docs/markdown-surfaces.json docs/migration/release-target.json docs/migration/legacy-claude-checkout.md docs/migration/markdown-rewrite-report.md .superpowers/sdd/2026-08-20-kingstack-foundation-plan/task-3-report.md lib/kingstack/release.py lib/kingstack/docs_hygiene.py lib/kingstack/checks.py lib/kingstack/cli.py core/instructions/70-stack-iteration.md tests/test_release.py tests/test_docs_hygiene.py
 git commit -m "docs: make kingstack agent-neutral and release-governed"
+```
+
+### Task 5: Build final releases, brief, activate, roll back, and re-activate
+
+**Files:**
+
+- Create: `docs/migration/pre-link-briefing.md`
+- Create: `docs/migration/claude-live-verification.md`
+- Create: `docs/migration/codex-live-verification.md`
+- Modify: `docs/markdown-surfaces.json`
+
+- [ ] **Step 1: Freeze the final source and canonical references**
+
+Require a clean canonical checkout, full suite, `kingstack check --all`, docs
+and release hygiene, Git fsck, memory-source verification, and schedule
+semantic comparison. Guidance, release payloads, and schedule declarations must
+already name `~/Desktop/Work/kingstack`; no authored or generated adapter input
+changes after this step without rebuilding releases and repeating this task.
+
+Verify the already committed legacy-checkout document records `~/.claude` as
+the live Claude home, its HEAD/origin, why `.git` and all native data remain,
+and the health warning for future kingstack commits made there.
+
+- [ ] **Step 2: Build and verify the final immutable releases**
+
+```bash
+./scripts/kingstack render --adapter claude --output .staging/claude
+./scripts/kingstack render --adapter codex --output .staging/codex
+ks_claude_release=$(./scripts/kingstack release build --adapter claude --staged .staging/claude --print-id)
+ks_codex_release=$(./scripts/kingstack release build --adapter codex --staged .staging/codex --print-id)
+./scripts/kingstack release verify --adapter claude --release "$ks_claude_release"
+./scripts/kingstack release verify --adapter codex --release "$ks_codex_release"
+```
+
+The release source hash covers ordered core fragments, adapter declaration,
+renderer/generator version, and bundled runtime payload—not unrelated migration
+reports. Inspect every rendered hook and wrapper. Each must resolve through its adapter's
+private `current` selector and execute only files contained in the named release;
+no live command may execute a mutable canonical-checkout file.
+
+- [ ] **Step 3: Generate the mandatory pre-link briefing and stop**
+
+Record clone HEAD/origin/history proof; release IDs and complete file hashes;
+capability matrices and every gap; shared-memory parity; pstack revision; every
+owned path and mixed-ownership config key; live types/hashes/modes; unique dated
+siblings; link/regular-file targets; unchanged native-state categories; exact
+hook hashes requiring trust; schedule changes; machine-readable dry-run plans;
+fault-injection results; exact activation/rollback commands; and residual risks.
+
+Stop and ask Hassan for explicit approval. Earlier architecture or migration
+approval is insufficient. Add the briefing classification to the Markdown
+manifest, commit both files, verify the tree clean and release input hashes
+unchanged, then stop. Do not continue until he approves this exact brief.
+
+```bash
+git add docs/migration/pre-link-briefing.md docs/markdown-surfaces.json
+git commit -m "docs: record exact pre-link activation briefing"
+```
+
+- [ ] **Step 4: Recheck live identities and activate the approved releases**
+
+Immediately re-run every plan precondition. Under the per-home activation lock,
+use no-follow parent descriptors to rename each fully owned original to its
+unique dated sibling and publish its wrapper/link. For mixed JSON/TOML, rename
+the original, publish and fsync the validated merged regular file, and persist
+the inverse owned-key patch. Abort and reverse completed steps on any mismatch.
+
+```bash
+./scripts/kingstack activate --adapter claude --release "$ks_claude_release" --all-profiles --apply --approved-briefing docs/migration/pre-link-briefing.md
+./scripts/kingstack activate --adapter codex --release "$ks_codex_release" --apply --approved-briefing docs/migration/pre-link-briefing.md
+```
+
+- [ ] **Step 5: Prove fresh agent surfaces and installed schedules**
+
+Start Claude work/personal and Codex CLI/desktop fresh. Prove instructions,
+pstack, king-mode, shared index, model/effort visibility, bulk warning,
+compaction checkpoint, candidate capture, provider-equivalent skill names,
+release-relative commands, adapter health, and unchanged native authentication.
+Trust only the approved Codex hook hashes. Install the path-only schedule update,
+kickstart all three launchd jobs from their installed definitions, and verify
+neutral argv plus duplicate-run prevention.
+
+- [ ] **Step 6: Roll back and re-activate the exact releases**
+
+Rollback both activation manifests. Fully owned paths must reverse-rename their
+dated originals; mixed configs must inverse-patch only owned keys while
+preserving an injected unrelated native key. Compare bytes, modes, symlink
+targets, schedules, and health with the pre-link inventory. Then re-activate the
+same release IDs and repeat fresh-session, representative-skill, memory-index,
+subagent-visibility, schedule, and `kingstack check --adapter` smoke tests.
+Historical snapshot/archive artifacts are neither required nor consulted.
+
+- [ ] **Step 7: Record evidence and commit**
+
+```bash
+git add docs/migration/claude-live-verification.md docs/migration/codex-live-verification.md docs/markdown-surfaces.json
+git commit -m "test: prove final adapters and reversible live activation"
 ```
 
 ### Task 6: Run the cross-agent behavioral acceptance matrix
@@ -403,6 +471,7 @@ git commit -m "docs: make kingstack agent-neutral and release-governed"
 - Create: `tests/behavior/run_matrix.py`
 - Create: `tests/behavior/cases.json`
 - Create: `docs/migration/cross-agent-acceptance.md`
+- Modify: `docs/markdown-surfaces.json`
 
 - [ ] **Step 1: Encode the ten acceptance behaviors from the spec**
 
@@ -441,57 +510,16 @@ cutover unless Hassan explicitly accepts the exception.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add tests/behavior docs/migration/cross-agent-acceptance.md
+git add tests/behavior docs/migration/cross-agent-acceptance.md docs/markdown-surfaces.json
 git commit -m "test: verify kingstack behavior across Claude and Codex"
 ```
 
-### Task 7: Switch operational references to the neutral checkout
-
-**Files:**
-
-- Modify: `README.md`
-- Modify: `core/instructions/70-stack-iteration.md`
-- Modify: `core/schedules/schedules.json`
-- Create: `docs/migration/legacy-claude-checkout.md`
-
-- [ ] **Step 1: Verify all acceptance rows and clean state before switching**
-
-Run `kingstack check --all`, the entire test suite, both native health commands,
-Git fsck, original-memory verification, and schedule last-run checks. Abort on
-any failure.
-
-- [ ] **Step 2: Update canonical path references**
-
-Guidance now says stack work starts with:
-
-```bash
-cd ~/Desktop/Work/kingstack && claude
-cd ~/Desktop/Work/kingstack && codex
-```
-
-Re-render/reinstall both adapters so the same source names the neutral repo.
-Update launchd definitions only after their semantic diff shows path-only
-changes, then kickstart and verify all three again.
-
-- [ ] **Step 3: Mark, but do not dismantle, the legacy checkout**
-
-Document `~/.claude` as the live Claude home and legacy Git rollback checkout.
-Record its HEAD, origin, and why `.git` remains. Do not move
-or delete `.git`, tracked files, or original memory. Add a health warning if new
-kingstack commits are made there after cutover.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add README.md core/instructions/70-stack-iteration.md core/schedules/schedules.json docs/migration/legacy-claude-checkout.md
-git commit -m "docs: make neutral kingstack the canonical control plane"
-```
-
-### Task 8: Final no-loss audit, review, and push gate
+### Task 7: Final no-loss audit, release, review, and push gate
 
 **Files:**
 
 - Create: `docs/migration/final-no-loss-report.md`
+- Modify: `docs/markdown-surfaces.json`
 
 - [ ] **Step 1: Compare every baseline invariant**
 
@@ -515,28 +543,44 @@ shaped secrets, raw memory bodies, transcript extensions, ledgers, absolute
 private runtime paths, caches, backups, and generated adapters. Review every
 match; variable names alone are not secrets.
 
+Repeat the secret/runtime scan across every blob introduced by
+`origin/main..HEAD`, not only the final tree. Any credential or private runtime
+content in an intermediate commit blocks push. Do not rewrite history
+automatically; surface the exact offending commit in Hassan's final review and
+obtain separate approval for any Git-native sanitation.
+
 - [ ] **Step 3: Disable the Superpowers provider only after replacement parity is independently proven**
 
 Run the capability/provider report and require every overlapping Superpowers
 skill used by this migration to have a verified kingstack or pstack provider.
-Record `codex plugin list --json` and the exact discovered Superpowers source.
-Because current Codex may expose Superpowers as a cache-only curated package
-rather than an installed plugin, disable by provider type:
-
-- installed plugin: first atomically move its exact source and manifest into
-  the private disabled-provider directory, then
-  run the official `codex plugin remove PLUGIN@MARKETPLACE --json`
-- cache-only package: atomically rename only the exact version directory into
-  `~/.kingstack/disabled/superpowers/<version>-<content-hash>`; do not recursively
-  remove the marketplace or unrelated cache
+Record `codex plugin list --json` and the exact discovered Superpowers sources.
+The verified baseline is cache-only. If Superpowers has become an installed
+plugin, stop and re-plan against the official removal/reinstall contract; do not
+mix registry mutation with cache moves. For the expected cache-only state,
+enumerate every exact version directory, hash it, reject symlinks or unexpected
+types, and atomically rename each directory into
+`~/.kingstack/disabled/superpowers/<version>-<content-hash>`. Never glob-delete,
+remove the marketplace, or touch unrelated cache entries.
 
 Start a fresh Codex session and prove no `superpowers:*` skill is advertised,
 the required capability-name set is unchanged through kingstack/pstack, and all
-behavioral tests remain green. If Codex rehydrates the package or any capability
-is missing, atomically rename the disabled provider back immediately and block
-acceptance. The private disabled provider remains recoverable after success.
+behavioral tests remain green. If Codex rehydrates a package or any capability
+is missing, atomically rename every disabled version back to its recorded exact
+path and block acceptance. The disabled provider directories remain recoverable
+after success.
 
-- [ ] **Step 4: Run final verification from a fresh shell**
+- [ ] **Step 4: Finalize and commit the no-loss report**
+
+Add the exact Superpowers before/after provider list, behavioral parity output,
+disabled paths/hashes, reverse commands, historical artifact names, dated
+originals, and all invariant results. Then commit the report explicitly:
+
+```bash
+git add docs/migration/final-no-loss-report.md docs/markdown-surfaces.json
+git commit -m "test: record final no-loss migration evidence"
+```
+
+- [ ] **Step 5: Run final verification from a fresh shell**
 
 ```bash
 cd "$HOME/Desktop/Work/kingstack"
@@ -547,15 +591,16 @@ git status --short --branch
 git log --oneline --decorate -20
 ```
 
-- [ ] **Step 5: Have Hassan review the complete diff and reports**
+- [ ] **Step 6: Have Hassan review the complete diff and reports**
 
 Present before/after architecture, every intentional transform, rollback IDs,
 behavior matrix, remaining exceptions, and exact commits pending push. Do not
 push on a generic earlier approval; this is the explicit final migration gate.
 
-- [ ] **Step 6: Remove the completed implementation plans, then push after approval**
+- [ ] **Step 7: Remove plans, prepare the release, tag, and push after approval**
 
-Remove these six files from the canonical checkout and commit the removal:
+Remove these six files from the canonical checkout, remove their six entries
+from `docs/markdown-surfaces.json`, run docs hygiene, and commit the removal:
 
 ```text
 docs/superpowers/plans/2026-08-20-agent-neutral-kingstack-migration.md
@@ -566,16 +611,29 @@ docs/superpowers/plans/2026-08-20-kingstack-codex-adapter-plan.md
 docs/superpowers/plans/2026-08-20-kingstack-cutover-plan.md
 ```
 
-Then push and verify:
+On the resulting clean tree, read the reviewed target from
+`docs/migration/release-target.json`, apply release preparation, commit the
+version/changelog update, create the annotated tag, and then fast-forward the
+remote main branch and push the tag:
 
 ```bash
-git push origin main
+./scripts/kingstack check --docs-hygiene
+ks_release=$(jq -er '.version' docs/migration/release-target.json)
+./scripts/kingstack release prepare "$ks_release" --apply --health-mode live
+git add VERSION CHANGELOG.md
+git commit -m "chore: release v${ks_release}"
+git tag -a "v${ks_release}" -m "kingstack v${ks_release}"
+git fetch origin main
+git merge-base --is-ancestor origin/main HEAD
+git push origin HEAD:main
+git push origin "v${ks_release}"
 git fetch origin main
 test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+test "$(git rev-parse HEAD)" = "$(git rev-list -n 1 "v${ks_release}")"
 ./scripts/kingstack check --all
 ```
 
-- [ ] **Step 7: Remove the exact legacy plan paths after the successful push**
+- [ ] **Step 8: Remove the exact legacy plan paths after the successful push**
 
 Verify each of the six files exists in the pushed Git history, then delete
 exactly the six `/Users/mac/.claude/docs/superpowers/plans/...` paths Hassan
@@ -583,7 +641,21 @@ listed. Do not recurse into the plans directory and do not remove the approved
 design spec. Verify each target is absent. The content remains recoverable from
 the canonical and legacy Git histories; no new private archive is created.
 
-- [ ] **Step 8: Keep rollback material**
+Resolve and validate each exact absolute path as a regular, non-symlink file;
+record its hash; prove its repository-relative content exists in the pushed
+tag; then delete it with six explicit `apply_patch` file deletions. No loop,
+glob, ellipsis, or recursive command is permitted.
+
+```text
+/Users/mac/.claude/docs/superpowers/plans/2026-08-20-agent-neutral-kingstack-migration.md
+/Users/mac/.claude/docs/superpowers/plans/2026-08-20-kingstack-foundation-plan.md
+/Users/mac/.claude/docs/superpowers/plans/2026-08-20-kingstack-core-claude-plan.md
+/Users/mac/.claude/docs/superpowers/plans/2026-08-20-kingstack-shared-memory-plan.md
+/Users/mac/.claude/docs/superpowers/plans/2026-08-20-kingstack-codex-adapter-plan.md
+/Users/mac/.claude/docs/superpowers/plans/2026-08-20-kingstack-cutover-plan.md
+```
+
+- [ ] **Step 9: Keep rollback material**
 
 Report the untouched historical snapshots/archives, dated manifest-owned
 originals, disabled Superpowers provider, and legacy checkout location. Ask separately
