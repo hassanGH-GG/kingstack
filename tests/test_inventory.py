@@ -1,10 +1,12 @@
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 from unittest import TestCase
+from unittest.mock import patch
 
 from kingstack.paths import Paths
 
@@ -163,6 +165,25 @@ class InventoryTest(TestCase):
             write_public_report(baseline, linked_file)
         self.assertEqual(
             external_file.read_text(encoding="utf-8"), "symlink-target-sentinel\n",
+        )
+
+    def test_committed_atomic_write_survives_temp_unlink_error_after_cleanup(self):
+        from kingstack.inventory import atomic_write_no_clobber
+
+        destination = self.tempdir / "committed.json"
+        original_unlink = os.unlink
+
+        def unlink_then_raise(path, **keywords):
+            original_unlink(path, **keywords)
+            raise OSError("injected unlink error after successful cleanup")
+
+        with patch("kingstack.inventory.os.unlink", side_effect=unlink_then_raise):
+            atomic_write_no_clobber(destination, b"committed\n", mode=0o600)
+
+        self.assertEqual(destination.read_bytes(), b"committed\n")
+        self.assertEqual(
+            sorted(path.name for path in self.tempdir.iterdir() if ".tmp-" in path.name),
+            [],
         )
 
     def test_write_public_report_supports_real_macos_mktemp_var_alias(self):

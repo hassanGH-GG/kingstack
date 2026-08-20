@@ -297,6 +297,7 @@ def _publish_bytes_no_clobber(parent_fd: int, name: str, payload: bytes, mode: i
         raise ValueError("invalid output file name")
     temporary = ".{}.tmp-{}-{}".format(name, os.getpid(), secrets.token_hex(8))
     descriptor = None
+    committed = False
     try:
         descriptor = os.open(
             temporary,
@@ -320,17 +321,36 @@ def _publish_bytes_no_clobber(parent_fd: int, name: str, payload: bytes, mode: i
             )
         except FileExistsError as error:
             raise ValueError("output destination already exists: " + name) from error
+        committed = True
         try:
             os.fsync(parent_fd)
         except OSError:
             pass
     finally:
+        failure_in_flight = sys.exc_info()[0] is not None
         if descriptor is not None:
-            os.close(descriptor)
+            try:
+                os.close(descriptor)
+            except OSError:
+                if not committed and not failure_in_flight:
+                    raise
         try:
             os.unlink(temporary, dir_fd=parent_fd)
         except FileNotFoundError:
             pass
+        except OSError:
+            if not committed and not failure_in_flight:
+                raise
+
+
+def _close_owned_directory(
+    descriptor: int, committed: bool, failure_in_flight: bool,
+) -> None:
+    try:
+        os.close(descriptor)
+    except OSError:
+        if not committed and not failure_in_flight:
+            raise
 
 
 def atomic_write_no_clobber_at(
@@ -351,10 +371,14 @@ def atomic_write_no_clobber_at(
     parent_fd = _open_relative_directory_no_symlinks(
         root_fd, tuple(parts[:-1]), create=create_parents, mode=parent_mode,
     )
+    committed = False
     try:
         _publish_bytes_no_clobber(parent_fd, parts[-1], payload, mode)
+        committed = True
     finally:
-        os.close(parent_fd)
+        _close_owned_directory(
+            parent_fd, committed, sys.exc_info()[0] is not None,
+        )
 
 
 def atomic_write_no_clobber(
@@ -369,10 +393,14 @@ def atomic_write_no_clobber(
     parent_fd = open_directory_no_symlinks(
         destination.parent, create=create_parents, mode=parent_mode,
     )
+    committed = False
     try:
         _publish_bytes_no_clobber(parent_fd, destination.name, payload, mode)
+        committed = True
     finally:
-        os.close(parent_fd)
+        _close_owned_directory(
+            parent_fd, committed, sys.exc_info()[0] is not None,
+        )
 
 
 def write_public_report(baseline: dict, destination: Path) -> None:

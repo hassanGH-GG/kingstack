@@ -334,6 +334,38 @@ class BootstrapTest(TestCase):
         self.assertEqual(manifest.read_bytes(), b'{"contender": true}\n')
         self.assertEqual([path.name for path in private_dir.iterdir()], ["manifest.json"])
 
+    def test_private_manifest_commit_survives_owned_parent_close_error(self):
+        from kingstack import inventory as inventory_module
+        from kingstack.bootstrap import _write_private_manifest
+
+        private_dir = self.runtime / "bootstrap"
+        private_dir.mkdir(parents=True)
+        manifest = private_dir / "manifest.json"
+        original_open = inventory_module.open_directory_no_symlinks
+        original_close = os.close
+        owned_parent = []
+
+        def record_parent(path, *arguments, **keywords):
+            descriptor = original_open(path, *arguments, **keywords)
+            if Path(path) == private_dir:
+                owned_parent.append(descriptor)
+            return descriptor
+
+        def close_with_commit_error(descriptor):
+            original_close(descriptor)
+            if owned_parent and descriptor == owned_parent[0] and manifest.exists():
+                raise OSError("injected owned-parent close error after commit")
+
+        with patch(
+            "kingstack.inventory.open_directory_no_symlinks",
+            side_effect=record_parent,
+        ), patch("kingstack.inventory.os.close", side_effect=close_with_commit_error):
+            _write_private_manifest(manifest, {"bootstrap": True})
+
+        self.assertEqual(
+            json.loads(manifest.read_text(encoding="utf-8")), {"bootstrap": True},
+        )
+
     def test_parent_change_after_manifest_never_returns_failure_with_success_record(self):
         from kingstack import bootstrap as bootstrap_module
         from kingstack.bootstrap import BootstrapError
