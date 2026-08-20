@@ -37,6 +37,8 @@ its removal.
 6. Keep pstack absorbed whole, credited, upstream-syncable, and isolated from
    personal customization.
 7. Allow future agents to gain an adapter without restructuring the core.
+8. Treat kingstack as a maintained product with semantic versions, a factual
+   changelog, and one durable roadmap.
 
 ## Non-goals
 
@@ -428,6 +430,37 @@ Rollback never touches auth, transcripts, native memory databases, or shared
 memory content. It is tested against staging and then against the live install
 before migration is declared complete.
 
+## Versioning, changelog, and roadmap
+
+Kingstack uses Semantic Versioning for the public framework. A tracked `VERSION`
+file is the current release version and annotated Git tags use `vMAJOR.MINOR.PATCH`.
+The migration culminates in the first reviewed agent-neutral release rather than
+inventing a version before the capability set is proven.
+
+`CHANGELOG.md` follows a Keep-a-Changelog shape with an `[Unreleased]` section.
+Every material change to behavior, configuration schema, hooks, adapters,
+memory, routing, schedules, installation, or rollback adds one concise user-
+visible entry in the same task. Release automation moves those entries under a
+dated version heading, updates comparison links, updates `VERSION`, and refuses
+to tag a dirty or unhealthy tree.
+
+The existing `docs/BACKLOG.md` becomes `docs/ROADMAP.md` through `git mv`, then
+is rewritten against the agent-neutral architecture rather than merely renamed.
+Every existing item is audited: valid ideas are preserved and clarified; stale,
+completed, or duplicate items are removed only with an evidence note in the
+migration report. There is one durable planning surface rather than parallel
+backlog and roadmap files. It has `Now`, `Next`, `Later`, and `Done` sections.
+Active items require an outcome and finish condition; completed items move to
+`Done` with a version or commit and eventually compact into the changelog.
+
+Shared operating policy requires agents to update `[Unreleased]` whenever a
+material capability changes and update the roadmap whenever scope or priority
+changes. `kingstack check --release-hygiene` enforces that release-relevant
+changes since the last version have an unreleased entry, the roadmap is valid,
+the version/tag relationship is coherent, and no completed roadmap item lacks
+a durable destination. This avoids relying on memory or goodwill to maintain
+the records.
+
 ## Security and privacy
 
 - The public repository contains no memories, transcripts, ledgers, credentials,
@@ -460,6 +493,8 @@ The design is complete when implementation proves all of the following:
 - The rollback command has been exercised successfully.
 - No secrets or runtime state are tracked.
 - `kingstack check --all` is green.
+- Semantic version, changelog, and roadmap checks are green, with one source of
+  truth for future work.
 - Hassan reviews the final migration diff before push or removal of any legacy
   backup.
 
@@ -471,4 +506,3 @@ The design is complete when implementation proves all of the following:
 - [Memories](https://learn.chatgpt.com/docs/customization/memories)
 - [Build skills](https://learn.chatgpt.com/docs/build-skills)
 - [Scheduled tasks](https://learn.chatgpt.com/docs/automations)
-

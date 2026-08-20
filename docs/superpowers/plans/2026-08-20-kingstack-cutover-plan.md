@@ -19,6 +19,7 @@
 - Push only after Hassan reviews the final diff, rollback evidence, and no-loss matrix.
 - Deleting or archiving the legacy Claude checkout is a separate future decision, not part of this plan.
 - After every acceptance and rollback gate passes, delete the six dated implementation-plan files Hassan named from both the canonical checkout and their exact legacy `~/.claude` paths; preserve the approved design spec and Git history.
+- Maintain one product-governance surface: SemVer in `VERSION`, Keep-a-Changelog entries in `CHANGELOG.md`, and the existing backlog renamed to `docs/ROADMAP.md` rather than duplicated.
 
 ---
 
@@ -227,7 +228,76 @@ git add lib/kingstack/checks.py lib/kingstack/cli.py tests/test_checks.py README
 git commit -m "feat: verify the whole kingstack from one command"
 ```
 
-### Task 5: Run the cross-agent behavioral acceptance matrix
+### Task 5: Add versioning, changelog, and roadmap governance
+
+**Files:**
+
+- Create: `VERSION`
+- Create: `CHANGELOG.md`
+- Move: `docs/BACKLOG.md` -> `docs/ROADMAP.md`
+- Create: `lib/kingstack/release.py`
+- Create: `tests/test_release.py`
+- Modify: `lib/kingstack/checks.py`
+- Modify: `lib/kingstack/cli.py`
+- Modify: `core/instructions/70-stack-iteration.md`
+
+- [ ] **Step 1: Write failing behavior tests for release hygiene**
+
+Name the production break each test catches: malformed SemVer; version/tag
+mismatch; release-relevant changes with an empty `[Unreleased]`; roadmap without
+`Now`, `Next`, `Later`, and `Done`; completed roadmap item without a commit or
+version; dirty/unhealthy release refusal. Use temporary real Git repositories
+and hand-derived expected results rather than grepping source text.
+
+- [ ] **Step 2: Establish the single version and planning sources**
+
+Choose the initial version from repository history and the proven migration
+scope; do not invent it before reviewing existing tags. Create a
+Keep-a-Changelog document with `[Unreleased]`, and use `git mv` to preserve the
+history of `docs/BACKLOG.md` as `docs/ROADMAP.md`. Rewrite it for the
+agent-neutral architecture: audit every old item, preserve and clarify valid
+ideas, and remove stale/completed/duplicate items only when the migration report
+records the evidence. Organize the result under `Now`, `Next`, `Later`, and
+`Done`, with an outcome and finish condition for every active item.
+
+- [ ] **Step 3: Implement release and hygiene commands**
+
+```text
+kingstack check --release-hygiene
+kingstack release prepare MAJOR.MINOR.PATCH --dry-run
+kingstack release prepare MAJOR.MINOR.PATCH --apply
+kingstack release verify MAJOR.MINOR.PATCH
+```
+
+Preparation requires a clean tree, `kingstack check --all` green, non-empty
+unreleased entries, coherent roadmap, and a version greater than the latest
+SemVer tag. It atomically updates `VERSION`, dates the changelog section, and
+prints the exact annotated-tag command; it does not push or publish.
+
+- [ ] **Step 4: Make maintenance a shared operating rule**
+
+The portable instruction says: every material capability/config/schema/hook/
+adapter/memory/routing/schedule/install/rollback change updates
+`CHANGELOG.md` `[Unreleased]` in the same task; every scope or priority change
+updates `docs/ROADMAP.md`; one fact never lives in both. Documentation-only
+wording and tests that do not change behavior are exempt.
+
+- [ ] **Step 5: Run tests, the hygiene check, and a dry-run release**
+
+```bash
+PYTHONPATH=lib python3 -m unittest tests.test_release -v
+./scripts/kingstack check --release-hygiene
+./scripts/kingstack release prepare "$(cat VERSION)" --dry-run
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add VERSION CHANGELOG.md docs/ROADMAP.md lib/kingstack/release.py lib/kingstack/checks.py lib/kingstack/cli.py core/instructions/70-stack-iteration.md tests/test_release.py
+git commit -m "feat: govern kingstack releases and roadmap"
+```
+
+### Task 6: Run the cross-agent behavioral acceptance matrix
 
 **Files:**
 
@@ -276,7 +346,7 @@ git add tests/behavior docs/migration/cross-agent-acceptance.md
 git commit -m "test: verify kingstack behavior across Claude and Codex"
 ```
 
-### Task 6: Switch operational references to the neutral checkout
+### Task 7: Switch operational references to the neutral checkout
 
 **Files:**
 
@@ -318,7 +388,7 @@ git add README.md core/instructions/70-stack-iteration.md core/schedules/schedul
 git commit -m "docs: make neutral kingstack the canonical control plane"
 ```
 
-### Task 7: Final no-loss audit, review, and push gate
+### Task 8: Final no-loss audit, review, and push gate
 
 **Files:**
 
