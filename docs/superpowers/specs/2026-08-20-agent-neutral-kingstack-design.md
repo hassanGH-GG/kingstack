@@ -183,7 +183,7 @@ Every adapter implements the same conceptual interface:
 - inject approved shared-memory indexes and emit inbox candidates
 - declare schedule execution surfaces and idempotency behavior
 - inventory owned paths without claiming native runtime state
-- stage, validate, activate, inspect, and roll back a versioned release
+- render, validate, activate, inspect, and roll back a versioned release
 - report supported, emulated, degraded, and unsupported capabilities
 
 The contract is behavioral rather than file-shaped. It does not require
@@ -196,8 +196,8 @@ features remain visible and block strict parity where required. An adapter may
 use a wrapper, local scheduler, or checkpoint process as a declared fallback,
 but it may not silently omit behavior or describe emulation as native support.
 
-The minimum adapter test contract covers deterministic rendering, schema and
-syntax validation, capability reporting, ownership boundaries, staged
+The minimum adapter test contract covers deterministic pure-bundle rendering, schema and
+syntax validation, capability reporting, ownership boundaries, prepared-release
 activation, shared-memory round trips, model/effort mapping, health reporting,
 and rollback. This is the extension point for Cursor, Gemini CLI, Slack-hosted
 agents, cloud agents, and future harnesses.
@@ -432,13 +432,13 @@ and a successfully verified dated original.
   schema before treating either initial adapter as canonical.
 - Add generation tests proving adapter output is deterministic.
 
-### Phase 3: stage adapters
+### Phase 3: prepare immutable adapters
 
 - Generate immutable Claude and Codex release candidates under the private
   adapter store without linking a live path.
 - Validate JSON, TOML, Markdown frontmatter, hook schemas, shell/Python syntax,
   model mappings, and skill registration.
-- Compare the staged Claude adapter against the live baseline.
+- Compare the pure rendered Claude bundle against the live baseline.
 - Prove both adapters satisfy the common contract or record explicit gaps.
 
 ### Phase 4: migrate shared memory
@@ -484,7 +484,7 @@ A future agent is added without changing core meaning:
 2. implement the adapter contract and capability matrix
 3. map portable model/effort tiers and lifecycle intents
 4. generate and validate an immutable release candidate
-5. prove shared-memory and scheduling behavior in staging
+5. prove shared-memory and scheduling behavior against prepared releases
 6. document unsupported or degraded capabilities
 7. obtain a pre-link review, preserve owned native paths, and activate its
    versioned release
@@ -558,7 +558,7 @@ directories are preserved but never replayed. Whole-home disaster recovery uses
 an external machine backup and a separate human-approved recovery procedure.
 
 Rollback never touches auth, transcripts, native memory databases, caches,
-plugins, or shared-memory content. It is tested against staged homes and then by
+plugins, or shared-memory content. It is tested against isolated homes and then by
 one controlled activate/rollback/re-activate cycle on every initial adapter
 before migration is declared complete.
 

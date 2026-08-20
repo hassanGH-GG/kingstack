@@ -146,8 +146,7 @@ Run: `PYTHONPATH=lib python3 -m unittest tests.test_claude_release -v`
 - [ ] **Step 5: Render and review the real dry-run**
 
 ```bash
-./scripts/kingstack render --adapter claude --output .staging/claude
-ks_claude_release=$(./scripts/kingstack release build --adapter claude --staged .staging/claude --print-id)
+ks_claude_release=$(./scripts/kingstack release build --adapter claude --print-id)
 test -n "${ks_claude_release:?}"
 ./scripts/kingstack release verify --adapter claude --release "$ks_claude_release"
 ./scripts/kingstack activate --adapter claude --release "$ks_claude_release" --all-profiles --dry-run
@@ -161,7 +160,7 @@ declaration blocks the plan. Confirm the command created no live link.
 
 ```bash
 git add adapters/claude/owned-paths.json adapters/claude/bin lib/kingstack/release.py lib/kingstack/activation.py lib/kingstack/cli.py tests/test_claude_release.py
-git commit -m "feat: stage versioned Claude adapter releases"
+git commit -m "feat: prepare versioned Claude adapter releases"
 ```
 
 ### Task 3: Implement one cross-agent health command
@@ -197,7 +196,7 @@ config-owned keys, shared memory integrity, original memory source preservation,
 scheduler ownership/last run, private permissions, pstack revision, and secret/
 runtime tracking guards.
 
-`staged` verifies release manifests, staged hook/config payloads, memory-source
+`staged` verifies immutable release manifests, rendered hook/config payloads, memory-source
 parity, schedule declarations, and private permissions without requiring live
 registration or last-run evidence. `live` requires installed ownership,
 registration/trust, owned-key projections, active schedule state, and drift
@@ -407,10 +406,8 @@ and the health warning for future kingstack commits made there.
 - [ ] **Step 2: Build and verify the final immutable releases**
 
 ```bash
-./scripts/kingstack render --adapter claude --output .staging/claude
-./scripts/kingstack render --adapter codex --output .staging/codex
-ks_claude_release=$(./scripts/kingstack release build --adapter claude --staged .staging/claude --print-id)
-ks_codex_release=$(./scripts/kingstack release build --adapter codex --staged .staging/codex --print-id)
+ks_claude_release=$(./scripts/kingstack release build --adapter claude --print-id)
+ks_codex_release=$(./scripts/kingstack release build --adapter codex --print-id)
 ./scripts/kingstack release verify --adapter claude --release "$ks_claude_release"
 ./scripts/kingstack release verify --adapter codex --release "$ks_codex_release"
 ```

@@ -78,8 +78,9 @@ class Paths:
 ```
 
 `scripts/kingstack` exports `PYTHONPATH="$SCRIPT_DIR/../lib"` and executes
-`python3 -m kingstack.cli "$@"`. Add all runtime and staging names to the
-allowlist `.gitignore`: `.staging/`, `*.private.json`, and `runtime/`.
+`python3 -m kingstack.cli "$@"`. Add private runtime names to the allowlist
+`.gitignore`: `*.private.json` and `runtime/`. Renderers do not materialize a
+mutable staging tree.
 
 - [ ] **Step 4: Run the focused test**
 
@@ -358,5 +359,5 @@ git commit -m "test: verify neutral foundation without data loss"
 
 The working tree must be clean and an independent review must approve the
 foundation evidence. Continue into the portable-core plan without a live-path
-change. The mandatory Hassan stop occurs after cloning, staging, and parity
+change. The mandatory Hassan stop occurs after cloning, immutable-release preparation, and parity
 proof, immediately before the first manifest-owned link.

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build and stage a contract-compliant native Codex adapter that loads kingstack guidance, skills, hooks, shared curated memory, and routing while preserving every pre-existing Codex setting, plugin, MCP server, trusted project, native memory, session, and credential.
+**Goal:** Build and prove a contract-compliant native Codex adapter bundle that loads kingstack guidance, skills, hooks, shared curated memory, and routing while preserving every pre-existing Codex setting, plugin, MCP server, trusted project, native memory, session, and credential.
 
 **Architecture:** Generate `AGENTS.md`, `hooks.json`, managed skill copies, a capability matrix, and a narrowly owned TOML patch from the shared core into an immutable private release. Test only in isolated temporary Codex homes during this plan. Produce the exact ownership and activation briefing, but create no live Codex link; live activation, native hook trust, rollback, and re-activation occur only in the cutover plan after Hassan's pre-link approval.
 
@@ -62,8 +62,8 @@ keys.
 
 ```bash
 PYTHONPATH=lib python3 -m unittest tests.test_codex_instructions -v
-./scripts/kingstack render --adapter codex --output .staging/codex
-test -s .staging/codex/AGENTS.md
+./scripts/kingstack render --adapter codex --manifest | jq -e '.files[] | select(.path == "AGENTS.md" and .size > 0)'
+./scripts/kingstack render --adapter codex --print-file AGENTS.md | rg -q .
 ```
 
 - [ ] **Step 4: Commit**
@@ -132,7 +132,8 @@ Use Python 3.9-compatible `typing.Dict` annotations.
 
 - [ ] **Step 4: Validate with Codex's real parser, not only unit tests**
 
-Create a temporary `CODEX_HOME`, copy the staged config, and run a read-only
+Create a temporary `CODEX_HOME`, copy the fixture/source config there, apply the
+owned structural patch only inside that disposable home, and run a read-only
 Codex config command such as `codex features list`. Expected: exit 0 with the
 patched file. Then insert malformed TOML and prove Codex rejects it and the
 installer refuses it.
@@ -190,9 +191,8 @@ mechanical, while the spawn remains allowed.
 
 ```bash
 PYTHONPATH=lib python3 -m unittest tests.test_codex_hooks -v
-./scripts/kingstack render --adapter codex --output .staging/codex
-jq -e . .staging/codex/hooks.json >/dev/null
-find .staging/codex/hooks -name '*.py' -exec python3 -m py_compile {} +
+./scripts/kingstack render --adapter codex --manifest | jq -e '.files[] | select(.path == "hooks.json")'
+PYTHONPATH=lib python3 -m unittest tests.test_rendered_bundle_syntax -v
 ```
 
 Run a temporary Codex CLI with `--dangerously-bypass-hook-trust` only inside the
@@ -218,7 +218,7 @@ git commit -m "feat: add native Codex lifecycle hooks"
 - [ ] **Step 1: Inventory enabled plugin and personal skill providers**
 
 Read names and content hashes from `~/.codex/skills`, enabled plugin caches, and
-the staged kingstack catalog. Never modify caches. Generate rows:
+the rendered kingstack bundle catalog. Never modify caches. Generate rows:
 
 ```text
 skill | required source | existing provider | semantic match | action
@@ -244,8 +244,11 @@ Expose `resolve_codex_skills(catalog, installed)` returning a `Resolution` with
 `reuse`, `install`, and `conflict` lists.
 
 The result lists `reuse`, `install`, and `conflict`; conflicts block install.
-Installed copies go through staging and carry source hashes in the private
-installation manifest.
+The source-derived pure bundle contains every kingstack-managed install
+candidate and its source hash, but never reads installed providers. Activation
+planning receives the read-only provider inventory, chooses reuse/install, and
+records that resolved input and every selected hash in the private activation
+manifest. A changed inventory invalidates the plan before apply.
 
 - [ ] **Step 4: Prove all 65 baseline capabilities are available**
 
@@ -299,18 +302,24 @@ must survive while owned keys return to their prior projection.
 Expose these Python 3.9-compatible interfaces:
 
 ```python
-def build_release(adapter_id: str, staged: Path, store: Path,
+def build_release(adapter_id: str, bundle: Mapping[str, bytes], store: Path,
                   source_hash: str) -> ReleaseManifest: ...
 def verify_release(release: Path) -> List[str]: ...
 def plan_activation(adapter: AdapterDeclaration, release: ReleaseManifest,
                     native_home: Path, activation_id: str) -> ActivationPlan: ...
 ```
 
+`release build --adapter codex` invokes the declared pure provider internally;
+it has no staging-directory argument and reads no native Codex state. The
+release contains the owned TOML patch declaration and all managed skill
+candidates, not a merged live config or environment-specific provider choice.
+
 The release manifest includes contract and generator versions, source hash,
 capability matrix, every content hash, and owned-path mapping. Publish to
 `~/.kingstack/adapters/codex/releases/<source-hash>` only after verification.
-The activation plan is read-only and contains only `AGENTS.md`, the reviewed
-hook surface, managed skill entries, and owned TOML edits. It names the exact
+The activation plan is read-only and combines the immutable release with the
+current native config and provider inventory. It contains only `AGENTS.md`, the
+reviewed hook surface, resolved managed skill entries, and owned TOML edits. It names the exact
 unique dated sibling and stable `current`-release target for every path.
 Originals remain beside their native paths and are never copied into a
 recursive backup tree.
@@ -322,8 +331,7 @@ Run: `PYTHONPATH=lib python3 -m unittest tests.test_codex_release -v`
 - [ ] **Step 4: Build the real private release and produce a no-write activation diff**
 
 ```bash
-./scripts/kingstack render --adapter codex --output .staging/codex
-ks_codex_release=$(./scripts/kingstack release build --adapter codex --staged .staging/codex --print-id)
+ks_codex_release=$(./scripts/kingstack release build --adapter codex --print-id)
 test -n "${ks_codex_release:?}"
 ./scripts/kingstack release verify --adapter codex --release "$ks_codex_release"
 ./scripts/kingstack activate --adapter codex --release "$ks_codex_release" --dry-run
@@ -338,14 +346,14 @@ manifest; it must not create `~/.codex` links.
 
 ```bash
 git add lib/kingstack/release.py lib/kingstack/activation.py lib/kingstack/cli.py tests/test_codex_release.py
-git commit -m "feat: stage versioned Codex adapter releases"
+git commit -m "feat: prepare versioned Codex adapter releases"
 ```
 
 ### Task 6: Prove Codex behavior in isolation and prepare the pre-link briefing
 
 **Files:**
 
-- Create: `docs/migration/codex-staged-verification.md`
+- Create: `docs/migration/codex-rendered-verification.md`
 
 - [ ] **Step 1: Materialize an isolated Codex home from the release**
 
@@ -402,7 +410,7 @@ items. Do not enable automatic sync. Export only a redacted capability checklist
 to the verification document. Reconcile any supported capability absent from
 the generated adapter; do not make imported output canonical.
 
-- [ ] **Step 7: Verify no real-home change and commit staged evidence**
+- [ ] **Step 7: Verify no real-home change and commit rendered/release evidence**
 
 Compare before/after hashes and structural reports for the real Codex home,
 including auth sentinels, sessions,
@@ -410,8 +418,8 @@ native memories, plugin catalog, MCP config, trusted projects, and notifications
 Run all tests and both adapter checks. Then:
 
 ```bash
-git add docs/migration/codex-staged-verification.md
-git commit -m "test: prove staged Codex adapter and rollback"
+git add docs/migration/codex-rendered-verification.md
+git commit -m "test: prove rendered Codex adapter and rollback"
 ```
 
 - [ ] **Step 8: Feed exact owned paths, capability gaps, release ID, and rollback commands into the mandatory pre-link briefing**

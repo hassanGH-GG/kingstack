@@ -317,12 +317,12 @@ result in its declared hook format. The text names its shared origin and never
 claims to be an adapter's native memory. Contract validation refuses an adapter
 that claims shared-memory injection without a passing wrapper fixture.
 
-- [ ] **Step 3: Render both staged adapters and replay identical project starts**
+- [ ] **Step 3: Render both pure bundles and replay identical project starts**
 
 ```bash
 PYTHONPATH=lib python3 -m unittest tests.test_memory_context -v
-./scripts/kingstack render --adapter claude --output .staging/claude
-./scripts/kingstack render --adapter codex --output .staging/codex
+./scripts/kingstack render --adapter claude --manifest | jq -e '.files | length > 0'
+./scripts/kingstack render --adapter codex --manifest | jq -e '.files | length > 0'
 ```
 
 Pass equivalent native SessionStart fixtures to both wrappers and compare the
@@ -346,8 +346,8 @@ git commit -m "feat: inject bounded shared memory into both agents"
 ```bash
 PYTHONPATH=lib python3 -m unittest discover -s tests -v
 ./scripts/kingstack memory verify-migration
-./scripts/kingstack check --staged --adapter claude
-./scripts/kingstack check --staged --adapter codex --allow-incomplete-adapter
+./scripts/kingstack check --rendered --adapter claude
+PYTHONPATH=lib python3 -m unittest tests.test_memory_context -v
 ```
 
 - [ ] **Step 2: Exercise promotion and rejection in an isolated temporary store**
@@ -369,8 +369,8 @@ git add docs/migration/shared-memory-verification.md
 git commit -m "test: prove shared curated memory without source loss"
 ```
 
-- [ ] **Step 5: Record the gate and continue only in staging**
+- [ ] **Step 5: Record the gate and continue only with pure bundles**
 
-Independent review must approve the evidence. Continue to Codex staging with no
+Independent review must approve the evidence. Continue to Codex bundle/release work with no
 live link; Hassan's mandatory review remains immediately before first live
 activation.
