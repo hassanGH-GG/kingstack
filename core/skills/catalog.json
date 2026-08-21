@@ -23,7 +23,8 @@
       "source": "pstack/skills/architect",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [
         "how",
@@ -39,7 +40,8 @@
       "source": "pstack/skills/arena",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -50,7 +52,8 @@
       "source": "pstack/skills/automate-me",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -61,7 +64,8 @@
       "source": "pstack/skills/blast-radius",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [
         "how",
@@ -76,7 +80,8 @@
       "source": "pstack/skills/bro",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -87,7 +92,8 @@
       "source": "cli-for-agent/skills/cli-for-agents",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -138,7 +144,8 @@
       "source": "cursor-team-kit/skills/control-cli",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -149,7 +156,8 @@
       "source": "cursor-team-kit/skills/control-ui",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -160,7 +168,8 @@
       "source": "pstack/skills/create-verification-skill",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -171,7 +180,8 @@
       "source": "cursor-team-kit/skills/deslop",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -192,7 +202,8 @@
       "source": "pstack/skills/figure-it-out",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [
         "poteto-mode",
@@ -207,7 +218,8 @@
       "source": "pstack/skills/how",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -218,7 +230,8 @@
       "source": "pstack/skills/interrogate",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -229,7 +242,8 @@
       "source": "core/skills/authored/king-mode",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [
         "poteto-mode"
@@ -242,7 +256,8 @@
       "source": "pstack/skills/maintain-verification-skill",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -253,7 +268,8 @@
       "source": "cursor-team-kit/skills/make-pr-easy-to-review",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -276,7 +292,8 @@
       "source": "pstack/skills/no-comments",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -287,7 +304,8 @@
       "source": "pstack/skills/poteto-mode",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host",
@@ -299,7 +317,8 @@
       "source": "pstack/skills/principle-boundary-discipline",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -310,7 +329,8 @@
       "source": "pstack/skills/principle-build-the-lever",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -321,7 +341,8 @@
       "source": "pstack/skills/principle-encode-lessons-in-structure",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -332,7 +353,8 @@
       "source": "pstack/skills/principle-exhaust-the-design-space",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -343,7 +365,8 @@
       "source": "pstack/skills/principle-experience-first",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -354,7 +377,8 @@
       "source": "pstack/skills/principle-fix-root-causes",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -365,7 +389,8 @@
       "source": "pstack/skills/principle-foundational-thinking",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -376,7 +401,8 @@
       "source": "pstack/skills/principle-guard-the-context-window",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -387,7 +413,8 @@
       "source": "pstack/skills/principle-laziness-protocol",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -398,7 +425,8 @@
       "source": "pstack/skills/principle-make-operations-idempotent",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -409,7 +437,8 @@
       "source": "pstack/skills/principle-migrate-callers-then-delete-legacy-apis",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -420,7 +449,8 @@
       "source": "pstack/skills/principle-minimize-reader-load",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -431,7 +461,8 @@
       "source": "pstack/skills/principle-model-the-domain",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -442,7 +473,8 @@
       "source": "pstack/skills/principle-never-block-on-the-human",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -453,7 +485,8 @@
       "source": "pstack/skills/principle-outcome-oriented-execution",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -464,7 +497,8 @@
       "source": "pstack/skills/principle-prove-it-works",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [
         "show-me-your-work"
@@ -477,7 +511,8 @@
       "source": "pstack/skills/principle-redesign-from-first-principles",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -488,7 +523,8 @@
       "source": "pstack/skills/principle-separate-before-serializing-shared-state",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -499,7 +535,8 @@
       "source": "pstack/skills/principle-sequence-verifiable-units",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -510,7 +547,8 @@
       "source": "pstack/skills/principle-subtract-before-you-add",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -521,7 +559,8 @@
       "source": "pstack/skills/principle-type-system-discipline",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -532,7 +571,8 @@
       "source": "pstack/skills/recall",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -543,7 +583,8 @@
       "source": "pstack/skills/reflect",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -573,7 +614,8 @@
       "source": "pstack/skills/show-me-your-work",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -584,7 +626,8 @@
       "source": "pstack/skills/swarm",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -595,7 +638,8 @@
       "source": "pstack/skills/tdd",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -606,7 +650,8 @@
       "source": "pstack/skills/teach",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [
         "how",
@@ -620,7 +665,8 @@
       "source": "pstack/skills/technical-writing",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -631,7 +677,8 @@
       "source": "thermos/skills/thermo-nuclear-code-quality-review",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -642,7 +689,8 @@
       "source": "thermos/skills/thermo-nuclear-review",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -663,7 +711,8 @@
       "source": "pstack/skills/typescript-best-practices",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -674,7 +723,8 @@
       "source": "pstack/skills/unslop",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -685,7 +735,8 @@
       "source": "cursor-team-kit/skills/verify-this",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"
@@ -706,7 +757,8 @@
       "source": "pstack/skills/why",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "cursor-host"

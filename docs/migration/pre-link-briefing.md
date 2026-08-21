@@ -7,7 +7,9 @@ This document is the Phase F stop. Nothing under `~/.claude`, `~/.codex`, or
 
 ## What is ready
 
-- Claude, Codex, and Cursor bundles render as immutable in-memory maps.
+- Claude, Codex, and Cursor are first-party adapters. Claude bundles 53
+  skills plus 12 plugins. Codex bundles 36 portable skills and records 18
+  unsupported. Cursor bundles the same 53 portable skills as Claude.
 - Shared memory lives in a private store. Migration is copy-only.
 - Schedule ownership is declared. The three launchd jobs stay launchd-owned.
 - `kingstack release --build` writes a content-addressed directory under a

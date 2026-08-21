@@ -581,6 +581,9 @@ class SkillCatalogTest(TestCase):
         )
         service = next(record for record in codex["skills"] if record["name"] == "service-migration-handover")
         self.assertEqual(service["status"], "unsupported")
+        cursor = bundle_manifest("cursor", ROOT, upstream_root=PLUGINS)
+        self.assertEqual(sum(record["status"] == "bundled" for record in cursor["skills"]), 53)
+        self.assertEqual(sum(record["status"] == "unsupported" for record in cursor["skills"]), 12)
         with self.assertRaises(TypeError):
             files["new/SKILL.md"] = b"bad"
 
@@ -589,6 +592,7 @@ class SkillCatalogTest(TestCase):
         for adapter, forbidden in (
             ("claude", (b".cursor", b"generalPurpose")),
             ("codex", (b".cursor", b".claude", b"Claude Code", b"CLAUDE.md")),
+            ("cursor", (b".claude", b"CLAUDE.md", b"Claude Code")),
         ):
             with self.subTest(adapter=adapter):
                 files = render_skill_files(adapter, ROOT, upstream_root=PLUGINS)

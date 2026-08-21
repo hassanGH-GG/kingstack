@@ -1,7 +1,11 @@
 # Cursor Agent adapter notes
 
-Shared kingstack policy is in this file. Cursor Agent remains a native home
-under `~/.cursor`. Only authored kingstack skills are bundled here. pstack
-skills stay Claude/Codex-owned until a later Cursor skill-surface inventory.
-Shared memory is the same private store as the other adapters.
-No live Cursor path is linked until Hassan approves a Cursor pre-link briefing.
+Cross-agent compatibility: CLAUDE.md is the Claude adapter guidance filename.
+Cursor Agent uses AGENTS.md. Shared policy may mention the old Claude home as
+history.
+
+Shared kingstack policy is in this file. Model names here are Cursor-native.
+pstack skills stay in their Cursor-native form. Shared curated memory lives
+under `~/.kingstack/memory` and is not Cursor native memory.
+The canonical checkout is `~/Desktop/Work/kingstack`.
+No live Cursor path is linked until Hassan approves the pre-link briefing.

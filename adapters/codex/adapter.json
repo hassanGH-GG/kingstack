@@ -102,10 +102,10 @@
       },
       {
         "capability": "health",
-        "status": "unsupported",
-        "evidence": "A Codex-native kingstack health command has not been staged yet.",
-        "impact": "Codex adapter drift cannot yet be checked through its native surface.",
-        "strict_parity": false
+        "status": "emulated",
+        "evidence": "kingstack check --contract --adapter codex and staged health cover the Codex bundle.",
+        "impact": "There is no Codex-native health surface.",
+        "strict_parity": true
       },
       {
         "capability": "activation",

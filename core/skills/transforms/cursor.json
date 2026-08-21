@@ -3,10 +3,25 @@
   "adapter": "cursor",
   "unsupported": {},
   "transforms": {
+    "cursor-host": {
+      "text_extensions": [".md", ".ts", ".sh", ".json"],
+      "replacements": [
+        {"kind": "path", "source": ".claude", "target": ".cursor"},
+        {"kind": "path", "source": "CLAUDE.md", "target": "AGENTS.md"},
+        {"kind": "host", "source": "Claude Code", "target": "Cursor"},
+        {"kind": "host", "source": "Claude", "target": "Cursor"}
+      ],
+      "forbidden": [".claude", "CLAUDE.md", "Claude Code"]
+    },
     "authored-host": {
       "text_extensions": [".md", ".ts", ".sh", ".json"],
-      "replacements": [],
-      "forbidden": []
+      "replacements": [
+        {"kind": "path", "source": ".claude", "target": ".cursor"},
+        {"kind": "path", "source": "CLAUDE.md", "target": "AGENTS.md"},
+        {"kind": "host", "source": "Claude Code", "target": "Cursor"},
+        {"kind": "host", "source": "Claude", "target": "Cursor"}
+      ],
+      "forbidden": [".claude", "CLAUDE.md", "Claude Code"]
     }
   }
 }
