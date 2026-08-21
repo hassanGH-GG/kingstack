@@ -62,6 +62,10 @@ def inspect(text: str) -> List[Tuple[str, str]]:
     return hits
 
 
+def keep_public(texts: List[str]) -> List[str]:
+    return [text for text in texts if not inspect(text)]
+
+
 def reject_if_secret(text: str) -> None:
     hits = inspect(text)
     if hits:

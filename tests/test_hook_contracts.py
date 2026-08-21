@@ -183,6 +183,32 @@ class HookContractTest(TestCase):
         )
         self.assertIn("goal", inbox.read_text(encoding="utf-8"))
         self.assertIn("session-memory distiller", inbox.read_text(encoding="utf-8"))
+        self.assertEqual(stat.S_IMODE(inbox.stat().st_mode), 0o600)
+
+    def test_stop_skips_secret_like_corrections(self):
+        transcript = self.runtime / "secret.jsonl"
+        write_transcript(
+            transcript,
+            [
+                "Build a session-memory distiller that appends one inbox line.",
+                "no, rotate token: ghp_abcdefghijklmnopqrstuvwxyz123456",
+            ],
+        )
+        handle(
+            self.envelope(
+                "Stop",
+                {"transcript_path": str(transcript)},
+                session_id="secret01-session",
+                project=str(self.runtime / "plugins"),
+            ),
+            self.runtime,
+        )
+        inbox = self.runtime / "memory-review.md"
+        text = inbox.read_text(encoding="utf-8")
+        self.assertIn("goal", text)
+        self.assertIn("session-memory distiller", text)
+        self.assertNotIn("ghp_", text)
+        self.assertEqual(stat.S_IMODE(inbox.stat().st_mode), 0o600)
 
     def test_pre_compact_writes_checkpoint_and_preserve_directive(self):
         transcript = self.runtime / "transcript.jsonl"
@@ -202,6 +228,41 @@ class HookContractTest(TestCase):
         self.assertIn("session 12345678", checkpoint)
         self.assertIn("finish the hook core", checkpoint)
         self.assertIn("headroom archive ids", result["additionalContext"])
+        self.assertEqual(
+            stat.S_IMODE(
+                (self.runtime / "logs/compaction-checkpoints/12345678.md").stat().st_mode
+            ),
+            0o600,
+        )
+
+    def test_pre_compact_drops_secret_prompts(self):
+        transcript = self.runtime / "transcript.jsonl"
+        write_transcript(
+            transcript,
+            [
+                "finish the hook core",
+                "token: ghp_abcdefghijklmnopqrstuvwxyz123456",
+            ],
+        )
+        handle(
+            self.envelope(
+                "PreCompact",
+                {"transcript_path": str(transcript)},
+                session_id="87654321-session",
+            ),
+            self.runtime,
+        )
+        checkpoint = (
+            self.runtime / "logs/compaction-checkpoints/87654321.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("finish the hook core", checkpoint)
+        self.assertNotIn("ghp_", checkpoint)
+        self.assertEqual(
+            stat.S_IMODE(
+                (self.runtime / "logs/compaction-checkpoints/87654321.md").stat().st_mode
+            ),
+            0o600,
+        )
 
     def test_post_tool_use_warns_only_above_the_frozen_threshold(self):
         small = handle(

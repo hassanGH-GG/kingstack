@@ -79,8 +79,8 @@ def handle(event, runtime: Path) -> dict:
     if sessions_root:
         try:
             from kingstack.session_context import project_index
-            from kingstack.session_store import SessionStore
-            shared = project_index(SessionStore.open(Path(sessions_root)), event["project"])
+            from kingstack.session_store import open_hook_store
+            shared = project_index(open_hook_store(Path(sessions_root)), event["project"])
             if shared:
                 context += "\n\n" + shared
         except Exception:
