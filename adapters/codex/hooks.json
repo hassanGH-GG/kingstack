@@ -1,9 +1,54 @@
 {
   "hooks": {
-    "SessionStart": "hooks/run.py SessionStart",
-    "Stop": "hooks/run.py Stop",
-    "PreCompact": "hooks/run.py PreCompact",
-    "PostToolUse": "hooks/run.py PostToolUse",
-    "SubagentStart": "hooks/run.py SubagentStart"
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.codex/hooks/run.py\" SessionStart"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.codex/hooks/run.py\" Stop"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.codex/hooks/run.py\" PreCompact"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.codex/hooks/run.py\" PostToolUse"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.codex/hooks/run.py\" SubagentStart"
+          }
+        ]
+      }
+    ]
   }
 }

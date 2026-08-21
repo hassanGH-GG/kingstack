@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from unittest import TestCase
 
@@ -19,3 +20,15 @@ class CodexInstructionsTest(TestCase):
         self.assertIn("hooks.json", bundle)
         self.assertIn("hooks/run.py", bundle)
         self.assertIn("config-owned.json", bundle)
+
+    def test_hooks_json_is_a_codex_sequence_not_a_string(self):
+        bundle = render_bundle("codex", ROOT)
+        hooks = json.loads(bundle["hooks.json"].decode("utf-8"))
+        events = ("SessionStart", "Stop", "PreCompact", "PostToolUse", "SubagentStart")
+        for event in events:
+            groups = hooks["hooks"][event]
+            self.assertIsInstance(groups, list, event)
+            command = groups[0]["hooks"][0]["command"]
+            self.assertEqual(groups[0]["hooks"][0]["type"], "command")
+            self.assertIn("hooks/run.py", command)
+            self.assertIn(event, command)
