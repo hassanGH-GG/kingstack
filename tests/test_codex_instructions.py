@@ -32,3 +32,11 @@ class CodexInstructionsTest(TestCase):
             self.assertEqual(groups[0]["hooks"][0]["type"], "command")
             self.assertIn("hooks/run.py", command)
             self.assertIn(event, command)
+
+    def test_owned_status_line_uses_only_codex_item_ids(self):
+        allowed = set(json.loads((ROOT / "adapters/codex/status-line-items.json").read_text()))
+        self.assertNotIn("tokens", allowed)
+        self.assertNotIn("cwd", allowed)
+        owned = json.loads((ROOT / "adapters/codex/config-owned.json").read_text())
+        unknown = [item for item in owned["tui.status_line"] if item not in allowed]
+        self.assertEqual(unknown, [])

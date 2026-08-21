@@ -6,5 +6,5 @@
   "memories.use_memories": true,
   "memories.disable_on_external_context": true,
   "memories.min_rate_limit_remaining_percent": 35,
-  "tui.status_line": ["model", "context-used", "tokens", "cwd"]
+  "tui.status_line": ["model", "context-used", "used-tokens", "current-dir"]
 }

@@ -1,5 +1,6 @@
 """Independent staged health rows. Live mode passes when native homes are linked."""
 
+import json
 from pathlib import Path
 from typing import List, Mapping
 
@@ -89,6 +90,20 @@ def staged_checks(root: Path) -> List[Mapping[str, object]]:
             rows.append(_row("render:" + adapter, adapter, bool(bundle), "{} files".format(len(bundle)), "fix renderer"))
         except Exception as error:
             rows.append(_row("render:" + adapter, adapter, False, str(error), "fix renderer"))
+        if adapter == "codex":
+            try:
+                allowed = set(json.loads((root / "adapters/codex/status-line-items.json").read_text(encoding="utf-8")))
+                owned = json.loads((root / "adapters/codex/config-owned.json").read_text(encoding="utf-8"))
+                unknown = [item for item in owned["tui.status_line"] if item not in allowed]
+                rows.append(_row(
+                    "codex-status-line",
+                    "codex",
+                    not unknown,
+                    "valid" if not unknown else unknown[0],
+                    "use a Codex StatusLineItem id",
+                ))
+            except Exception as error:
+                rows.append(_row("codex-status-line", "codex", False, str(error), "fix config-owned.json"))
         undeclared = _undeclared_constructs(root, adapter)
         rows.append(_row(
             "unsupported-closed:" + adapter,
