@@ -84,9 +84,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     check_mode = check_command.add_mutually_exclusive_group(required=True)
     check_mode.add_argument("--contract", action="store_true")
     check_mode.add_argument("--rendered", action="store_true")
-    adapter_selector = check_command.add_mutually_exclusive_group(required=True)
+    check_mode.add_argument("--core", action="store_true")
+    check_mode.add_argument("--memory", action="store_true")
+    check_mode.add_argument("--schedules", action="store_true")
+    check_mode.add_argument("--all", dest="check_all", action="store_true")
+    adapter_selector = check_command.add_mutually_exclusive_group(required=False)
     adapter_selector.add_argument("--adapter", type=_adapter_id)
     adapter_selector.add_argument("--adapter-path", type=Path)
+    check_command.add_argument("--mode", choices=("staged", "live"))
+    check_command.add_argument("--json", action="store_true")
     render_command = commands.add_parser("render")
     render_command.add_argument("--adapter", type=_adapter_id, required=True)
     render_selector = render_command.add_mutually_exclusive_group(required=True)
@@ -142,6 +148,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     release_mode.add_argument("--activate", action="store_true")
     release_mode.add_argument("--rollback", action="store_true")
     release_command.add_argument("--to")
+    activate_command = commands.add_parser("activate")
+    activate_command.add_argument("--adapter", type=_adapter_id, required=True)
+    activate_command.add_argument("--release", required=True)
+    activate_command.add_argument("--native-home", type=Path, required=True)
+    activate_command.add_argument("--dry-run", action="store_true")
     arguments = parser.parse_args(argv)
 
     if arguments.command == "render":
@@ -158,6 +169,13 @@ def main(argv: Optional[List[str]] = None) -> int:
             sync_command.error("installed clobber checking requires --adapter")
     if arguments.command == "release" and (arguments.activate or arguments.rollback) and not arguments.to:
         release_command.error("--activate and --rollback require --to")
+    if arguments.command == "check":
+        if (arguments.contract or arguments.rendered) and arguments.adapter is None and arguments.adapter_path is None:
+            check_command.error("--contract and --rendered require --adapter or --adapter-path")
+        if arguments.check_all and arguments.mode is None:
+            check_command.error("--all requires --mode staged or --mode live")
+    if arguments.command == "activate" and not arguments.dry_run:
+        activate_command.error("live apply is forbidden; pass --dry-run")
 
     if arguments.command == "inventory":
         write_public_report(
@@ -187,21 +205,40 @@ def main(argv: Optional[List[str]] = None) -> int:
             report = rendered_parity(arguments.adapter, root)
             print(json.dumps(_plain(report), indent=2, sort_keys=True))
             return 0 if report["ok"] else 1
-        try:
-            declaration = _load_selected_adapter(
-                root, arguments.adapter, arguments.adapter_path
-            )
-            catalog = load_capability_catalog(root / "core/capabilities/catalog.json")
-            errors = validate_adapter(declaration, catalog)
-        except AdapterContractError as error:
-            print("kingstack check: {}".format(error), file=sys.stderr)
-            return 2
-        if errors:
-            for error in errors:
+        if arguments.contract:
+            try:
+                declaration = _load_selected_adapter(
+                    root, arguments.adapter, arguments.adapter_path
+                )
+                catalog = load_capability_catalog(root / "core/capabilities/catalog.json")
+                errors = validate_adapter(declaration, catalog)
+            except AdapterContractError as error:
                 print("kingstack check: {}".format(error), file=sys.stderr)
-            return 2
-        print("{} adapter contract valid".format(declaration.id))
-        return 0
+                return 2
+            if errors:
+                for error in errors:
+                    print("kingstack check: {}".format(error), file=sys.stderr)
+                return 2
+            print("{} adapter contract valid".format(declaration.id))
+            return 0
+        from kingstack.checks import live_checks, overall, staged_checks
+        if arguments.schedules:
+            from kingstack.schedules import load_schedules
+            load_schedules(root)
+            print("schedules valid")
+            return 0
+        if arguments.memory:
+            print("memory store is private and copy-only; live apply is not part of staged check")
+            return 0
+        if arguments.core:
+            rows = [row for row in staged_checks(root) if row["adapter"] == "core"]
+        elif arguments.mode == "live":
+            rows = live_checks(root)
+        else:
+            rows = staged_checks(root)
+        result = {"schema_version": 1, "overall": overall(rows), "rows": rows}
+        print(json.dumps(result, indent=2, sort_keys=True) if arguments.json else result["overall"])
+        return 0 if result["overall"] == "healthy" else 1
     if arguments.command == "render":
         root = Path(__file__).resolve().parents[2]
         try:
@@ -341,6 +378,20 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 0
         except (OSError, ReleaseError) as error:
             print("kingstack release: {}".format(error), file=sys.stderr)
+            return 2
+    if arguments.command == "activate":
+        from kingstack.activation import ActivationError, plan_activation
+        try:
+            plan = plan_activation(
+                arguments.adapter,
+                Path(__file__).resolve().parents[2],
+                arguments.native_home,
+                arguments.release,
+            )
+            print(json.dumps(plan, indent=2, sort_keys=True))
+            return 0
+        except ActivationError as error:
+            print("kingstack activate: {}".format(error), file=sys.stderr)
             return 2
     return 1
 

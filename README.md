@@ -1,8 +1,8 @@
 # kingstack
 
-Hassan Ghandour's operating system for Claude Code: Lauren Tan's [pstack](https://github.com/cursor/plugins/tree/main/pstack) absorbed whole as the process engine, with a personal layer, persistent memory, cost routing, and the mechanisms that make all of it fire on every session, unprompted, across two subscriptions.
+Hassan Ghandour's operating system for agents. Lauren Tan's [pstack](https://github.com/cursor/plugins/tree/main/pstack) is the process engine. kingstack adds a personal layer, shared curated memory, cost routing, and native adapters for Claude, Codex, and Cursor.
 
-This repository *is* `~/.claude`. It tracks only what is authored here, through an allowlist `.gitignore`; everything generated, cached, or secret stays untracked by construction.
+The canonical checkout is `~/Desktop/Work/kingstack`. `~/.claude`, `~/.codex`, and `~/.cursor` stay real native homes. They are not symlinks and they are not linked until Hassan approves `docs/migration/pre-link-briefing.md`.
 
 ## Why kingstack, if pstack exists
 
@@ -123,23 +123,17 @@ Two numbers, both recorded nightly so they outlive the 30-day transcript window.
 ## Fresh machine
 
 ```bash
-git clone https://github.com/hassanGH-GG/kingstack ~/.claude
-git clone https://github.com/cursor/plugins ~/Desktop/Work/plugins   # the pstack source
-~/.claude/scripts/sync-pstack.sh --no-pull        # generates the 51 skills and the manifest
-~/.claude/scripts/install-launchd.sh              # loads the three schedules
-python3 ~/.claude/hooks/test_memory_inbox.py      # 9 cases
-~/.claude/scripts/link-node.sh                    # node for plugin hooks
-~/.claude/scripts/rework-report.py --snapshot     # seeds the rework ledger
-~/.claude/scripts/check-setup.sh                  # expect SETUP HEALTHY
+git clone https://github.com/hassanGH-GG/kingstack ~/Desktop/Work/kingstack
+cd ~/Desktop/Work/kingstack
+PYTHONPATH=lib python3 -m unittest discover -s tests -q
+./scripts/kingstack check --all --mode staged
 ```
 
-Then set `/model` to Fable or Opus and `/effort` to medium. For a second profile, symlink `CLAUDE.md skills agents settings.json projects plugins history.jsonl` from its config directory into this one, so both logins share one brain.
+Do not clone this repository over `~/.claude`. Live cutover is a later, approved step.
 
-## Codex
+## Codex and Cursor
 
-Claude Code is the primary agent. Codex is used as an executor for well-specified work: Claude writes the brief, Codex runs it in waves, Claude verifies the result. The `codex` plugin is installed, and kingstack adds no Codex-specific machinery yet; this section says so rather than implying otherwise.
-
-What kingstack already governs about that loop: the routing ruler forbids spending LLM turns on polling, so watching a Codex run is a Monitor or a hook that wakes the session on change rather than a Claude turn every five minutes, and `king-mode` writes hand-off briefs so the receiving agent reviews and improves rather than copies. If Codex stays in the loop, the roadmap is a `handoff-to-codex` skill with a brief template and a verify gate per wave, plus a watcher on Codex's branch.
+Both adapters render immutable bundles. Private-runtime activate and rollback exist and refuse native homes. No live Codex or Cursor path is linked.
 
 ## Provenance
 

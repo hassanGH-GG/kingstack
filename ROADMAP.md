@@ -7,6 +7,7 @@
 - Codex bundle with AGENTS.md, hooks, owned TOML keys
 - Cursor Agent adapter declaration and AGENTS.md bundle
 - Immutable release builder with private-runtime activate and rollback
+- Schedule ownership declaration, staged health, and Markdown classification
 
 ## Stopped here
 

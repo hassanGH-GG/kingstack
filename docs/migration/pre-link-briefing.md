@@ -9,10 +9,13 @@ This document is the Phase F stop. Nothing under `~/.claude`, `~/.codex`, or
 
 - Claude, Codex, and Cursor bundles render as immutable in-memory maps.
 - Shared memory lives in a private store. Migration is copy-only.
+- Schedule ownership is declared. The three launchd jobs stay launchd-owned.
 - `kingstack release --build` writes a content-addressed directory under a
   caller-supplied private runtime.
 - `kingstack release --activate` and `--rollback` work only under that private
   runtime. They refuse `~/.claude`, `~/.codex`, and `~/.cursor`.
+- `kingstack activate --dry-run` prints an ownership plan and writes nothing.
+- `kingstack check --all --mode staged` is healthy. `--mode live` stays unhealthy.
 
 ## What is not done
 

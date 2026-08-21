@@ -40,5 +40,5 @@ class CliSurfaceTest(TestCase):
         self.assertNotIn("archive", cli_command_names())
         self.assertEqual(
             cli_command_names(),
-            {"bootstrap", "check", "inventory", "memory", "release", "render", "sync-upstream"},
+            {"activate", "bootstrap", "check", "inventory", "memory", "release", "render", "sync-upstream"},
         )
