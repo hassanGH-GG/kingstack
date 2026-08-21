@@ -422,8 +422,13 @@ def _adapter_ids(root_fd: int) -> Tuple[str, ...]:
                     )
                     if field == "model_tiers" and isinstance(document, dict) and "model_tiers" in document:
                         document = document["model_tiers"]
-                    elif field == "owned_paths" and isinstance(document, dict) and "owned_paths" in document:
-                        document = document["owned_paths"]
+                    elif field == "owned_paths" and isinstance(document, dict):
+                        if "fully_owned" in document:
+                            document = list(document.get("fully_owned") or []) + list(
+                                document.get("mixed_payloads") or []
+                            )
+                        elif "owned_paths" in document:
+                            document = document["owned_paths"]
                     inline[field] = document
                 try:
                     declaration = load_adapter_document(inline, Path("adapters") / name / "adapter.json")

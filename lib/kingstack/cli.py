@@ -145,12 +145,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     release_mode = release_command.add_mutually_exclusive_group(required=True)
     release_mode.add_argument("--build", action="store_true")
     release_mode.add_argument("--list", action="store_true")
-    release_mode.add_argument("--activate", action="store_true")
+    release_mode.add_argument("--select", action="store_true")
     release_mode.add_argument("--rollback", action="store_true")
     release_command.add_argument("--to")
     activate_command = commands.add_parser("activate")
     activate_command.add_argument("--adapter", type=_adapter_id, required=True)
     activate_command.add_argument("--release", required=True)
+    activate_command.add_argument("--runtime", type=Path, required=True)
     activate_command.add_argument("--native-home", type=Path, required=True)
     activate_command.add_argument("--dry-run", action="store_true")
     arguments = parser.parse_args(argv)
@@ -167,8 +168,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             sync_command.error("--installed-root and --installed-manifest are required together")
         if arguments.installed_root is not None and arguments.adapter is None:
             sync_command.error("installed clobber checking requires --adapter")
-    if arguments.command == "release" and (arguments.activate or arguments.rollback) and not arguments.to:
-        release_command.error("--activate and --rollback require --to")
+    if arguments.command == "release" and (arguments.select or arguments.rollback) and not arguments.to:
+        release_command.error("--select and --rollback require --to")
     if arguments.command == "check":
         if (arguments.contract or arguments.rendered) and arguments.adapter is None and arguments.adapter_path is None:
             check_command.error("--contract and --rendered require --adapter or --adapter-path")
@@ -359,10 +360,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     if arguments.command == "release":
         from kingstack.release import (
             ReleaseError,
-            activate_release,
             build_release,
             list_releases,
             rollback_release,
+            select_release,
         )
         root = Path(__file__).resolve().parents[2]
         try:
@@ -370,8 +371,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                 result = build_release(arguments.adapter, root, arguments.runtime)
             elif arguments.list:
                 result = list_releases(arguments.adapter, arguments.runtime)
-            elif arguments.activate:
-                result = activate_release(arguments.adapter, arguments.runtime, arguments.to)
+            elif arguments.select:
+                result = select_release(arguments.adapter, arguments.runtime, arguments.to)
             else:
                 result = rollback_release(arguments.adapter, arguments.runtime, arguments.to)
             print(json.dumps(result, indent=2, sort_keys=True))
@@ -387,6 +388,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 Path(__file__).resolve().parents[2],
                 arguments.native_home,
                 arguments.release,
+                runtime=arguments.runtime,
             )
             print(json.dumps(plan, indent=2, sort_keys=True))
             return 0

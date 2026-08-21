@@ -48,19 +48,19 @@ def rendered_parity(adapter: str, root: Path) -> MappingProxyType:
         )
 
     for name in baseline["commands"]:
-        path = live / "scripts" / name
+        path = root / "scripts" / name
         ids["command:{}".format(name)] = (
-            _row("live_preserved", str(path)) if path.is_file() else _row("missing", str(path))
+            _row("in_bundle", str(path)) if path.is_file() else _row("missing", str(path))
         )
     for name in baseline["schedules"]:
-        path = live / "launchd" / name
+        path = root / "launchd" / name
         ids["schedule:{}".format(name)] = (
-            _row("live_preserved", str(path)) if path.is_file() else _row("missing", str(path))
+            _row("in_bundle", str(path)) if path.is_file() else _row("missing", str(path))
         )
     for name in baseline["sweeps"]:
-        path = live / "sweeps" / name
+        path = root / "sweeps" / name
         ids["sweep:{}".format(name)] = (
-            _row("live_preserved", str(path)) if path.is_file() else _row("missing", str(path))
+            _row("in_bundle", str(path)) if path.is_file() else _row("missing", str(path))
         )
     for name in baseline["agents"]:
         path = live / "agents" / name

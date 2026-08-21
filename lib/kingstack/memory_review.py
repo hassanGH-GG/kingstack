@@ -13,17 +13,27 @@ class MemoryReviewError(ValueError):
 
 
 def list_pending(store: MemoryStore, project_id: Optional[str] = None) -> List[Mapping[str, object]]:
-    reviewed = {
-        json.loads(line)["candidate_id"]
-        for line in (store.root / "reviews.jsonl").read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    }
-    pending = []
+    inbox = []
     for line in (store.root / "inbox.jsonl").read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            inbox.append(json.loads(line))
+    by_id = {item["id"]: item for item in inbox}
+    reviewed = set()
+    rejected_hashes = set()
+    for line in (store.root / "reviews.jsonl").read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
-        item = json.loads(line)
+        event = json.loads(line)
+        reviewed.add(event["candidate_id"])
+        candidate = by_id.get(event["candidate_id"])
+        if event.get("verdict") == "reject" and candidate is not None:
+            if project_id is None or candidate.get("project_id") == project_id:
+                rejected_hashes.add(candidate["content_hash"])
+    pending = []
+    for item in inbox:
         if item["id"] in reviewed:
+            continue
+        if item.get("content_hash") in rejected_hashes:
             continue
         if project_id and item.get("project_id") != project_id:
             continue

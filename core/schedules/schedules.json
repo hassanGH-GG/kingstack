@@ -7,10 +7,10 @@
       "owner": "launchd",
       "adapter_id": null,
       "cadence": {"hour": 0, "minute": 23},
-      "command": "/Users/mac/.claude/scripts/nightly.sh",
+      "command": "$CLAUDE_HOME/scripts/nightly.sh",
       "timeout": null,
       "model_tier": null,
-      "output": "/Users/mac/.claude/logs/usage-snapshot.log",
+      "output": "$CLAUDE_HOME/logs/usage-snapshot.log",
       "idempotency_key": "com.hassan.claude-usage-snapshot",
       "enabled": true
     },
@@ -23,10 +23,10 @@
         {"day": 1, "hour": 7, "minute": 17},
         {"day": 15, "hour": 7, "minute": 17}
       ],
-      "command": "/Users/mac/.claude/scripts/refresh-king-mode.sh",
+      "command": "$CLAUDE_HOME/scripts/refresh-king-mode.sh",
       "timeout": null,
       "model_tier": null,
-      "output": "/Users/mac/.claude/logs/king-mode-refresh.launchd.log",
+      "output": "$CLAUDE_HOME/logs/king-mode-refresh.launchd.log",
       "idempotency_key": "com.hassan.king-mode-refresh",
       "enabled": true
     },
@@ -36,10 +36,10 @@
       "owner": "launchd",
       "adapter_id": null,
       "cadence": {"hour": 7, "minute": 41},
-      "command": "/Users/mac/.claude/scripts/run-sweeps.sh",
+      "command": "$CLAUDE_HOME/scripts/run-sweeps.sh",
       "timeout": null,
       "model_tier": null,
-      "output": "/Users/mac/.claude/logs/sweeps.launchd.log",
+      "output": "$CLAUDE_HOME/logs/sweeps.launchd.log",
       "idempotency_key": "com.hassan.kingstack-sweeps",
       "enabled": true
     }

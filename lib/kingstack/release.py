@@ -11,14 +11,14 @@ class ReleaseError(ValueError):
     """Raised when a release cannot be built or retargeted safely."""
 
 
-NATIVE_HOMES = (".claude", ".codex", ".cursor")
+def assert_private_runtime(runtime: Path, root: Path = None) -> Path:
+    from kingstack.ownership import native_homes
 
-
-def assert_private_runtime(runtime: Path) -> Path:
     resolved = Path(runtime).expanduser().resolve()
     home = Path.home().resolve()
-    for name in NATIVE_HOMES:
-        native = home / name
+    repo = Path(root) if root is not None else Path(__file__).resolve().parents[2]
+    for name in native_homes(repo):
+        native = (home / name).resolve()
         if resolved == native or str(resolved).startswith(str(native) + os.sep):
             raise ReleaseError("refusing native home {}".format(native))
     return resolved
@@ -92,7 +92,7 @@ def list_releases(adapter: str, runtime: Path) -> List[Mapping[str, object]]:
     return records
 
 
-def activate_release(adapter: str, runtime: Path, release_id: str) -> Mapping[str, object]:
+def select_release(adapter: str, runtime: Path, release_id: str) -> Mapping[str, object]:
     runtime = assert_private_runtime(runtime)
     destination = _release_dir(runtime, adapter, release_id)
     if not (destination / "manifest.json").is_file():
@@ -114,4 +114,4 @@ def rollback_release(adapter: str, runtime: Path, to_id: str) -> Mapping[str, ob
         raise ReleaseError("nothing activated under this private runtime")
     if current.resolve() == _release_dir(runtime, adapter, to_id).resolve():
         return {"adapter": adapter, "id": to_id, "activated": True, "unchanged": True}
-    return activate_release(adapter, runtime, to_id)
+    return select_release(adapter, runtime, to_id)

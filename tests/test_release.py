@@ -4,9 +4,9 @@ from unittest import TestCase
 
 from kingstack.release import (
     ReleaseError,
-    activate_release,
     build_release,
     rollback_release,
+    select_release,
 )
 
 
@@ -22,7 +22,7 @@ class ReleaseTest(TestCase):
         second = build_release("cursor", ROOT, runtime)
         self.assertEqual(first["id"], second["id"])
         self.assertFalse((runtime / "adapters" / "cursor" / "current").exists())
-        activate_release("cursor", runtime, first["id"])
+        select_release("cursor", runtime, first["id"])
         current = runtime / "adapters" / "cursor" / "current"
         self.assertTrue(current.is_symlink())
         self.assertEqual(current.resolve().name, first["id"])
@@ -31,4 +31,4 @@ class ReleaseTest(TestCase):
         with self.assertRaises(ReleaseError):
             build_release("cursor", ROOT, Path.home() / ".claude")
         with self.assertRaises(ReleaseError):
-            activate_release("cursor", Path.home() / ".codex", first["id"])
+            select_release("cursor", Path.home() / ".codex", first["id"])

@@ -3,36 +3,7 @@
   "contract_version": 1,
   "render_module": "kingstack.adapters.claude",
   "native_home": ".claude",
-  "owned_paths": [
-    "CLAUDE.md",
-    "hooks/normalize.py",
-    "hooks/post-tool-use.sh",
-    "hooks/poteto-mode-context.md",
-    "hooks/pre-compact.sh",
-    "hooks/run.py",
-    "hooks/session-start.sh",
-    "hooks/stop.sh",
-    "hooks/subagent-start.sh",
-    "skills/architect", "skills/arena", "skills/automate-me", "skills/blast-radius", "skills/bro",
-    "skills/cli-for-agents", "skills/control-cli", "skills/control-ui", "skills/create-verification-skill",
-    "skills/deslop", "skills/figure-it-out", "skills/how", "skills/interrogate", "skills/king-mode",
-    "skills/maintain-verification-skill", "skills/make-pr-easy-to-review", "skills/memory-review",
-    "skills/no-comments", "skills/poteto-mode", "skills/principle-boundary-discipline",
-    "skills/principle-build-the-lever", "skills/principle-encode-lessons-in-structure",
-    "skills/principle-exhaust-the-design-space", "skills/principle-experience-first",
-    "skills/principle-fix-root-causes", "skills/principle-foundational-thinking",
-    "skills/principle-guard-the-context-window", "skills/principle-laziness-protocol",
-    "skills/principle-make-operations-idempotent", "skills/principle-migrate-callers-then-delete-legacy-apis",
-    "skills/principle-minimize-reader-load", "skills/principle-model-the-domain",
-    "skills/principle-never-block-on-the-human", "skills/principle-outcome-oriented-execution",
-    "skills/principle-prove-it-works", "skills/principle-redesign-from-first-principles",
-    "skills/principle-separate-before-serializing-shared-state", "skills/principle-sequence-verifiable-units",
-    "skills/principle-subtract-before-you-add", "skills/principle-type-system-discipline",
-    "skills/recall", "skills/reflect", "skills/show-me-your-work", "skills/swarm", "skills/tdd",
-    "skills/teach", "skills/technical-writing", "skills/thermo-nuclear-code-quality-review",
-    "skills/thermo-nuclear-review", "skills/typescript-best-practices", "skills/unslop",
-    "skills/verify-this", "skills/why"
-  ],
+  "owned_paths": "owned-paths.json",
   "model_tiers": "models.json",
   "capability_matrix": {
     "contract_version": 1,
@@ -96,10 +67,10 @@
       },
       {
         "capability": "shared_memory",
-        "status": "degraded",
-        "evidence": "Claude has curated project memory, but the cross-agent shared store is not migrated yet.",
-        "impact": "Approved memories are not yet available to other adapters, so strict parity is unavailable.",
-        "strict_parity": false
+        "status": "emulated",
+        "evidence": "Shared memory is the private ~/.kingstack/memory store, written by portable Stop and reviewed by kingstack memory.",
+        "impact": "The store is proven. Live Claude home is not linked.",
+        "strict_parity": true
       },
       {
         "capability": "schedules",
@@ -117,16 +88,16 @@
       },
       {
         "capability": "activation",
-        "status": "unsupported",
-        "evidence": "Task 1 declares adapters but does not yet implement versioned activation.",
-        "impact": "No Claude adapter release can be activated until the cutover engine is implemented.",
+        "status": "emulated",
+        "evidence": "Private-runtime select and throwaway apply exist and refuse ~/.claude.",
+        "impact": "No live Claude home may be linked until Hassan approves.",
         "strict_parity": false
       },
       {
         "capability": "rollback",
-        "status": "unsupported",
-        "evidence": "Task 1 declares adapters but does not yet implement manifest-owned rollback.",
-        "impact": "No Claude adapter activation may occur until rollback is implemented and proven.",
+        "status": "emulated",
+        "evidence": "Private-runtime and throwaway rollback exist and refuse ~/.claude.",
+        "impact": "There is no live Claude link to roll back.",
         "strict_parity": false
       }
     ]

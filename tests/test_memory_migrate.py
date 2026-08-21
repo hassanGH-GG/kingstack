@@ -28,3 +28,16 @@ class MemoryMigrateTest(TestCase):
         self.assertEqual(target.read_bytes(), source_hash)
         self.assertEqual(target.stat().st_mtime_ns, source_mtime)
         self.assertTrue(target.exists())
+
+    def test_dry_run_against_live_claude_applies_only_to_a_temp_store(self):
+        live = Path.home() / ".claude"
+        if not (live / "projects").is_dir():
+            self.skipTest("no live Claude banks")
+        before = inventory_banks(live)
+        store = MemoryStore.open(Path(tempfile.mkdtemp()) / "memory")
+        dry = migrate_claude(live, store, apply=False)
+        self.assertEqual(dry["count"], before["count"])
+        migrate_claude(live, store, apply=True)
+        after = inventory_banks(live)
+        self.assertEqual(after, before)
+        self.assertNotEqual(store.root, Path.home() / ".kingstack" / "memory")

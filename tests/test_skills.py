@@ -534,6 +534,9 @@ class SkillCatalogTest(TestCase):
         example_dir.mkdir()
         (example_dir / "adapter.json").write_text(json.dumps(adapter), encoding="utf-8")
         shutil.copy(test_root / "adapters/codex/models.json", example_dir / "models.json")
+        owned = json.loads((test_root / "adapters/codex/owned-paths.json").read_text())
+        owned["adapter"] = "example"
+        (example_dir / "owned-paths.json").write_text(json.dumps(owned), encoding="utf-8")
         shutil.copy(
             test_root / "core/skills/transforms/claude.json",
             test_root / "core/skills/transforms/example.json",
@@ -553,8 +556,8 @@ class SkillCatalogTest(TestCase):
     def test_adapter_ownership_never_claims_plugin_or_unsupported_skill_paths(self):
         """Adapter ownership enumerates generated paths instead of broad mixed trees."""
         for adapter in ("claude", "codex"):
-            declaration = json.loads((ROOT / "adapters" / adapter / "adapter.json").read_text())
-            owned = set(declaration["owned_paths"])
+            from kingstack.ownership import load_ownership, render_paths
+            owned = set(render_paths(load_ownership(ROOT, adapter)))
             self.assertNotIn("skills", owned)
             manifest = bundle_manifest(adapter, ROOT, upstream_root=PLUGINS)
             records = {record["name"]: record for record in manifest["skills"]}

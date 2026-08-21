@@ -36,6 +36,7 @@
     "docs/migration/foundation-verification.md": "historical",
     "docs/migration/legacy-claude-checkout.md": "rewrite",
     "docs/migration/pre-link-briefing.md": "rewrite",
+    "docs/migration/super-saiyan-3-plan.md": "rewrite",
     "docs/superpowers/plans/2026-08-20-agent-neutral-kingstack-migration.md": "delete-at-final-acceptance",
     "docs/superpowers/plans/2026-08-20-kingstack-codex-adapter-plan.md": "delete-at-final-acceptance",
     "docs/superpowers/plans/2026-08-20-kingstack-core-claude-plan.md": "delete-at-final-acceptance",

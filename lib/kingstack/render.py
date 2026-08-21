@@ -257,7 +257,12 @@ def _inline_adapter_references(
             )
         )
         value = _decode_json(content, "adapter {} reference".format(field))
-        if field in ("owned_paths", "model_tiers") and isinstance(value, dict):
+        if field == "owned_paths" and isinstance(value, dict):
+            if "fully_owned" in value:
+                value = list(value.get("fully_owned") or []) + list(value.get("mixed_payloads") or [])
+            else:
+                value = value.get("owned_paths", value)
+        elif field == "model_tiers" and isinstance(value, dict):
             value = value.get(field, value)
         inlined[field] = value
     return inlined
@@ -413,6 +418,23 @@ def _load_render_context(adapter: str, root: Path):
         appendix = _decode_utf8(
             appendix_bytes, "adapter instruction appendix", allow_empty=True
         )
+        adapter_files = {}
+        for relative in declaration.owned_paths:
+            if relative in ("CLAUDE.md", "AGENTS.md") or relative.startswith("skills/"):
+                continue
+            parts = relative.split("/")
+            parent = adapter_fd
+            try:
+                for part in parts[:-1]:
+                    nested = _open_directory_at(parent, part, "adapter file directory")
+                    descriptors.append(nested)
+                    directory_identities.append((parent, part, nested, "adapter file directory"))
+                    parent = nested
+                content, identity = _read_file_at(parent, parts[-1], "adapter file")
+                file_identities.append((parent, parts[-1], identity, "adapter file"))
+                adapter_files[relative] = content
+            except (OSError, RenderError):
+                continue
         provider_source = _read_provider_source(
             root_fd,
             adapter_fd,
@@ -444,6 +466,7 @@ def _load_render_context(adapter: str, root: Path):
             {
                 "instructions": "".join(fragments).encode("utf-8"),
                 "appendix": appendix.encode("utf-8"),
+                "adapter_files": MappingProxyType(adapter_files),
             }
         )
         return declaration, shared_sources, provider_source

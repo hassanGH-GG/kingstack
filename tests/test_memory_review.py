@@ -31,4 +31,5 @@ class MemoryReviewTest(TestCase):
         )
         store.append_candidate(other)
         reject(store, other["id"], "stale project status", "hassan")
+        store.append_candidate(make_candidate("codex", "p_demo", "s9", "stale", "old", "old status"))
         self.assertEqual(list_pending(store), [])

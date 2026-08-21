@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from kingstack.toml_patch import owned_spans
+from kingstack.toml_patch import TomlPatchError, owned_spans
 
 
 class TomlPatchTest(TestCase):
@@ -20,3 +20,5 @@ class TomlPatchTest(TestCase):
         self.assertIn("[agents]", patched)
         self.assertIn('default_subagent_model = "gpt-5.6-terra"', patched)
         self.assertIn("memories = true", patched)
+        with self.assertRaises(TomlPatchError):
+            owned_spans('model = "other"\n', {"model": "gpt-5.6-terra"})

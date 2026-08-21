@@ -43,9 +43,7 @@ def make_candidate(
     session_hash = _hash(session_id)
     identity = {
         "source_adapter": source_adapter,
-        "source_profile": source_profile,
         "project_id": project_id,
-        "session_id_hash": session_hash,
         "content_hash": content_hash,
     }
     candidate_id = "c_" + _hash(json.dumps(identity, sort_keys=True))[:16]

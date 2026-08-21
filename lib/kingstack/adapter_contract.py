@@ -242,10 +242,20 @@ def _resolve_reference(source: Path, reference: str) -> Path:
     raise AdapterContractError("missing referenced document '{}'".format(reference))
 
 
+def _flatten_owned_document(document: Any) -> Any:
+    if not isinstance(document, dict):
+        return document
+    if "fully_owned" in document:
+        return list(document.get("fully_owned") or []) + list(document.get("mixed_payloads") or [])
+    return document.get("owned_paths", document)
+
+
 def _load_owned_paths(source: Path, value: Any) -> Tuple[str, ...]:
     if isinstance(value, str):
         document = _load_json(_resolve_reference(source, value))
-        value = document.get("owned_paths") if isinstance(document, dict) else document
+        value = _flatten_owned_document(document)
+    elif isinstance(value, dict):
+        value = _flatten_owned_document(value)
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise AdapterContractError("owned_paths must be an array of strings")
 
