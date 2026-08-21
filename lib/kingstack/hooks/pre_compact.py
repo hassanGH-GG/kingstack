@@ -28,6 +28,7 @@ def handle(event, runtime: Path) -> dict:
     transcript = payload.get("transcript_path") or ""
     directory = runtime / "logs" / "compaction-checkpoints"
     directory.mkdir(parents=True, exist_ok=True)
+    os.chmod(directory, 0o700)
     lines = [
         "# compaction checkpoint {} session {} cwd {}".format(
             datetime.now().strftime("%Y-%m-%d %H:%M:%S"), session, project
@@ -46,6 +47,7 @@ def handle(event, runtime: Path) -> dict:
             lines.append("- {}".format(text.replace("\n", " ")[:200]))
     checkpoint = directory / "{}.md".format(session)
     checkpoint.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    os.chmod(checkpoint, 0o600)
     try:
         from kingstack.session_store import record_from_hook
         record_from_hook(

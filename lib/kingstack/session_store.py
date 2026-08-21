@@ -265,6 +265,11 @@ class SessionStore:
         )
 
 
+def open_hook_store(root: Path) -> SessionStore:
+    from kingstack.checkout import try_discover_checkout
+    return SessionStore.open(Path(root), repo_root=try_discover_checkout())
+
+
 def record_from_hook(
     event: Mapping[str, Any],
     status: Optional[str] = None,
@@ -291,7 +296,7 @@ def record_from_hook(
         "project_id": identity,
     }
     try:
-        store = SessionStore.open(Path(root))
+        store = open_hook_store(Path(root))
     except (SessionStoreError, OSError):
         return None
     try:
@@ -311,11 +316,10 @@ def record_from_hook(
         patch["transcript_path"] = transcript
         if os.path.exists(transcript):
             from kingstack.hooks.inbox import human_prompts, one_line
-            from kingstack.secret_filter import inspect
+            from kingstack.secret_filter import keep_public
             patch["last_prompts"] = [
                 one_line(text)
-                for text in human_prompts(transcript)[-PROMPT_CAP:]
-                if not inspect(text)
+                for text in keep_public(human_prompts(transcript))[-PROMPT_CAP:]
             ]
     store_path = os.environ.get("KINGSTACK_HEADROOM_ROOT")
     if store_path:
@@ -331,7 +335,7 @@ def record_from_hook(
     if packet:
         patch["packet_path"] = packet
     try:
-        opened = store if store is not None else SessionStore.open(Path(root))
+        opened = store if store is not None else open_hook_store(Path(root))
         return opened.upsert(patch)
     except Exception:
         return None

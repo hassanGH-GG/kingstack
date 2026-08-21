@@ -194,13 +194,17 @@ def human_prompts(transcript):
             text = prompt_text(row)
             if text:
                 prompts.append(text)
-    return prompts
+    from kingstack.secret_filter import keep_public
+    return keep_public(prompts)
 
 
 def upsert(runtime: Path, candidate: Candidate) -> None:
+    from kingstack.secret_filter import inspect
+    if inspect(candidate.text):
+        return
     path = inbox_path(runtime)
     path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor = os.open(str(path), os.O_RDWR | os.O_CREAT, 0o644)
+    descriptor = os.open(str(path), os.O_RDWR | os.O_CREAT, 0o600)
     with os.fdopen(descriptor, "r+") as handle:
         fcntl.flock(handle, fcntl.LOCK_EX)
         try:
@@ -217,6 +221,7 @@ def upsert(runtime: Path, candidate: Candidate) -> None:
             handle.seek(0)
             handle.write(inbox.render())
             handle.truncate()
+            os.chmod(path, 0o600)
         finally:
             fcntl.flock(handle, fcntl.LOCK_UN)
 
