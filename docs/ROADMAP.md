@@ -40,5 +40,6 @@ Ritual: `cd ~/Desktop/Work/kingstack`, then "stack session".
 
 ## Done
 
+- 2026-08-21: complete-before-link: inverse rollback, schedule locks, wrappers, memory copy, portable status line.
 - 2026-08-21: agent-neutral core, shared memory, Codex/Cursor adapters, private releases.
 - 2026-08-18/19: earlier framework history. See `git log`.

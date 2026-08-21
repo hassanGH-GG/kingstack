@@ -11,6 +11,11 @@
 # ~/.claude/model-routing.md. Do not hardcode a model here: an unattended job must not die
 # because one tier ran out of credits.
 set -uo pipefail
+KINGSTACK_ROOT="${KINGSTACK_ROOT:-$HOME/Desktop/Work/kingstack}"
+if ! PYTHONPATH="$KINGSTACK_ROOT/lib" python3 -c "from kingstack.schedule_lock import claim; claim('com.hassan.king-mode-refresh', 'launchd')"; then
+  echo "duplicate prevented"
+  exit 0
+fi
 # PATH (including node for plugin hooks) and claude_retry come from the shared library.
 # Do NOT set CLAUDE_CONFIG_DIR: the login lives in ~/.claude.json and the default resolves it.
 . "$HOME/.claude/scripts/lib-headless.sh"

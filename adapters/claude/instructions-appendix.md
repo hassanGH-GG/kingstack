@@ -7,3 +7,6 @@ Opus by default; Fable may replace Opus only through a private availability
 override for that spawn. Select the main-thread model once through `/model`, keep
 effort medium, and report the chosen model and effort. Past ~150k tokens of
 context, propose `/clear`.
+
+Context cost is on the Claude status line via `hooks/ctx-status.py`. The same
+math is `kingstack status` on every adapter.

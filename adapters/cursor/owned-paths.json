@@ -56,7 +56,9 @@
     "skills/typescript-best-practices",
     "skills/unslop",
     "skills/verify-this",
-    "skills/why"
+    "skills/why",
+    "hooks/ctx-status.py",
+    "bin/kingstack-path"
   ],
   "mixed": [],
   "mixed_payloads": [],

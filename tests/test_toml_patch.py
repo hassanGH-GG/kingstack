@@ -22,3 +22,5 @@ class TomlPatchTest(TestCase):
         self.assertIn("memories = true", patched)
         with self.assertRaises(TomlPatchError):
             owned_spans('model = "other"\n', {"model": "gpt-5.6-terra"})
+        patched_list, _ = owned_spans("", {"tui.status_line": ["model", "tokens"]})
+        self.assertIn("status_line = [\"model\", \"tokens\"]", patched_list)

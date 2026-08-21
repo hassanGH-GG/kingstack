@@ -16,6 +16,8 @@ def _render(value: Any) -> str:
         return str(value)
     if isinstance(value, str):
         return json_dumps_string(value)
+    if isinstance(value, list):
+        return "[" + ", ".join(_render(item) for item in value) + "]"
     raise TomlPatchError("unsupported owned TOML value type")
 
 
@@ -26,6 +28,14 @@ def json_dumps_string(value: str) -> str:
 
 def _parse_scalar(raw: str) -> Any:
     text = raw.strip()
+    if text.startswith("[") and text.endswith("]"):
+        inner = text[1:-1].strip()
+        if not inner:
+            return []
+        items = []
+        for part in inner.split(","):
+            items.append(_parse_scalar(part))
+        return items
     if text in ("true", "false"):
         return text == "true"
     if text.startswith('"') and text.endswith('"'):

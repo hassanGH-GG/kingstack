@@ -41,3 +41,24 @@ class MemoryMigrateTest(TestCase):
         after = inventory_banks(live)
         self.assertEqual(after, before)
         self.assertNotEqual(store.root, Path.home() / ".kingstack" / "memory")
+
+    def test_two_claude_slugs_do_not_share_a_parent_git_identity(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name)
+        first = root / "covers-engine"
+        second = root / "plugins"
+        first.mkdir()
+        second.mkdir()
+        claude = root / "claude" / "projects"
+        for real in (first, second):
+            slug = "-" + "-".join(real.parts[1:])
+            memory = claude / slug / "memory"
+            memory.mkdir(parents=True)
+            (memory / "MEMORY.md").write_text("# {}\n".format(real.name), encoding="utf-8")
+        # parent git repo that used to steal every identity
+        subprocess = __import__("subprocess")
+        subprocess.run(["git", "init"], cwd=claude, check=True, stdout=subprocess.DEVNULL)
+        store = MemoryStore.open(root / "memory")
+        migrate_claude(root / "claude", store, apply=True)
+        self.assertEqual(len(list((store.root / "projects").iterdir())), 2)

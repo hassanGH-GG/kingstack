@@ -1,0 +1,6 @@
+{
+  "statusLine": {
+    "type": "command",
+    "command": "KINGSTACK_ROOT=\"$HOME/Desktop/Work/kingstack\" python3 \"$HOME/.claude/hooks/ctx-status.py\""
+  }
+}

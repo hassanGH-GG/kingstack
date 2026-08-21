@@ -1,3 +1,4 @@
+import json
 import tempfile
 from pathlib import Path
 from unittest import TestCase
@@ -21,7 +22,8 @@ class ActivationTest(TestCase):
         self.assertTrue(plan["owned"])
         applied = apply_activation(plan, ROOT)
         self.assertTrue((home / "AGENTS.md").is_file())
-        self.assertTrue((home / ".kingstack-current").is_symlink())
+        self.assertTrue((home / "hooks/ctx-status.py").is_file())
+        self.assertTrue((home / "bin/kingstack-path").is_file())
         rollback_activation(applied)
         self.assertFalse((home / ".kingstack-current").exists())
         home.mkdir(parents=True, exist_ok=True)
@@ -39,3 +41,42 @@ class ActivationTest(TestCase):
         )
         with self.assertRaises(ActivationError):
             apply_activation(native_plan, ROOT)
+
+    def test_settings_unowned_keys_survive_inverse_rollback(self):
+        runtime = Path(tempfile.mkdtemp())
+        release = build_release("claude", ROOT, runtime)
+        home = Path(tempfile.mkdtemp()) / "claude-home"
+        home.mkdir()
+        (home / "settings.json").write_text(
+            json.dumps({"autoCompactWindow": 200000, "theme": "dark"}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        plan = plan_activation("claude", ROOT, home, release["id"], runtime=runtime)
+        with self.assertRaises(ActivationError):
+            apply_activation(plan, ROOT, fail_after="mixed-publish")
+        self.assertEqual(json.loads((home / "settings.json").read_text())["theme"], "dark")
+        applied = apply_activation(plan, ROOT)
+        live = json.loads((home / "settings.json").read_text(encoding="utf-8"))
+        self.assertIn("statusLine", live)
+        live["keepAfter"] = True
+        (home / "settings.json").write_text(json.dumps(live, indent=2) + "\n", encoding="utf-8")
+        rollback_activation(applied)
+        restored = json.loads((home / "settings.json").read_text(encoding="utf-8"))
+        self.assertEqual(restored["theme"], "dark")
+        self.assertTrue(restored["keepAfter"])
+        self.assertNotIn("statusLine", restored)
+
+    def test_occupied_sibling_and_current_failure_restore(self):
+        runtime = Path(tempfile.mkdtemp())
+        release = build_release("cursor", ROOT, runtime)
+        home = Path(tempfile.mkdtemp()) / "cursor-home"
+        home.mkdir()
+        (home / "AGENTS.md").write_text("original\n", encoding="utf-8")
+        plan = plan_activation("cursor", ROOT, home, release["id"], runtime=runtime)
+        with self.assertRaises(ActivationError):
+            apply_activation(plan, ROOT, fail_after="current")
+        self.assertEqual((home / "AGENTS.md").read_text(encoding="utf-8"), "original\n")
+        (home / "AGENTS.md.kingstack-occupied").write_text("nope\n", encoding="utf-8")
+        # occupied check uses the live timestamped sibling name, not this file
+        apply_activation(plan, ROOT)
+        self.assertTrue((home / ".kingstack-current").is_symlink())

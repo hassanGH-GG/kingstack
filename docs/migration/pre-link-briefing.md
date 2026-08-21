@@ -2,9 +2,10 @@
 
 Status: WAITING FOR HASSAN
 
-This is the Super Saiyan 3 stop. Nothing under `~/.claude`, `~/.codex`, or
-`~/.cursor` has been linked or replaced. Throwaway apply is proven. Live
-apply is still refused.
+This is the complete-before-link stop. Native homes were not written.
+Throwaway apply, inverse mixed rollback, schedule locks, release wrappers,
+shared memory copy, and the portable context status line are in the
+checkout.
 
 ## Ownership
 
@@ -12,54 +13,36 @@ apply is still refused.
 
 | Adapter | Fully owned live paths | Mixed live files | Mixed payloads |
 | --- | --- | --- | --- |
-| Claude | `CLAUDE.md`, hooks, 53 skill directories | `settings.json` | none |
-| Codex | `AGENTS.md`, hooks, 36 skill directories | `config.toml` | `config-owned.json` |
-| Cursor | `AGENTS.md`, hooks, 53 skill directories | none | none |
+| Claude | `CLAUDE.md`, hooks including `ctx-status.py`, `bin/claude-check`, `bin/kingstack-path`, 53 skill directories | `settings.json` (`statusLine` only) | `settings-owned.json` |
+| Codex | `AGENTS.md`, hooks including `ctx-status.py`, `bin/kingstack-path`, 36 skill directories | `config.toml` (owned keys plus `tui.status_line`) | `config-owned.json` |
+| Cursor | `AGENTS.md`, hooks including `ctx-status.py`, `bin/kingstack-path`, 53 skill directories | none | none |
 
-Render may emit only `fully_owned` plus mixed payloads. Activation plans
-only `fully_owned` and `mixed`. Staged health fails if those sets disagree.
-Whole-home ownership stays illegal.
+Forbidden trees stay untouched. Whole-home ownership stays illegal.
 
-Forbidden trees stay untouched: Claude `projects`, `memory`, `auth.json`,
-`sessions`, `plugins`, `cache`. Codex `auth.json`, `sessions`, `memories`,
-`tmp`, `plugins`. Cursor `projects`, `ai-tracking`, `extensions`, `argv.json`.
+## What landed before any live link
 
-## Throwaway apply evidence
-
-`apply_activation` writes a dated sibling for every fully owned path, merges
-mixed files, and publishes `.kingstack-current` under a temp home.
-
-- Fake release ids fail. `activate --release deadbeef --dry-run` exits 2.
-- `apply_activation` on `~/.claude` raises.
-- Injected failure after rename restores the pre-state.
-- A second apply of the same release is a no-op.
-- `kingstack release --select --to <id>` retargets private `current` only.
-
-## What is ready
-
-- Claude, Codex, and Cursor stay first-party adapters. Codex still records
-  the 18 Task/loop skills as unsupported.
-- Shared memory candidates hash adapter, project, and content. Session is
-  metadata. A rejected content hash does not return.
-- Memory migrate is copy-only. Apply is proven against a temp store, not
-  `~/.kingstack/memory`.
-- `kingstack check --all --mode staged` is healthy. `--mode live` stays
-  unhealthy on real native homes.
-- `--rendered` parity compares the checkout baseline, not today's live home.
-
-## What is not done
-
-- No live activation of any native home
-- No copy into the real `~/.kingstack/memory`
-- No Superpowers plugin disablement
-- The six plan files still exist
-- This branch is not pushed
+- Inverse mixed rollback keeps unowned keys. A `theme` or `keepAfter` key
+  added after apply survives rollback. `statusLine` is removed.
+- Throwaway fault injection after rename, mixed publish, and `current`
+  restores the pre-state. Native `~/.claude` apply still raises.
+- Schedule locks live under `~/.kingstack/manifests/schedules`. A second
+  owner prints `duplicate prevented`.
+- Release wrappers resolve through `KINGSTACK_ROOT`. They are in the
+  bundle, not linked live.
+- Curated Claude banks were copied into `~/.kingstack/memory`. Identity
+  is the real project path, not the hyphen slug under `~/.claude/projects`.
+  A parent-git collision that smashed every bank into one id is fixed.
+  Live Claude banks were not modified.
+- `kingstack status` is the same cache-read cost math on every adapter.
+  Claude will run it as `settings.json` `statusLine` after a link. Codex
+  owns native `tui.status_line` fields plus the same command. Cursor has
+  no native footer hook; it uses `kingstack status` / `hooks/ctx-status.py`.
 
 ## What Hassan must approve before any live link
 
-1. The ownership table above.
-2. That throwaway apply and rollback are enough evidence to proceed.
-3. That the six plan files are deleted only after cutover, never before.
+1. The ownership table, including `statusLine` as the only Claude settings key.
+2. That throwaway apply and inverse rollback are enough evidence.
+3. That the six plan files are deleted only after cutover.
 4. Push and merge of `feat/agent-neutral-kingstack`.
 
 Say `approve live link` if you want that work to start. Until then the native

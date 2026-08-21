@@ -8,3 +8,5 @@ Shared curated memory lives under `~/.kingstack/memory` and is not Codex
 native memory. Recall with `kingstack memory recall`.
 The canonical checkout is `~/Desktop/Work/kingstack`.
 No live Codex path is linked until Hassan approves the pre-link briefing.
+Codex footer fields are the native `tui.status_line`. The same cache-read cost
+math is `kingstack status` or `hooks/ctx-status.py`.

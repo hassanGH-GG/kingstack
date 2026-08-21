@@ -62,12 +62,17 @@
     "skills/typescript-best-practices",
     "skills/unslop",
     "skills/verify-this",
-    "skills/why"
+    "skills/why",
+    "hooks/ctx-status.py",
+    "bin/claude-check",
+    "bin/kingstack-path"
   ],
   "mixed": [
     "settings.json"
   ],
-  "mixed_payloads": [],
+  "mixed_payloads": [
+    "settings-owned.json"
+  ],
   "forbidden": [
     "projects",
     "memory",

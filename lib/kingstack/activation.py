@@ -7,9 +7,9 @@ from pathlib import Path
 import shutil
 from typing import Any, Mapping, Optional
 
-from kingstack.json_patch import merge_json
+from kingstack.json_patch import inverse_json, merge_json
 from kingstack.ownership import load_ownership, native_homes
-from kingstack.toml_patch import owned_spans
+from kingstack.toml_patch import inverse_spans, owned_spans
 
 
 class ActivationError(ValueError):
@@ -17,7 +17,7 @@ class ActivationError(ValueError):
 
 
 def _stamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
 
 
 def _is_native_home(path: Path, root: Path) -> bool:
@@ -130,7 +130,8 @@ def _apply_body(plan, home, release_dir, stamp, preserved, merged, _fail):
             owned = json.loads((release_dir / "config-owned.json").read_text(encoding="utf-8"))
             text, snapshot = owned_spans(original_text, owned)
         elif live.name == "settings.json":
-            text, snapshot = merge_json(original_text, {})
+            owned = json.loads((release_dir / "settings-owned.json").read_text(encoding="utf-8"))
+            text, snapshot = merge_json(original_text, owned)
         else:
             raise ActivationError("unknown mixed file")
         if live.exists():
@@ -154,11 +155,17 @@ def rollback_activation(manifest: Mapping[str, Any], fail_after: Optional[str] =
     home = Path(manifest["native_home"])
     for item in reversed(manifest.get("merged", [])):
         live = Path(item["live"])
-        original = next((row["original"] for row in manifest["preserved"] if row["live"] == item["live"]), None)
-        if original and Path(original).exists():
-            if live.exists():
-                live.unlink()
-            os.rename(original, live)
+        snapshot = item.get("snapshot") or {}
+        if live.is_file():
+            current = live.read_text(encoding="utf-8")
+            if live.name == "config.toml":
+                live.write_text(inverse_spans(current, snapshot), encoding="utf-8")
+            elif live.name == "settings.json":
+                live.write_text(inverse_json(current, snapshot), encoding="utf-8")
+        else:
+            original = next((row["original"] for row in manifest.get("preserved", []) if row["live"] == item["live"]), None)
+            if original and Path(original).exists():
+                os.rename(original, live)
         if fail_after == "mixed-rollback":
             raise ActivationError("injected failure after mixed-rollback")
     for item in reversed(manifest.get("preserved", [])):

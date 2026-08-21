@@ -48,6 +48,40 @@ def _digest(material: str) -> str:
     return "p_" + hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
 
 
+def decode_claude_project_slug(name: str) -> Optional[Path]:
+    """Turn Claude's hyphen-encoded cwd slug back into a real directory."""
+    if not name.startswith("-"):
+        return None
+    parts = name[1:].split("-")
+    current = Path("/")
+    index = 0
+    while index < len(parts):
+        found = None
+        for end in range(len(parts), index, -1):
+            candidate = current / "-".join(parts[index:end])
+            if candidate.exists():
+                found = candidate
+                index = end
+                break
+        if found is None:
+            return None
+        current = found
+    return current if current.is_dir() else None
+
+
+def identity_for_claude_bank(memory_dir: Path) -> ProjectIdentity:
+    slug_dir = Path(memory_dir).resolve().parent
+    decoded = decode_claude_project_slug(slug_dir.name)
+    if decoded is not None:
+        return project_identity(decoded)
+    return ProjectIdentity(
+        _digest("claude-project:" + slug_dir.name),
+        slug_dir.name,
+        str(slug_dir),
+        None,
+    )
+
+
 def project_identity(root: Path) -> ProjectIdentity:
     root = Path(os.path.realpath(str(root)))
     if not root.is_dir():

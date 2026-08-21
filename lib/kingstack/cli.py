@@ -148,6 +148,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     release_mode.add_argument("--select", action="store_true")
     release_mode.add_argument("--rollback", action="store_true")
     release_command.add_argument("--to")
+    status_command = commands.add_parser("status")
+    status_command.add_argument("--transcript", dest="transcript_path")
+    status_command.add_argument("--model", dest="status_model")
     activate_command = commands.add_parser("activate")
     activate_command.add_argument("--adapter", type=_adapter_id, required=True)
     activate_command.add_argument("--release", required=True)
@@ -178,6 +181,16 @@ def main(argv: Optional[List[str]] = None) -> int:
     if arguments.command == "activate" and not arguments.dry_run:
         activate_command.error("live apply is forbidden; pass --dry-run")
 
+    if arguments.command == "status":
+        from kingstack.statusline import render_status
+        payload = {
+            "transcript_path": arguments.transcript_path or "",
+            "workspace": {"current_dir": str(Path.cwd())},
+            "model": {"display_name": arguments.status_model or ""},
+            "cost": {},
+        }
+        print(render_status(payload))
+        return 0
     if arguments.command == "inventory":
         write_public_report(
             capture_baseline(Paths.for_home(arguments.home)), arguments.output

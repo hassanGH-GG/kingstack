@@ -8,7 +8,7 @@ import shutil
 from typing import Any, Mapping
 
 from kingstack.memory_store import MemoryStore, _atomic_write
-from kingstack.project_id import project_identity
+from kingstack.project_id import identity_for_claude_bank
 
 
 class MemoryMigrateError(ValueError):
@@ -63,7 +63,7 @@ def migrate_claude(claude_home: Path, store: MemoryStore, apply: bool = False) -
     if not apply:
         return report
     for bank in report["banks"]:
-        identity = project_identity(Path(bank["source"]).parent)
+        identity = identity_for_claude_bank(Path(bank["source"]))
         store.register_project(identity)
         destination = store.bank(identity.id)
         staging = destination.with_name(destination.name + ".staging")

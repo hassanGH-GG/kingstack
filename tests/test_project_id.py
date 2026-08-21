@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from unittest import TestCase
 
-from kingstack.project_id import project_id
+from kingstack.project_id import decode_claude_project_slug, identity_for_claude_bank, project_id
 
 
 class ProjectIdTest(TestCase):
@@ -32,3 +32,15 @@ class ProjectIdTest(TestCase):
         a.mkdir(parents=True)
         b.mkdir(parents=True)
         self.assertNotEqual(project_id(a), project_id(b))
+
+    def test_claude_slug_decodes_hyphenated_project_names(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        real = Path(temporary.name) / "nbi-monorepo"
+        real.mkdir()
+        slug = "-" + "-".join(real.parts[1:])
+        decoded = decode_claude_project_slug(slug)
+        self.assertEqual(decoded, real)
+        memory = Path(temporary.name) / "projects" / slug / "memory"
+        memory.mkdir(parents=True)
+        self.assertEqual(identity_for_claude_bank(memory).id, project_id(real))

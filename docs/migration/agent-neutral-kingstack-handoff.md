@@ -6,8 +6,8 @@ Repository: `https://github.com/hassanGH-GG/kingstack`
 
 Branch: `feat/agent-neutral-kingstack`
 
-Implementation status: Phases A–E plus Cursor adapter implemented and committed; Phase F briefing written; Phase G live cutover not started
-Live status: not activated; Claude, Codex, and Cursor native homes remain unchanged
+Implementation status: Super Saiyan 3 plus the complete-before-link pass (owned settings keys, inverse mixed rollback, schedule locks, wrappers, private memory copy, portable status line). Phase G live cutover not started
+Live status: not activated; Claude, Codex, and Cursor native homes remain unchanged; curated banks were copied into `~/.kingstack/memory` only
 
 This is the canonical continuation document for a new Claude or Codex session.
 It explains what kingstack was, why the architecture changed, what has been

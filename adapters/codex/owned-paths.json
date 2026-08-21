@@ -39,7 +39,9 @@
     "skills/thermo-nuclear-review",
     "skills/typescript-best-practices",
     "skills/unslop",
-    "skills/verify-this"
+    "skills/verify-this",
+    "hooks/ctx-status.py",
+    "bin/kingstack-path"
   ],
   "mixed": [
     "config.toml"
