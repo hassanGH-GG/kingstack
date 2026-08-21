@@ -333,13 +333,6 @@ class AdapterContractTest(TestCase):
             for state in declaration.capability_matrix.states
         }
         not_yet_staged = {
-            "global_guidance",
-            "skill_catalog",
-            "session_start",
-            "stop_capture",
-            "before_compaction",
-            "post_tool_use",
-            "subagent_start",
             "schedules",
         }
 

@@ -5,6 +5,9 @@
   "native_home": ".codex",
   "owned_paths": [
     "AGENTS.md",
+    "hooks.json",
+    "hooks/run.py",
+    "config-owned.json",
     "skills/bro", "skills/cli-for-agents",
     "skills/control-cli", "skills/control-ui", "skills/create-verification-skill", "skills/deslop",
     "skills/maintain-verification-skill", "skills/make-pr-easy-to-review",
@@ -29,52 +32,52 @@
     "capabilities": [
       {
         "capability": "global_guidance",
-        "status": "unsupported",
-        "evidence": "Codex supports AGENTS.md, but kingstack guidance has not been rendered or staged for Codex yet.",
-        "impact": "Codex does not yet load kingstack's shared guidance.",
-        "strict_parity": false
+        "status": "emulated",
+        "evidence": "Kingstack renders AGENTS.md from shared instruction fragments plus the Codex appendix.",
+        "impact": "The bundle is proven. Live Codex home is not linked.",
+        "strict_parity": true
       },
       {
         "capability": "skill_catalog",
-        "status": "unsupported",
-        "evidence": "Codex provides native skills and plugins, but kingstack skills have not been staged for Codex yet.",
-        "impact": "The shared kingstack and pstack capability set is not yet available through the Codex adapter.",
-        "strict_parity": false
+        "status": "emulated",
+        "evidence": "The Codex portable subset is rendered into the immutable bundle from the shared catalog.",
+        "impact": "The bundle is proven. Live Codex home is not linked.",
+        "strict_parity": true
       },
       {
         "capability": "session_start",
-        "status": "unsupported",
-        "evidence": "Codex exposes SessionStart, but a normalized kingstack handler has not been staged or replay-proven.",
-        "impact": "Kingstack startup policy is not yet injected through Codex.",
-        "strict_parity": false
+        "status": "emulated",
+        "evidence": "The Codex bundle includes hooks/run.py SessionStart over the portable handler.",
+        "impact": "The bundle is proven. Live Codex home is not linked.",
+        "strict_parity": true
       },
       {
         "capability": "stop_capture",
-        "status": "unsupported",
-        "evidence": "Codex exposes Stop, but kingstack memory capture has not been staged or replay-proven.",
-        "impact": "Codex turns do not yet emit candidates to shared curated memory.",
-        "strict_parity": false
+        "status": "emulated",
+        "evidence": "The Codex bundle includes hooks/run.py Stop over the portable capture handler.",
+        "impact": "The bundle is proven. Live Codex home is not linked.",
+        "strict_parity": true
       },
       {
         "capability": "before_compaction",
-        "status": "unsupported",
-        "evidence": "Codex exposes a native PreCompact mechanism, but the kingstack checkpoint and preservation handler has not been staged or replay-proven.",
-        "impact": "Codex compaction does not yet produce the shared kingstack checkpoint behavior.",
-        "strict_parity": false
+        "status": "emulated",
+        "evidence": "The Codex bundle includes hooks/run.py PreCompact over the portable handler.",
+        "impact": "The bundle is proven. Live Codex home is not linked.",
+        "strict_parity": true
       },
       {
         "capability": "post_tool_use",
-        "status": "unsupported",
-        "evidence": "Codex exposes PostToolUse, but kingstack bulk-context observation has not been staged or replay-proven.",
-        "impact": "Oversized Codex tool results are not yet reported by kingstack.",
-        "strict_parity": false
+        "status": "emulated",
+        "evidence": "The Codex bundle includes hooks/run.py PostToolUse over the portable handler.",
+        "impact": "The bundle is proven. Live Codex home is not linked.",
+        "strict_parity": true
       },
       {
         "capability": "subagent_start",
-        "status": "unsupported",
-        "evidence": "Codex exposes SubagentStart, but kingstack model and effort visibility has not been staged or replay-proven.",
-        "impact": "Codex subagent routing choices are not yet surfaced through kingstack.",
-        "strict_parity": false
+        "status": "emulated",
+        "evidence": "The Codex bundle includes hooks/run.py SubagentStart over the portable handler.",
+        "impact": "The bundle is proven. Live Codex home is not linked.",
+        "strict_parity": true
       },
       {
         "capability": "model_routing",
@@ -85,10 +88,10 @@
       },
       {
         "capability": "shared_memory",
-        "status": "unsupported",
-        "evidence": "Codex native memory exists, but the curated cross-agent store is not connected yet.",
-        "impact": "Codex cannot yet read or promote approved shared memories.",
-        "strict_parity": false
+        "status": "emulated",
+        "evidence": "Shared memory is the private ~/.kingstack/memory store, written by portable Stop and reviewed by kingstack memory.",
+        "impact": "The store is proven. Live Codex home is not linked.",
+        "strict_parity": true
       },
       {
         "capability": "schedules",
@@ -106,16 +109,16 @@
       },
       {
         "capability": "activation",
-        "status": "unsupported",
-        "evidence": "Task 1 declares adapters but does not yet implement versioned activation.",
-        "impact": "No Codex adapter release can be activated until the cutover engine is implemented.",
+        "status": "emulated",
+        "evidence": "Private-runtime activate exists and refuses ~/.codex.",
+        "impact": "No live Codex home may be linked until Hassan approves.",
         "strict_parity": false
       },
       {
         "capability": "rollback",
-        "status": "unsupported",
-        "evidence": "Task 1 declares adapters but does not yet implement manifest-owned rollback.",
-        "impact": "No Codex adapter activation may occur until rollback is implemented and proven.",
+        "status": "emulated",
+        "evidence": "Private-runtime rollback retargets current and refuses ~/.codex.",
+        "impact": "There is no live Codex link to roll back.",
         "strict_parity": false
       }
     ]
