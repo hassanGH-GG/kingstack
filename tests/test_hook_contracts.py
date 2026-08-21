@@ -156,6 +156,20 @@ class HookContractTest(TestCase):
         self.assertFalse(inbox.exists())
         write_transcript(
             transcript,
+            ["is kingstack working? prove it, do not change anything."],
+        )
+        handle(
+            self.envelope(
+                "Stop",
+                {"transcript_path": str(transcript)},
+                session_id="175bf6a0-session",
+                project=str(self.runtime / "plugins"),
+            ),
+            self.runtime,
+        )
+        self.assertFalse(inbox.exists())
+        write_transcript(
+            transcript,
             ["Build a session-memory distiller that appends one inbox line."],
         )
         handle(

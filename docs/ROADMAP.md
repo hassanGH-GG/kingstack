@@ -2,8 +2,8 @@
 
 Canonical product backlog.
 
-Migration stop: live link, push, Superpowers disablement, and deletion of the
-six plan files wait on `docs/migration/pre-link-briefing.md`. That is E.
+Migration stop: live link and the six plan files are done. Push and
+Superpowers disablement still wait on Hassan.
 
 Ritual: from the checkout, then "stack session". Hassan's default path is
 `~/Desktop/Work/kingstack`. A teammate uses `docs/SETUP.md`.
@@ -23,7 +23,8 @@ Ritual: from the checkout, then "stack session". Hassan's default path is
 - beam to-host proof.
 - Host decision.
 - king-mode judgment areas.
-- Live link, push, Superpowers disablement, six-file deletion.
+- Push of `feat/agent-neutral-kingstack`.
+- Superpowers disablement.
 
 ## Review dates
 
@@ -32,6 +33,8 @@ Ritual: from the checkout, then "stack session". Hassan's default path is
 
 ## Done
 
+- 2026-08-22: Live link of Claude, Codex, and Cursor. Six dated plan
+  files deleted. Teammate setup writes `~/.local/bin/kingstack`.
 - 2026-08-21: Shared session index. `~/.kingstack/sessions` holds live jobs
   across adapters. SessionStart injects the project window. Continue is the
   handoff packet. Native transcripts stay in native homes.

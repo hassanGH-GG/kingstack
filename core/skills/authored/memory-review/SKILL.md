@@ -54,7 +54,8 @@ Then draft, from the transcript and nothing else:
 
 Reject rather than draft when the candidate is a bare session goal already
 visible in the repo or git history, a one-prompt session with no durable fact, or
-an agent-to-agent prompt that slipped through capture. A short session that ended
+an agent-to-agent prompt that slipped through capture. Stop already drops
+one-prompt health probes. If one still lands, reject it. A short session that ended
 in a real correction is still worth promoting; prompt count is not the signal.
 
 Check `memory_dir` for a file that already covers the fact. Update it by

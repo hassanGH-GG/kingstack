@@ -30,6 +30,10 @@ CORRECTION = re.compile(
 )
 MAX_TEXT = 200
 PROBE_WORDS = 8
+HEALTH_PROBE = re.compile(
+    r"(?:^is \w[\w-]* working\b|\bprove it\b|\bdo not change anything\b|\bdo not edit\b)",
+    re.IGNORECASE,
+)
 
 
 class Candidate:
@@ -138,17 +142,19 @@ def is_probe(text, count):
     stripped = text.strip()
     if stripped.endswith("?"):
         return True
+    if HEALTH_PROBE.search(stripped):
+        return True
     return len(stripped.split()) <= PROBE_WORDS
 
 
 def distill(prompts):
     if not prompts:
         return None
+    if is_probe(prompts[0], len(prompts)):
+        return None
     corrections = [item for item in prompts if CORRECTION.search(item)]
     if corrections:
         return "correction", corrections[-1], len(prompts)
-    if is_probe(prompts[0], len(prompts)):
-        return None
     return "goal", prompts[0], len(prompts)
 
 

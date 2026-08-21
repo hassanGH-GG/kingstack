@@ -1,5 +1,8 @@
 # Handoff
 
+Historical. Pickup is [../SETUP.md](../SETUP.md). Live homes are linked.
+The six dated plan files are gone.
+
 Date: 2026-08-21
 Branch: `feat/agent-neutral-kingstack`
 Checkout: `/Users/mac/Desktop/Work/kingstack`
