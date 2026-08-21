@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "adapter": "cursor",
+  "unsupported": {},
+  "transforms": {
+    "authored-host": {
+      "text_extensions": [".md", ".ts", ".sh", ".json"],
+      "replacements": [],
+      "forbidden": []
+    }
+  }
+}

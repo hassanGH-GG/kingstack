@@ -188,7 +188,7 @@ class SkillCatalogTest(TestCase):
         unknown_owner["entries"][0]["owner"] = "claude"
         cases.append((unknown_owner, "unknown owner"))
         unknown_target = self.payload()
-        unknown_target["entries"][0]["targets"] = ["claude", "cursor"]
+        unknown_target["entries"][0]["targets"] = ["claude", "gemini"]
         cases.append((unknown_target, "unknown target"))
         contradiction = self.payload()
         next(entry for entry in contradiction["entries"] if entry["owner"] == "pstack")[
@@ -259,6 +259,7 @@ class SkillCatalogTest(TestCase):
                 king["dependencies"] = mutation
             else:
                 king["dependencies"] = ["memory-review"]
+                king["targets"] = list(dict.fromkeys(list(king["targets"]) + list(memory["targets"])))
                 memory["dependencies"] = ["king-mode"]
             with self.subTest(message=message):
                 with self.assertRaisesRegex(SkillCatalogError, message):

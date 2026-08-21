@@ -1,0 +1,108 @@
+{
+  "id": "cursor",
+  "contract_version": 1,
+  "render_module": "kingstack.adapters.cursor",
+  "native_home": ".cursor",
+  "owned_paths": [
+    "AGENTS.md",
+    "skills/memory-review"
+  ],
+  "model_tiers": "models.json",
+  "capability_matrix": {
+    "contract_version": 1,
+    "adapter_id": "cursor",
+    "capabilities": [
+      {
+        "capability": "global_guidance",
+        "status": "emulated",
+        "evidence": "Kingstack renders AGENTS.md for Cursor Agent from the shared instruction fragments.",
+        "impact": "Cursor has no Claude-style CLAUDE.md; guidance is supplied as AGENTS.md.",
+        "strict_parity": true
+      },
+      {
+        "capability": "skill_catalog",
+        "status": "degraded",
+        "evidence": "Only kingstack-authored skills are bundled. The 63 remaining baseline names stay Claude/Codex or plugin-owned.",
+        "impact": "Cursor does not receive the full 65-name Claude skill surface.",
+        "strict_parity": false
+      },
+      {
+        "capability": "session_start",
+        "status": "unsupported",
+        "evidence": "Cursor Agent has no kingstack-proven native SessionStart hook equivalent in this inventory.",
+        "impact": "The routing contract is in AGENTS.md, not a live hook.",
+        "strict_parity": false
+      },
+      {
+        "capability": "stop_capture",
+        "status": "unsupported",
+        "evidence": "Cursor Agent has no kingstack-proven Stop hook in this inventory.",
+        "impact": "Cursor turns do not automatically write shared memory candidates.",
+        "strict_parity": false
+      },
+      {
+        "capability": "before_compaction",
+        "status": "unsupported",
+        "evidence": "Cursor Agent has no kingstack-proven PreCompact hook in this inventory.",
+        "impact": "Compaction checkpoints are not produced for Cursor sessions.",
+        "strict_parity": false
+      },
+      {
+        "capability": "post_tool_use",
+        "status": "unsupported",
+        "evidence": "Cursor Agent has no kingstack-proven PostToolUse hook in this inventory.",
+        "impact": "Oversized tool results are not auto-flagged.",
+        "strict_parity": false
+      },
+      {
+        "capability": "subagent_start",
+        "status": "unsupported",
+        "evidence": "Cursor Agent has no kingstack-proven SubagentStart hook in this inventory.",
+        "impact": "Spawn model and effort are not auto-reported.",
+        "strict_parity": false
+      },
+      {
+        "capability": "model_routing",
+        "status": "emulated",
+        "evidence": "Kingstack maps portable work classes through the Cursor-owned model map.",
+        "impact": "Cursor model picker remains user-controlled; policy is advisory in guidance.",
+        "strict_parity": true
+      },
+      {
+        "capability": "shared_memory",
+        "status": "emulated",
+        "evidence": "The private ~/.kingstack/memory store is adapter-neutral and readable via the kingstack CLI.",
+        "impact": "Cursor does not auto-inject the index until a native hook exists.",
+        "strict_parity": false
+      },
+      {
+        "capability": "schedules",
+        "status": "unsupported",
+        "evidence": "No Cursor-native scheduled-task equivalent is staged.",
+        "impact": "Unattended workflows stay on launchd/Claude.",
+        "strict_parity": false
+      },
+      {
+        "capability": "health",
+        "status": "emulated",
+        "evidence": "kingstack check --contract --adapter cursor validates the declaration.",
+        "impact": "There is no Cursor-native health surface.",
+        "strict_parity": true
+      },
+      {
+        "capability": "activation",
+        "status": "emulated",
+        "evidence": "Private-runtime activate exists and refuses ~/.cursor.",
+        "impact": "No live Cursor home may be linked until Hassan approves.",
+        "strict_parity": false
+      },
+      {
+        "capability": "rollback",
+        "status": "emulated",
+        "evidence": "Private-runtime rollback retargets current and refuses ~/.cursor.",
+        "impact": "There is no live Cursor link to roll back.",
+        "strict_parity": false
+      }
+    ]
+  }
+}

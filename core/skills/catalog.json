@@ -264,7 +264,8 @@
       "source": "core/skills/authored/memory-review",
       "targets": [
         "claude",
-        "codex"
+        "codex",
+        "cursor"
       ],
       "dependencies": [],
       "transform": "authored-host"
