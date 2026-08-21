@@ -8,6 +8,7 @@
 !model-routing.md
 !pstack-models.md
 !pstack-upstream.txt
+!headroom-upstream.txt
 
 # mechanisms
 !hooks/
