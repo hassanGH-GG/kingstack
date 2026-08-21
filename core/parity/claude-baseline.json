@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "adapter": "claude",
+  "commands": [
+    "beam.sh",
+    "box-task.sh",
+    "check-setup.sh",
+    "git-hooks/pre-commit",
+    "install-git-hooks.sh",
+    "install-launchd.sh",
+    "lib-headless.sh",
+    "link-node.sh",
+    "measure.ts",
+    "nightly.sh",
+    "refresh-king-mode.sh",
+    "rework-report.py",
+    "run-sweeps.sh",
+    "sync-pstack.sh",
+    "usage-report.py",
+    "usage-snapshot.py"
+  ],
+  "schedules": [
+    "com.hassan.claude-usage-snapshot.plist",
+    "com.hassan.king-mode-refresh.plist",
+    "com.hassan.kingstack-sweeps.plist"
+  ],
+  "sweeps": [
+    "README.md",
+    "_template.md",
+    "kingstack-health.md",
+    "usage-watch.md"
+  ],
+  "agents": [
+    "comment-sicko.md",
+    "poteto-agent.md"
+  ],
+  "hooks": {
+    "session_start": "hooks/session-start.sh",
+    "stop_capture": "hooks/stop.sh",
+    "before_compaction": "hooks/pre-compact.sh",
+    "post_tool_use": "hooks/post-tool-use.sh",
+    "subagent_start": "hooks/subagent-start.sh"
+  },
+  "instructions": [
+    "00-identity.md",
+    "10-correction-rule.md",
+    "20-operating-standard.md",
+    "30-engineering-discipline.md",
+    "40-model-and-context.md",
+    "50-git-and-pr.md",
+    "60-memory-and-docs.md",
+    "70-stack-iteration.md"
+  ]
+}

@@ -16,6 +16,7 @@ from kingstack.adapter_contract import (
 from kingstack.bootstrap import BootstrapError, bootstrap
 from kingstack.inventory import capture_baseline, write_public_report
 from kingstack.paths import Paths
+from kingstack.parity import rendered_parity
 from kingstack.render import RenderError, render_bundle
 from kingstack.skills import (
     SkillCatalogError,
@@ -80,7 +81,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     bootstrap_command.add_argument("--allow-unpushed", action="store_true")
     bootstrap_command.add_argument("--dry-run", action="store_true")
     check_command = commands.add_parser("check")
-    check_command.add_argument("--contract", action="store_true")
+    check_mode = check_command.add_mutually_exclusive_group(required=True)
+    check_mode.add_argument("--contract", action="store_true")
+    check_mode.add_argument("--rendered", action="store_true")
     adapter_selector = check_command.add_mutually_exclusive_group(required=True)
     adapter_selector.add_argument("--adapter", type=_adapter_id)
     adapter_selector.add_argument("--adapter-path", type=Path)
@@ -136,9 +139,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
     if arguments.command == "check":
-        if not arguments.contract:
-            check_command.error("--contract is required")
         root = Path(__file__).resolve().parents[2]
+        if arguments.rendered:
+            if arguments.adapter is None:
+                check_command.error("--rendered requires --adapter")
+            report = rendered_parity(arguments.adapter, root)
+            print(json.dumps(_plain(report), indent=2, sort_keys=True))
+            return 0 if report["ok"] else 1
         try:
             declaration = _load_selected_adapter(
                 root, arguments.adapter, arguments.adapter_path

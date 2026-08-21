@@ -6,7 +6,7 @@ Repository: `https://github.com/hassanGH-GG/kingstack`
 
 Branch: `feat/agent-neutral-kingstack`
 
-Implementation status: unfinished; Core Tasks 1–4 implemented, Task 4 closure review pending
+Implementation status: unfinished; Core Tasks 1–6 implemented, Phase A review pending
 Live status: not activated; Claude and Codex native homes remain unchanged
 
 This is the canonical continuation document for a new Claude or Codex session.
@@ -46,9 +46,9 @@ The first four core tasks are implemented:
 - a single-source, pstack-safe skill catalog with honest Claude/Codex
   capability accounting.
 
-Nothing has been activated. Shared memory, portable lifecycle hooks, the full
-Codex adapter, immutable releases, rollback, schedules, documentation
-versioning, and live cutover remain.
+Nothing has been activated. Shared memory, the full Codex adapter, the
+deferred Cursor Agent adapter, immutable releases, rollback, schedules,
+documentation versioning, and live cutover remain.
 
 ## Start here when continuing
 
@@ -65,9 +65,9 @@ On the original machine the canonical checkout is:
 /Users/mac/Desktop/Work/kingstack
 ```
 
-Before implementation continues, independently review Core Task 4 as described
-in [Task 4 closure review](#task-4-closure-review). Do not start Task 5 until
-that review returns `APPROVE`.
+Task 4 closure review returned `APPROVE` on 2026-08-21. Phase A (Tasks 5–6)
+is implemented on this branch. Independently review it before starting
+Phase B. The Cursor Agent adapter is deferred to Phase H.
 
 ## Why this architecture exists
 
@@ -112,7 +112,7 @@ The key design choices are:
 | Skills | Legacy sync copied, transformed, pruned, and replaced live directories | 65-name ownership catalog; pstack source frozen; pure manifests | Release-owned portable skills plus explicit package-managed/unsupported accounting |
 | Model routing | Haiku/Sonnet/Opus/Fable names embedded in shared prose | Mechanical/precise/judgment work classes mapped by adapter | Private availability chooses concrete models without changing shared policy |
 | Memory | Claude project memory and inbox local to Claude workflows | Preserved and inventoried; not migrated | Curated shared memory plus separate native/private memory |
-| Hooks | Claude shell hooks directly tied to Claude payloads | Preserved; neutral hook core not implemented yet | Portable event handlers plus native normalizers |
+| Hooks | Claude shell hooks directly tied to Claude payloads | Portable handlers plus Claude normalizer rendered into the bundle; not activated | Same handlers plus Codex/Cursor normalizers after those adapters |
 | Schedules | Claude/launchd jobs tied to current scripts | Preserved and unchanged | Adapter-aware scheduled tasks with equivalent cadence and evidence |
 | Installation | Scripts could mutate live paths directly | No installation or activation exists | Immutable release, atomic exact-path activation, inverse rollback |
 | Recovery | Git plus custom snapshots and manual knowledge | Git clone, frozen baseline, private manifest; historical archives preserved | Manifest-owned rollback with fault-injection proof; old archives non-production |
@@ -454,7 +454,10 @@ the review turn. Task 5 must not consume Task 4 until this review approves.
 
 ### Phase A: portable lifecycle hooks and Claude parity
 
-Implement neutral handlers for:
+Implemented on this branch; independent Phase A review is still required
+before Phase B.
+
+Neutral handlers cover:
 
 - session start;
 - stop/candidate capture;
@@ -570,6 +573,20 @@ After approval:
    locations;
 10. review exact commits, release notes, tag, and remote state;
 11. push/merge only with the user’s final authorization.
+
+### Phase H: Cursor Agent adapter
+
+Add a first-party Cursor Agent adapter after Claude and Codex cutover, using
+the same contract and provider extension already proven by the synthetic
+third adapter. Do not fork core for Cursor-specific branches.
+
+At that time, inventory Cursor’s native surfaces (rules, skills, hooks,
+guidance files, and any agent-home config) and declare an honest capability
+matrix. Render an immutable Cursor bundle, then prove it the same way Claude
+and Codex are proved: no-loss, exact-path ownership, and no activation until
+Hassan approves a pre-link briefing.
+
+This phase is requested and deferred. It is not part of Phase A.
 
 ## Files that must be deleted only at final completion
 
