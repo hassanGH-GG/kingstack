@@ -22,6 +22,8 @@ PLAN_FILES = (
     "docs/superpowers/specs/2026-08-20-agent-neutral-kingstack-design.md",
     "docs/migration/super-saiyan-3-plan.md",
     "docs/migration/agent-neutral-kingstack-handoff.md",
+    "docs/migration/foundation-verification.md",
+    "docs/migration/claude-rendered-parity.md",
 )
 LEFTOVER_TREES = (
     "docs/superpowers",
