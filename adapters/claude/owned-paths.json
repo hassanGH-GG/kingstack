@@ -1,0 +1,16 @@
+{
+  "adapter": "claude",
+  "fully_owned": [
+    "CLAUDE.md",
+    "hooks/normalize.py",
+    "hooks/post-tool-use.sh",
+    "hooks/poteto-mode-context.md",
+    "hooks/pre-compact.sh",
+    "hooks/run.py",
+    "hooks/session-start.sh",
+    "hooks/stop.sh",
+    "hooks/subagent-start.sh"
+  ],
+  "mixed": ["settings.json"],
+  "forbidden": ["projects", "memory", "auth.json", "sessions", "plugins", "cache"]
+}

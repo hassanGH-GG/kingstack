@@ -1,0 +1,6 @@
+{
+  "adapter": "cursor",
+  "fully_owned": ["AGENTS.md", "skills/memory-review"],
+  "mixed": [],
+  "forbidden": ["projects", "ai-tracking", "extensions", "argv.json"]
+}

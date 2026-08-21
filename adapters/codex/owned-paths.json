@@ -1,0 +1,6 @@
+{
+  "adapter": "codex",
+  "fully_owned": ["AGENTS.md", "hooks.json", "hooks/run.py"],
+  "mixed": ["config.toml"],
+  "forbidden": ["auth.json", "sessions", "memories", "tmp", "plugins"]
+}
