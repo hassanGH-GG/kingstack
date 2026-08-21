@@ -1,7 +1,7 @@
 # Handoff
 
 Historical. Pickup is [../SETUP.md](../SETUP.md). Live homes are linked.
-The six dated plan files are gone.
+The Superpowers docs are gone.
 
 Date: 2026-08-21
 Branch: `feat/agent-neutral-kingstack`
@@ -48,8 +48,8 @@ Codex lists 18 Task and loop skills as unsupported. Cursor guidance is
 `rules/kingstack`, not a home-root AGENTS.md. Cursor does not get
 plugins it does not have. Bundled skills are 54 / 37 / 54.
 
-Superpowers is still on. The six dated plan files are still in the repo.
-This branch is not on the remote.
+Superpowers is off. The Superpowers docs are gone. This work is on
+`main`.
 
 ## Commands you will actually run
 
@@ -72,8 +72,6 @@ A fake release id exits 2.
 
 - Writes under `~/.claude`, `~/.codex`, or `~/.cursor`
 - A `current` symlink on a native home
-- Disabling Superpowers
-- Deleting the six dated plan files
 - A rewrite of pstack
 - A fourth adapter
 - A restore command that walks a whole home

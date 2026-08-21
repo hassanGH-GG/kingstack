@@ -19,6 +19,12 @@ PLAN_FILES = (
     "docs/superpowers/plans/2026-08-20-kingstack-shared-memory-plan.md",
     "docs/superpowers/plans/2026-08-20-kingstack-codex-adapter-plan.md",
     "docs/superpowers/plans/2026-08-20-kingstack-cutover-plan.md",
+    "docs/superpowers/specs/2026-08-20-agent-neutral-kingstack-design.md",
+    "docs/migration/super-saiyan-3-plan.md",
+)
+LEFTOVER_TREES = (
+    "docs/superpowers",
+    ".superpowers",
 )
 
 
@@ -68,12 +74,14 @@ def staged_checks(root: Path) -> List[Mapping[str, object]]:
     except Exception as error:
         rows.append(_row("schedules", "core", False, str(error), "fix schedule schema"))
     leftover_plans = [path for path in PLAN_FILES if (root / path).is_file()]
+    leftover_trees = [path for path in LEFTOVER_TREES if (root / path).exists()]
+    leftovers = leftover_plans + leftover_trees
     rows.append(_row(
         "plan-files-removed",
         "core",
-        not leftover_plans,
-        "six plan files gone" if not leftover_plans else leftover_plans[0],
-        "delete cutover plan files after live link",
+        not leftovers,
+        "superpowers docs gone" if not leftovers else leftovers[0],
+        "delete Superpowers docs",
     ))
     for adapter in discover_adapters(root):
         try:

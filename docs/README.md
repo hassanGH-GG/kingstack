@@ -18,9 +18,5 @@ index. `kingstack handoff` writes a Codex packet. Hassan's three native
 homes are linked. A teammate follows [SETUP.md](SETUP.md) and stays
 unlinked until they activate.
 
-The six dated plan files are gone. The design spec under
-`superpowers/specs/`,
-[migration/super-saiyan-3-plan.md](migration/super-saiyan-3-plan.md), and
-[migration/agent-neutral-kingstack-handoff.md](migration/agent-neutral-kingstack-handoff.md)
-are history. The checkout, [SETUP.md](SETUP.md), and the briefing are the
-current facts.
+The Superpowers plans, SDD tree, and design spec are gone. The
+checkout, [SETUP.md](SETUP.md), and the briefing are the current facts.
