@@ -141,6 +141,20 @@ def live_checks(root: Path) -> List[Mapping[str, object]]:
         "linked {}".format(",".join(homes)) if not missing else "unlinked {}".format(",".join(missing)),
         "ok" if not missing else "activate each adapter",
     ))
+    shim = Path.home() / ".local" / "bin" / "kingstack"
+    target = Path(root).resolve() / "scripts" / "kingstack"
+    linked = (
+        shim.is_file()
+        and not shim.is_symlink()
+        and str(target) in shim.read_text(encoding="utf-8")
+    )
+    rows.append(_row(
+        "cli-shim",
+        "core",
+        linked,
+        str(shim) if linked else "missing {}".format(shim),
+        "run kingstack setup",
+    ))
     return rows
 
 

@@ -236,3 +236,49 @@ class SessionStoreTest(TestCase):
             code = main(["session", "list", "--root", str(leak)])
         self.assertEqual(code, 2)
         self.assertFalse(leak.exists())
+
+    def test_close_and_sweep_drop_empty_live_rows(self):
+        smoke = self.store.upsert(
+            {
+                "adapter": "cursor",
+                "session_id": "smoke-empty",
+                "project_id": self.project,
+                "status": "live",
+            }
+        )
+        kept = self.store.upsert(
+            {
+                "adapter": "claude",
+                "session_id": "real-work",
+                "project_id": self.project,
+                "status": "live",
+                "transcript_path": "/tmp/real.jsonl",
+                "last_prompts": ["ship the leftover"],
+            }
+        )
+        swept = self.store.sweep_empty()
+        self.assertEqual([row["id"] for row in swept], [smoke["id"]])
+        self.assertEqual(self.store.show(smoke["id"])["status"], "done")
+        self.assertEqual(self.store.show(kept["id"])["status"], "live")
+        current = self.store.current(self.project)
+        self.assertEqual([row["id"] for row in current], [kept["id"]])
+        closed = self.store.close_record(kept["id"])
+        self.assertEqual(closed["status"], "done")
+        self.assertEqual(self.store.current(self.project), [])
+        sink = io.StringIO()
+        with redirect_stdout(sink):
+            code = main(
+                [
+                    "session",
+                    "close",
+                    smoke["id"],
+                    "--root",
+                    str(self.root / "sessions"),
+                ]
+            )
+        self.assertEqual(code, 0)
+        with redirect_stdout(sink):
+            sweep_code = main(
+                ["session", "sweep", "--root", str(self.root / "sessions")]
+            )
+        self.assertEqual(sweep_code, 0)

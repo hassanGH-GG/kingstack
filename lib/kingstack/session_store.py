@@ -198,6 +198,31 @@ class SessionStore:
                 return row
         raise SessionStoreError("unknown session '{}'".format(key))
 
+    def close_record(self, key: str) -> Mapping[str, Any]:
+        previous = self.show(key)
+        return self.upsert(
+            {
+                "adapter": previous["adapter"],
+                "session_id": previous["session_id"],
+                "project_id": previous["project_id"],
+                "status": "done",
+            }
+        )
+
+    def sweep_empty(self) -> List[Mapping[str, Any]]:
+        closed = []
+        for row in self.list_records():
+            if row.get("status") != "live":
+                continue
+            if row.get("transcript_path"):
+                continue
+            if row.get("last_prompts"):
+                continue
+            if row.get("finish_condition"):
+                continue
+            closed.append(self.close_record(row["id"]))
+        return closed
+
     def _fold(self) -> Mapping[str, Mapping[str, Any]]:
         folded = {}
         text = (self.root / "sessions.jsonl").read_text(encoding="utf-8")
@@ -222,7 +247,10 @@ class SessionStore:
 
     def _write_current(self, project: str, folded: Mapping[str, Mapping[str, Any]]) -> None:
         rows = [
-            row for row in folded.values() if row.get("project_id") == project
+            row
+            for row in folded.values()
+            if row.get("project_id") == project
+            and row.get("status") in ("live", "compacted", "handed-off")
         ]
         rows.sort(key=lambda item: item.get("updated_at") or "", reverse=True)
         payload = {

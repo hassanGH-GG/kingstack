@@ -8,8 +8,10 @@ Model names here are Cursor-native. pstack skills stay in their
 Cursor-native form under `~/.cursor/skills/`. Shared curated memory lives
 under `~/.kingstack/memory` and is not Cursor native memory.
 The checkout is `~/Desktop/Work/kingstack`. Set `KINGSTACK_ROOT` if the
-clone lives elsewhere. No live Cursor path is linked until Hassan
-approves the pre-link briefing.
+clone lives elsewhere. A linked home proves itself with
+`kingstack check --mode live`. Bare `kingstack` needs the setup shim
+at `~/.local/bin/kingstack`. Until then use
+`~/Desktop/Work/kingstack/scripts/kingstack`.
 Cursor has no native status-line hook. Run `kingstack status` or
 `hooks/ctx-status.py` for model, effort, context, and subagent models.
 `kingstack effort --file` scans spawn lines. Inherit is fail.

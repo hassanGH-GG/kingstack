@@ -17,6 +17,23 @@ class SetupError(ValueError):
     """Raised when setup would write a native home or the checkout is missing."""
 
 
+def ensure_cli_shim(checkout: Path, home: Path) -> Path:
+    target = Path(checkout).resolve() / "scripts" / "kingstack"
+    if not target.is_file():
+        raise SetupError("missing {}".format(target))
+    bindir = Path(home).expanduser() / ".local" / "bin"
+    bindir.mkdir(parents=True, exist_ok=True)
+    shim = bindir / "kingstack"
+    body = "#!/bin/sh\nset -eu\nexec '{}' \"$@\"\n".format(target)
+    if shim.is_file() and not shim.is_symlink() and shim.read_text(encoding="utf-8") == body:
+        return shim
+    if shim.exists() or shim.is_symlink():
+        shim.unlink()
+    shim.write_text(body, encoding="utf-8")
+    os.chmod(shim, 0o755)
+    return shim
+
+
 def _refuse_native_runtime(runtime: Path, checkout: Path, home: Path) -> Path:
     resolved = Path(runtime).expanduser().resolve()
     home = Path(home).expanduser().resolve()
@@ -52,6 +69,7 @@ def setup(
     runtime.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chmod(runtime, 0o700)
     save_profile(runtime, identity, root)
+    ensure_cli_shim(root, home)
     MemoryStore.open(runtime / "memory", repo_root=root)
     SessionStore.open(runtime / "sessions", repo_root=root)
     (runtime / "headroom").mkdir(mode=0o700, exist_ok=True)

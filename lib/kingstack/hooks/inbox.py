@@ -29,6 +29,7 @@ CORRECTION = re.compile(
     re.IGNORECASE,
 )
 MAX_TEXT = 200
+PROBE_WORDS = 8
 
 
 class Candidate:
@@ -131,12 +132,23 @@ def one_line(text):
     return text
 
 
+def is_probe(text, count):
+    if count != 1:
+        return False
+    stripped = text.strip()
+    if stripped.endswith("?"):
+        return True
+    return len(stripped.split()) <= PROBE_WORDS
+
+
 def distill(prompts):
     if not prompts:
         return None
     corrections = [item for item in prompts if CORRECTION.search(item)]
     if corrections:
         return "correction", corrections[-1], len(prompts)
+    if is_probe(prompts[0], len(prompts)):
+        return None
     return "goal", prompts[0], len(prompts)
 
 

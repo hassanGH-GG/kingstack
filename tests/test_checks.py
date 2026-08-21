@@ -13,9 +13,11 @@ class ChecksTest(TestCase):
         self.assertEqual(overall(staged), "healthy")
         self.assertTrue(all(row["status"] in ("pass", "fail") for row in staged))
         live = live_checks(ROOT)
-        row = next(item for item in live if item["id"] == "live-activation")
-        self.assertIn(row["status"], ("pass", "fail"))
-        if row["status"] == "fail":
+        live_only = [item for item in live if item["id"] in ("live-activation", "cli-shim")]
+        self.assertEqual(len(live_only), 2)
+        for row in live_only:
+            self.assertIn(row["status"], ("pass", "fail"))
+        if any(row["status"] == "fail" for row in live_only):
             self.assertEqual(overall(live), "unhealthy")
         else:
             self.assertEqual(overall(live), "healthy")

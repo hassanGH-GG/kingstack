@@ -50,6 +50,11 @@ class SetupTest(TestCase):
         profile = load_profile(self.runtime)
         self.assertEqual(profile["identity"], "personal")
         self.assertTrue((self.runtime / "memory" / "inbox.jsonl").is_file())
+        shim = self.home / ".local" / "bin" / "kingstack"
+        target = (ROOT / "scripts" / "kingstack").resolve()
+        self.assertTrue(shim.is_file())
+        self.assertFalse(shim.is_symlink())
+        self.assertIn(str(target), shim.read_text(encoding="utf-8"))
         self.assertFalse((self.home / ".claude").exists())
         with self.assertRaises(SetupError):
             setup(

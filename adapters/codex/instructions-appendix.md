@@ -7,8 +7,10 @@ Shared kingstack policy is in this file. Model names here are Codex-native.
 Shared curated memory lives under `~/.kingstack/memory` and is not Codex
 native memory. Recall with `kingstack memory recall`.
 The canonical checkout is `~/Desktop/Work/kingstack`. Set `KINGSTACK_ROOT`
-if the clone lives elsewhere. No live Codex path is linked until Hassan
-approves the pre-link briefing.
+if the clone lives elsewhere. A linked home proves itself with
+`kingstack check --mode live`. Bare `kingstack` needs the setup shim
+at `~/.local/bin/kingstack`. Until then use
+`~/Desktop/Work/kingstack/scripts/kingstack`.
 Codex footer fields are the native `tui.status_line`. `kingstack status` also
 prints model, effort, context, and subagent models. `kingstack effort --file`
 scans spawn lines. `kingstack session list` shows the working-set index.

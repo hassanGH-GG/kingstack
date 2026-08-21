@@ -129,6 +129,47 @@ class HookContractTest(TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(output), {})
 
+    def test_stop_skips_one_prompt_health_probes(self):
+        transcript = self.runtime / "probe.jsonl"
+        write_transcript(transcript, ["kingstack working ?"])
+        handle(
+            self.envelope(
+                "Stop",
+                {"transcript_path": str(transcript)},
+                session_id="8ae5dbe3-session",
+                project=str(self.runtime / "plugins"),
+            ),
+            self.runtime,
+        )
+        inbox = self.runtime / "memory-review.md"
+        self.assertFalse(inbox.exists())
+        write_transcript(transcript, ["say hello in exactly one word"])
+        handle(
+            self.envelope(
+                "Stop",
+                {"transcript_path": str(transcript)},
+                session_id="9363ac24-session",
+                project=str(self.runtime / "hexfy"),
+            ),
+            self.runtime,
+        )
+        self.assertFalse(inbox.exists())
+        write_transcript(
+            transcript,
+            ["Build a session-memory distiller that appends one inbox line."],
+        )
+        handle(
+            self.envelope(
+                "Stop",
+                {"transcript_path": str(transcript)},
+                session_id="e73e60d3-session",
+                project=str(self.runtime / "plugins"),
+            ),
+            self.runtime,
+        )
+        self.assertIn("goal", inbox.read_text(encoding="utf-8"))
+        self.assertIn("session-memory distiller", inbox.read_text(encoding="utf-8"))
+
     def test_pre_compact_writes_checkpoint_and_preserve_directive(self):
         transcript = self.runtime / "transcript.jsonl"
         write_transcript(transcript, ["finish the hook core"])

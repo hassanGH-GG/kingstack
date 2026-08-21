@@ -169,7 +169,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     session_command = commands.add_parser(
         "session",
         help="list or continue the private working-set index",
-        epilog="Examples:\n  kingstack session list\n  kingstack session show s_abc123\n  kingstack session continue s_abc123 --finish \"<done means>\"",
+        epilog="Examples:\n  kingstack session list\n  kingstack session show s_abc123\n  kingstack session close s_abc123\n  kingstack session sweep\n  kingstack session continue s_abc123 --finish \"<done means>\"",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     session_action = session_command.add_subparsers(dest="session_command", required=True)
@@ -180,6 +180,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     session_show = session_action.add_parser("show")
     session_show.add_argument("session_id")
     session_show.add_argument("--root", type=Path)
+    session_close = session_action.add_parser("close")
+    session_close.add_argument("session_id")
+    session_close.add_argument("--root", type=Path)
+    session_sweep = session_action.add_parser("sweep")
+    session_sweep.add_argument("--root", type=Path)
     session_continue = session_action.add_parser("continue")
     session_continue.add_argument("session_id")
     session_continue.add_argument("--finish")
@@ -561,7 +566,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         repo = Path(__file__).resolve().parents[2]
         sessions_root = arguments.root if getattr(arguments, "root", None) else default_root()
         try:
-            if arguments.root is None and arguments.session_command in ("list", "show"):
+            if arguments.root is None and arguments.session_command in (
+                "list",
+                "show",
+                "close",
+                "sweep",
+            ):
                 if not Path(sessions_root).exists():
                     if arguments.session_command == "list":
                         print("[]")
@@ -576,6 +586,12 @@ def main(argv: Optional[List[str]] = None) -> int:
                 return 0
             if arguments.session_command == "show":
                 print(json.dumps(dict(store.show(arguments.session_id)), indent=2, sort_keys=True))
+                return 0
+            if arguments.session_command == "close":
+                print(json.dumps(dict(store.close_record(arguments.session_id)), indent=2, sort_keys=True))
+                return 0
+            if arguments.session_command == "sweep":
+                print(json.dumps([dict(row) for row in store.sweep_empty()], indent=2, sort_keys=True))
                 return 0
             from kingstack.handoff import attach_session, packet, render_packet, write_packet
             record = store.show(arguments.session_id)
