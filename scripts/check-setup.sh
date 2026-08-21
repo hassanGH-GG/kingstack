@@ -62,8 +62,9 @@ repo="$HOME/Desktop/Work/plugins"
 if [ -d "$repo/pstack" ]; then
   want=$(git -C "$repo" log -1 --format=%h -- pstack/ 2>/dev/null); have=$(head -1 "$C/pstack-upstream.txt" 2>/dev/null)
   [ "$want" = "$have" ] && ok "pstack synced at $have (= upstream checkout)" || bad "pstack stale: installed $have, checkout $want → run sync-pstack.sh"
-  leak=$(grep -rl "disable-model-invocation: true\|~/\.cursor\|generalPurpose" "$C/skills/poteto-mode" "$C/skills/unslop" 2>/dev/null | wc -l | tr -d ' ')
-  [ "$leak" = "0" ] && ok "no Cursor-isms in pstack skills" || bad "$leak pstack files contain Cursor-isms"
+  door=$(grep -rl "disable-model-invocation: true\|~/\.cursor\|generalPurpose" "$C/skills/poteto-mode" 2>/dev/null | wc -l | tr -d ' ')
+  host=$(grep -rl "~/\.cursor\|generalPurpose" "$C/skills/unslop" 2>/dev/null | wc -l | tr -d ' ')
+  [ "$door" = "0" ] && [ "$host" = "0" ] && ok "door auto-invokes; host tokens stay out of pstack skills" || bad "pstack door/host leak door=$door host=$host"
 else bad "plugins checkout missing at $repo"; fi
 
 # 8. Memory system: distiller + inbox module + tests green.

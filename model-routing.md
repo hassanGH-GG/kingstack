@@ -63,3 +63,7 @@ When you route work to a subagent, name the class and tier in one clause
 ("mechanical → haiku"), so the choice is auditable and can be corrected.
 Skill-prescribed roles (interrogate reviewers, arena candidates, reflect judges)
 keep their prescribed models; this ruler governs everything else.
+
+`kingstack effort --file <transcript>` scans the `↳ spawn` line the hook
+already prints. Named model and effort pass. `inherit` fails. That is the
+trace check. The Aug 26 ledger review still owns cost.

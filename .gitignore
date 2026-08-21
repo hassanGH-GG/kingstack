@@ -1,6 +1,5 @@
-# kingstack: deny everything, allow only the framework. Anything new in ~/.claude is
-# untracked until deliberately added here. This directory also holds credentials,
-# session transcripts, and caches; the allowlist is the safety boundary.
+# kingstack source checkout. Deny everything, allow only authored files.
+# Native homes (~/.claude, ~/.codex, ~/.cursor) are not this repo.
 *
 !.gitignore
 !README.md
@@ -42,7 +41,8 @@ bin/
 !docs/**
 !VERSION
 !CHANGELOG.md
-!ROADMAP.md
+!.github/
+!.github/**
 !.audit/
 !.audit/**
 

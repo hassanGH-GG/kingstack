@@ -1,7 +1,13 @@
 # Super Saiyan 3 plan
 
-Status: executed on `feat/agent-neutral-kingstack`. No live link. No push.
-No Superpowers disablement. No deletion of the six dated plan files.
+Status: history. Current instructions are `docs/SETUP.md` and
+`docs/migration/pre-link-briefing.md`. This file records the waves that
+produced 0.4.0. Do not treat the predicates below as live checks.
+
+Executed on `feat/agent-neutral-kingstack`. Product work after
+these waves is 0.4.0: setup, Headroom evict, memory harvest/consolidate,
+handoff, session index, effort scan, CI. No live link. No push. No Superpowers
+disablement. No deletion of the six dated plan files.
 
 Done means every structural gap from the 2026-08-21 architecture review is
 closed on `feat/agent-neutral-kingstack`, throwaway-home apply and rollback

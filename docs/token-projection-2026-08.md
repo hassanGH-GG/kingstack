@@ -45,5 +45,5 @@ approximately right and this document closes.
 ## Where the verdict comes from
 
 The `usage-watch` sweep tests prediction 1 daily. `usage-summary.md` carries the trend
-for predictions 2 and 3. Review date in `docs/BACKLOG.md`: **2026-08-26**, one week of
+for predictions 2 and 3. Review date in `docs/ROADMAP.md`: **2026-08-26**, one week of
 clean post-enforcement data.

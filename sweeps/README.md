@@ -14,7 +14,7 @@ commit. Each sweep runs in its own headless session, so one failure never takes 
 | `max_turns` | hard bound; every sweep MUST have one |
 | `report` | where the result goes: `log` (default), `memory-inbox`, or `file:<path>` |
 | `owner` | who reads the result |
-| `allow` | comma-separated extra permission rules the sweep needs, e.g. `Bash(~/.claude/scripts/x.sh*)`. Read-only tools are always allowed; `bypassPermissions` is never used. |
+| `allow` | comma-separated extra permission rules the sweep needs, e.g. `Bash(./scripts/kingstack check*)`. Read-only tools are always allowed; `bypassPermissions` is never used. |
 
 Body = the exact prompt. Write it for an unattended session: what to check, what "nothing
 to report" looks like, and the one-line shape of the result. See `_template.md`.

@@ -16,7 +16,7 @@ Required ID families:
 - four sweep definitions
 - two pstack agents
 - eight instruction fragments
-- compaction 200k, medium effort, pstack `63d938c`
+- compaction 200k, medium effort, pstack `4612556`
 
 Run:
 

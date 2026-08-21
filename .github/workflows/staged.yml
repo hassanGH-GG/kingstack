@@ -1,0 +1,30 @@
+name: staged
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Pin sibling checkouts
+        run: |
+          plugins_pin=$(head -1 pstack-upstream.txt)
+          headroom_pin=$(head -1 headroom-upstream.txt)
+          git clone --filter=blob:none https://github.com/cursor/plugins.git "$GITHUB_WORKSPACE/../plugins"
+          git -C "$GITHUB_WORKSPACE/../plugins" checkout "$plugins_pin"
+          git clone --filter=blob:none https://github.com/headroomlabs-ai/headroom.git "$GITHUB_WORKSPACE/../headroom"
+          git -C "$GITHUB_WORKSPACE/../headroom" checkout "$headroom_pin"
+      - name: Unit tests
+        env:
+          KINGSTACK_UPSTREAM_ROOT: ${{ github.workspace }}/../plugins
+        run: PYTHONPATH=lib python3 -m unittest discover -s tests -q
+      - name: Staged health
+        env:
+          KINGSTACK_UPSTREAM_ROOT: ${{ github.workspace }}/../plugins
+        run: ./scripts/kingstack check --all --mode staged

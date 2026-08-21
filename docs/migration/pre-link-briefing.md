@@ -1,49 +1,77 @@
 # Pre-link briefing
 
-Status: WAITING FOR HASSAN
+Status: waiting for Hassan
 
-This is the complete-before-link stop. Native homes were not written.
-Throwaway apply, inverse mixed rollback, schedule locks, release wrappers,
-shared memory copy, and the portable context status line are in the
-checkout.
+This is the last stop before anyone writes `~/.claude`, `~/.codex`, or
+`~/.cursor`. The checkout can build a release, plan a link, and prove
+apply and rollback on a temp folder. It still refuses the real homes.
 
-## Ownership
+## What kingstack would own
 
-`adapters/<id>/owned-paths.json` is the only ownership document.
+The only list is `adapters/<id>/owned-paths.json`.
 
-| Adapter | Fully owned live paths | Mixed live files | Mixed payloads |
+| Adapter | Files it would replace | Files it would merge | Extra file used for the merge |
 | --- | --- | --- | --- |
-| Claude | `CLAUDE.md`, hooks including `ctx-status.py`, `bin/claude-check`, `bin/kingstack-path`, 53 skill directories | `settings.json` (`statusLine` only) | `settings-owned.json` |
-| Codex | `AGENTS.md`, hooks including `ctx-status.py`, `bin/kingstack-path`, 36 skill directories | `config.toml` (owned keys plus `tui.status_line`) | `config-owned.json` |
-| Cursor | `AGENTS.md`, hooks including `ctx-status.py`, `bin/kingstack-path`, 53 skill directories | none | none |
+| Claude | `CLAUDE.md`, hooks including `ctx-status.py`, `bin/claude-check`, `bin/kingstack-path`, 54 skill directories | `settings.json`, and only the `statusLine` key | `settings-owned.json` |
+| Codex | `AGENTS.md`, hooks including `ctx-status.py`, `bin/kingstack-path`, 37 skill directories | `config.toml`, owned keys plus the footer field list | `config-owned.json` |
+| Cursor | `rules/kingstack/*.mdc`, hooks including `ctx-status.py` and a Cursor-native `hooks.json`, `bin/kingstack-path`, 54 skill directories | none | none |
 
-Forbidden trees stay untouched. Whole-home ownership stays illegal.
+It will not take the whole home. Claude `projects`, `memory`, `auth.json`,
+`sessions`, `plugins`, and `cache` stay yours. Codex `auth.json`,
+`sessions`, `memories`, `tmp`, and `plugins` stay yours. Cursor
+`projects`, `ai-tracking`, `extensions`, `argv.json`, `skills-cursor`,
+`chats`, and `cli-config.json` stay yours.
 
-## What landed before any live link
+## What is already proven
 
-- Inverse mixed rollback keeps unowned keys. A `theme` or `keepAfter` key
-  added after apply survives rollback. `statusLine` is removed.
-- Throwaway fault injection after rename, mixed publish, and `current`
-  restores the pre-state. Native `~/.claude` apply still raises.
-- Schedule locks live under `~/.kingstack/manifests/schedules`. A second
-  owner prints `duplicate prevented`.
-- Release wrappers resolve through `KINGSTACK_ROOT`. They are in the
-  bundle, not linked live.
-- Curated Claude banks were copied into `~/.kingstack/memory`. Identity
-  is the real project path, not the hyphen slug under `~/.claude/projects`.
-  A parent-git collision that smashed every bank into one id is fixed.
-  Live Claude banks were not modified.
-- `kingstack status` is the same cache-read cost math on every adapter.
-  Claude will run it as `settings.json` `statusLine` after a link. Codex
-  owns native `tui.status_line` fields plus the same command. Cursor has
-  no native footer hook; it uses `kingstack status` / `hooks/ctx-status.py`.
+Rollback of a merge keeps keys kingstack does not own. If you add `theme`
+after an apply, rollback keeps `theme` and removes `statusLine`.
 
-## What Hassan must approve before any live link
+If apply fails after a rename, a merge, or the `current` switch, the temp
+home goes back to what it was. Apply against `~/.claude` still raises.
 
-1. The ownership table, including `statusLine` as the only Claude settings key.
-2. That throwaway apply and inverse rollback are enough evidence.
-3. That the six plan files are deleted only after cutover.
+If two schedule owners start the same job, the intended result is
+`duplicate prevented`. The lock is still check-then-write; treat a
+stolen schedule as an open item, not a closed proof.
+
+`claude-check` and `kingstack-path` ship inside a release. They are not
+linked into a live home.
+
+The curated Claude memory banks are copied into `~/.kingstack/memory`.
+Each bank uses the real project path as its id. The live Claude banks
+were not changed.
+
+Headroom is pinned at `headroom-upstream.txt`. Fat tool text is archived
+under `~/.kingstack/headroom`, not in a native home. Images are not
+crushed. PreCompact and SessionStart keep archive ids and drop the raw
+blob. Retrieve with `kingstack headroom retrieve <id>`.
+
+`kingstack setup` prepares `~/.kingstack` and never writes a native home.
+A personal profile skips the king-mode overlay. Hassan's default checkout
+is still `~/Desktop/Work/kingstack`. A teammate follows `docs/SETUP.md`.
+
+`kingstack status` prints folder, model, effort, context, cost, and the
+models subagents used. After a Claude link, that becomes the status bar.
+Codex keeps its own footer and can still run the command. Cursor only
+has the command. `kingstack effort --file` scans `↳ spawn` lines. Inherit
+is fail.
+
+`kingstack memory harvest` and `kingstack memory consolidate` write
+candidates only. Hassan still promotes. `kingstack session` lists live
+jobs under `~/.kingstack/sessions`. Pointers only. `kingstack handoff`
+writes a packet for Codex.
+
+CI runs unit tests and `check --all --mode staged`. That job is on GitHub
+once this branch is pushed.
+
+## What Hassan has to approve
+
+1. The ownership table, including `statusLine` as the only Claude
+   settings key kingstack will write.
+2. That the temp-home apply and rollback proofs are enough.
+3. That the six dated plan files get deleted only after a live link
+   holds, never before.
 4. Push and merge of `feat/agent-neutral-kingstack`.
 
-Say `approve live link` if you want that work to start. Until then the native
-homes stay real directories.
+Say `approve live link` if you want the real homes written. Until then
+they stay ordinary directories.
