@@ -11,12 +11,45 @@ Work here:
 ~/Desktop/Work/kingstack
 ```
 
-`~/.claude`, `~/.codex`, and `~/.cursor` are the native homes. Claude,
-Codex, and Cursor already load files from them. This repo is the source.
-A live link writes only the paths in each adapter's `owned-paths.json`.
-
 If you are new, read [docs/SETUP.md](docs/SETUP.md). Then
 [docs/README.md](docs/README.md) for the map.
+
+## Why this exists
+
+Three products, three homes, three copies of the same rules. For a while
+`~/.claude` *was* the git repo. That made a teammate, a second laptop, and
+CI all special cases. A correction in one home died in the others.
+
+This checkout is the public source. `~/.claude`, `~/.codex`, and
+`~/.cursor` stay the folders those products already read. A live link
+writes only the paths in each adapter's `owned-paths.json`. Unowned keys,
+comments, and plugin lists stay. Rollback is a first-class path, not a
+hope.
+
+pstack is the one process door. Superpowers stays off so a second
+framework cannot steal the first turn. Shared memory and the session
+index live under `~/.kingstack`, not inside a vendor home, so a fact
+approved in Claude is still there when Codex or Cursor picks up the
+same project.
+
+A correction is a design defect. The next agent should hit a type, a
+test, or a check, not a chat note.
+
+## What it can do
+
+| Capability | What you get |
+| --- | --- |
+| Render, release, activate | Build a bundle in memory. Stamp a release. Write only owned paths. Mixed files merge and invert. |
+| Setup | Prepare `~/.kingstack` and `~/.local/bin/kingstack`. Never write a native home. |
+| Health | `check --mode staged` is the checkout. `check --mode live` is each home that exists and is linked. Superpowers off is a live row. |
+| Memory | `~/.kingstack/memory`. Harvest and consolidate write candidates. Hassan promotes. A rejected fact stays rejected until the body changes. |
+| Sessions | Cross-adapter working set under `~/.kingstack/sessions`. Pointers, not transcripts. `close` and `sweep` mark leftovers done. |
+| Handoff | Write a Codex packet from the current finish condition. |
+| Headroom | Archive tool text over about 30KB. Retrieve by id. No wrap. No image crush. |
+| Effort | Scan `↳ spawn` lines. A named model and effort pass. `inherit` fails. |
+| Status | One line of folder, model, effort, context, cost, and subagent models. Claude can use that line as the status bar. |
+| Secrets | Inbox, compaction checkpoints, and session prompts drop secret-like lines and write those files `0o600`. |
+| Process | poteto-mode picks the playbook. king-mode is Hassan's overlay. Routing lives in `model-routing.md`. |
 
 ## What the repo does
 
@@ -76,7 +109,7 @@ CI runs unit tests and staged health
 | --- | --- | --- | --- |
 | Guidance file | `CLAUDE.md` | `AGENTS.md` | `rules/kingstack/*.mdc` |
 | Bundled skills | 54 | 37 | 54 |
-| File it merges, not replaces | `settings.json` (`statusLine` only) | `config.toml` | none |
+| File it merges, not replaces | `settings.json` (status line, hooks, Superpowers off) | `config.toml` | none |
 
 Codex cannot run 18 skills that need Task, `subagent_type`, or `/loop`.
 The catalog lists them as unsupported. That is the honest count, not a

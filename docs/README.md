@@ -4,7 +4,7 @@ Start here if you did not sit in the session that built this branch.
 
 | Read this | When |
 | --- | --- |
-| [../README.md](../README.md) | You want to know what the repo is and which commands to run. |
+| [../README.md](../README.md) | You want why it exists, what it can do, and which commands to run. |
 | [SETUP.md](SETUP.md) | You are a teammate cloning this for the first time. |
 | [migration/pre-link-briefing.md](migration/pre-link-briefing.md) | You are about to decide whether to write `~/.claude`, `~/.codex`, or `~/.cursor`. |
 | [ROADMAP.md](ROADMAP.md) | You are choosing the next product idea. |
