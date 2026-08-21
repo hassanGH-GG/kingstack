@@ -2,6 +2,7 @@ import argparse
 from collections.abc import Mapping
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Optional, List
@@ -331,6 +332,10 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print("failing: {}".format(", ".join(report["failing"])))
             print("got: {}".format(", ".join(report["got"])))
             print("not_got: {}".format(", ".join(report["not_got"])))
+            print("cli: {}".format(report["shim"]))
+            bindir = str(Path(report["shim"]).parent)
+            if bindir not in os.environ.get("PATH", "").split(os.pathsep):
+                print("put {} on PATH".format(bindir))
             print("native homes: not written")
         return 0 if report["staged"] == "healthy" else 1
     if arguments.command == "check":

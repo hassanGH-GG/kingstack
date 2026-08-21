@@ -45,6 +45,8 @@ cd ~/Desktop/Work/kingstack
 ./scripts/kingstack memory harvest --inbox memory-review.md
 ./scripts/kingstack memory consolidate
 ./scripts/kingstack session list
+./scripts/kingstack session close <id>
+./scripts/kingstack session sweep
 ./scripts/kingstack handoff --finish "<done means>"
 ./scripts/kingstack release --adapter cursor --runtime /tmp/ks --build
 ./scripts/kingstack activate --adapter cursor --runtime /tmp/ks --release <id> --native-home /tmp/home --dry-run
@@ -52,7 +54,8 @@ cd ~/Desktop/Work/kingstack
 ```
 
 `check --all --mode staged` must print `healthy`.
-`check --all --mode live` prints `healthy` after all three homes are linked.
+`check --all --mode live` prints `healthy` after each native home that
+exists on the machine is linked. Homes you do not have are skipped.
 
 `status` prints one line: folder, model, effort, context size, cost, and
 which models subagents used. After a Claude link, that line also becomes
@@ -98,7 +101,9 @@ cd kingstack
 ./scripts/kingstack setup
 ```
 
-Do not clone this repo into `~/.claude`.
+Setup writes `~/.local/bin/kingstack`. Put `~/.local/bin` on `PATH`,
+then run `kingstack check --all --mode staged`. That must print
+`healthy`. Do not clone this repo into `~/.claude`.
 
 ## Rules that keep it honest
 

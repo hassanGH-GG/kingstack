@@ -3,6 +3,10 @@
 ## 0.4.0
 
 `kingstack setup` prepares `~/.kingstack` and never writes a native home.
+It also writes a wrapper at `~/.local/bin/kingstack` that execs this
+checkout. `check --all --mode live` only requires native homes that
+exist. `kingstack session close` and `session sweep` mark leftover
+rows done. The inbox distiller drops one-prompt health probes.
 Checkout discovery uses `KINGSTACK_ROOT`, walk-up, then Hassan's default
 path. A personal profile skips the king-mode overlay. PreCompact and
 SessionStart keep Headroom archive ids and re-inject the memory index.

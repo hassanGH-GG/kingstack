@@ -1,6 +1,9 @@
 # Pre-link briefing
 
-Status: approved by Hassan on 2026-08-21 (setup, migrate, make all 3 work, clean ~/.claude)
+Status: approved by Hassan on 2026-08-21 (setup, migrate, make all 3 work, clean ~/.claude).
+Hassan's three homes are linked. The six dated plan files are gone.
+A teammate follows `docs/SETUP.md` and only needs this file when they
+are about to write a native home.
 
 This was the last stop before anyone wrote `~/.claude`, `~/.codex`, or
 `~/.cursor`. Live apply now takes `--apply --approved-briefing` pointing

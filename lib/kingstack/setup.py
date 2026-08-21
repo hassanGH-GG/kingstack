@@ -69,7 +69,7 @@ def setup(
     runtime.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chmod(runtime, 0o700)
     save_profile(runtime, identity, root)
-    ensure_cli_shim(root, home)
+    shim = ensure_cli_shim(root, home)
     MemoryStore.open(runtime / "memory", repo_root=root)
     SessionStore.open(runtime / "sessions", repo_root=root)
     (runtime / "headroom").mkdir(mode=0o700, exist_ok=True)
@@ -110,6 +110,7 @@ def setup(
         "headroom CCR",
         "empty memory store",
         "empty session store",
+        "cli shim",
     ]
     not_got = ["Hassan's memory", "live native-home link"]
     if identity == "personal":
@@ -127,5 +128,6 @@ def setup(
         "failing": failing,
         "got": got,
         "not_got": not_got,
+        "shim": str(shim),
         "native_homes_written": False,
     }

@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import List, Mapping
+from typing import List, Mapping, Optional
 
 from kingstack.adapter_contract import load_adapter, load_capability_catalog, validate_adapter
 from kingstack.docs_hygiene import hygiene_errors
@@ -125,23 +125,34 @@ def staged_checks(root: Path) -> List[Mapping[str, object]]:
     return rows
 
 
-def _home_linked(name: str) -> bool:
-    home = Path.home() / name
-    return (home / ".kingstack-activation.json").is_file() and (home / ".kingstack-current").exists()
+def _home_linked(name: str, home: Path) -> bool:
+    native = Path(home) / name
+    return (native / ".kingstack-activation.json").is_file() and (native / ".kingstack-current").exists()
 
 
-def live_checks(root: Path) -> List[Mapping[str, object]]:
+def live_checks(root: Path, home: Optional[Path] = None) -> List[Mapping[str, object]]:
+    home = Path(home or Path.home()).expanduser()
     rows = list(staged_checks(root))
     homes = native_homes(root)
-    missing = [name for name in homes if not _home_linked(name)]
-    rows.append(_row(
-        "live-activation",
-        "core",
-        not missing,
-        "linked {}".format(",".join(homes)) if not missing else "unlinked {}".format(",".join(missing)),
-        "ok" if not missing else "activate each adapter",
-    ))
-    shim = Path.home() / ".local" / "bin" / "kingstack"
+    present = [name for name in homes if (home / name).exists()]
+    missing = [name for name in present if not _home_linked(name, home)]
+    if not present:
+        rows.append(_row(
+            "live-activation",
+            "core",
+            False,
+            "no native home",
+            "activate an adapter",
+        ))
+    else:
+        rows.append(_row(
+            "live-activation",
+            "core",
+            not missing,
+            "linked {}".format(",".join(present)) if not missing else "unlinked {}".format(",".join(missing)),
+            "ok" if not missing else "activate each adapter you use",
+        ))
+    shim = home / ".local" / "bin" / "kingstack"
     target = Path(root).resolve() / "scripts" / "kingstack"
     linked = (
         shim.is_file()

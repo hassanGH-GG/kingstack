@@ -12,16 +12,15 @@ Start here if you did not sit in the session that built this branch.
 | [migration/legacy-claude-checkout.md](migration/legacy-claude-checkout.md) | You need the old `~/.claude` git checkout explained. |
 | [../CHANGELOG.md](../CHANGELOG.md) | You want what landed in each version. |
 
-Current version is 0.4.0. `kingstack setup` prepares `~/.kingstack`.
-`kingstack effort` scans spawn lines. `kingstack session` lists the
-working-set index. `kingstack handoff` writes a Codex packet. Native
-homes are still not linked.
+Current version is 0.4.0. `kingstack setup` prepares `~/.kingstack` and
+writes `~/.local/bin/kingstack`. `kingstack effort` scans spawn lines.
+`kingstack session` lists, shows, closes, and sweeps the working-set
+index. `kingstack handoff` writes a Codex packet. Hassan's three native
+homes are linked. A teammate follows [SETUP.md](SETUP.md) and stays
+unlinked until they activate.
 
-The six dated files under `superpowers/plans/` are old implementation
-plans. Keep them until after a live link holds. Do not treat them as
-current instructions.
-
-The design spec under `superpowers/specs/` and
+The six dated plan files are gone. The design spec under
+`superpowers/specs/` and
 [migration/super-saiyan-3-plan.md](migration/super-saiyan-3-plan.md) are
 history. The checkout, [SETUP.md](SETUP.md), and the briefing are the
 current facts.

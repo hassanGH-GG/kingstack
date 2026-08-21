@@ -52,6 +52,8 @@ class SetupTest(TestCase):
         self.assertTrue((self.runtime / "memory" / "inbox.jsonl").is_file())
         shim = self.home / ".local" / "bin" / "kingstack"
         target = (ROOT / "scripts" / "kingstack").resolve()
+        self.assertIn("cli shim", first["got"])
+        self.assertEqual(first["shim"], str(shim))
         self.assertTrue(shim.is_file())
         self.assertFalse(shim.is_symlink())
         self.assertIn(str(target), shim.read_text(encoding="utf-8"))
