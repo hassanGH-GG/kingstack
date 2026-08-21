@@ -282,3 +282,25 @@ class SessionStoreTest(TestCase):
                 ["session", "sweep", "--root", str(self.root / "sessions")]
             )
         self.assertEqual(sweep_code, 0)
+
+    def test_session_start_does_not_reopen_a_done_empty_row(self):
+        os.environ["KINGSTACK_SESSIONS_ROOT"] = str(self.root / "sessions")
+        self.addCleanup(os.environ.pop, "KINGSTACK_SESSIONS_ROOT", None)
+        closed = self.store.upsert(
+            {
+                "adapter": "codex",
+                "session_id": "unknown",
+                "project_id": self.project,
+                "status": "done",
+            }
+        )
+        again = record_from_hook(
+            {
+                "agent": "codex",
+                "session_id": "unknown",
+                "project": str(self.cwd),
+            },
+            status="live",
+        )
+        self.assertEqual(again["id"], closed["id"])
+        self.assertEqual(self.store.show(closed["id"])["status"], "done")

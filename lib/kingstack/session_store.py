@@ -290,6 +290,21 @@ def record_from_hook(
         "session_id": session,
         "project_id": identity,
     }
+    try:
+        store = SessionStore.open(Path(root))
+    except (SessionStoreError, OSError):
+        return None
+    try:
+        previous = store.show(record_id(adapter, session))
+    except SessionStoreError:
+        previous = None
+    if (
+        previous
+        and previous.get("status") == "done"
+        and status == "live"
+        and not transcript
+    ):
+        return previous
     if status:
         patch["status"] = status
     if transcript:
@@ -316,7 +331,8 @@ def record_from_hook(
     if packet:
         patch["packet_path"] = packet
     try:
-        return SessionStore.open(Path(root)).upsert(patch)
+        opened = store if store is not None else SessionStore.open(Path(root))
+        return opened.upsert(patch)
     except Exception:
         return None
 
