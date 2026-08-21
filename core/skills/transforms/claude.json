@@ -6,7 +6,6 @@
     "cursor-host": {
       "text_extensions": [".md", ".ts", ".sh", ".json"],
       "replacements": [
-        {"kind": "frontmatter", "field": "disable-model-invocation", "action": "remove"},
         {"kind": "frontmatter", "field": "is-background", "action": "remove"},
         {"kind": "model", "source": "claude-fable-5-thinking-max", "target": "fable"},
         {"kind": "model", "source": "grok-4.6-fast-xhigh", "target": "haiku"},
@@ -24,6 +23,31 @@
     "authored-host": {
       "text_extensions": [".md", ".ts", ".sh", ".json"],
       "replacements": [],
+      "forbidden": []
+    },
+    "door-host": {
+      "text_extensions": [".md", ".ts", ".sh", ".json"],
+      "replacements": [
+        {"kind": "frontmatter", "field": "disable-model-invocation", "action": "remove"},
+        {"kind": "frontmatter", "field": "is-background", "action": "remove"},
+        {"kind": "model", "source": "claude-fable-5-thinking-max", "target": "fable"},
+        {"kind": "model", "source": "grok-4.6-fast-xhigh", "target": "haiku"},
+        {"kind": "model", "source": "gpt-5.6-sol-max", "target": "opus"},
+        {"kind": "model", "source": "claude-opus-5-thinking-xhigh", "target": "opus"},
+        {"kind": "tool", "source": "generalPurpose", "target": "general-purpose"},
+        {"kind": "path", "source": "~/.cursor/rules/pstack-models.mdc", "target": "~/.claude/pstack-models.md"},
+        {"kind": "path", "source": "$HOME/.cursor/projects/$slug/agent-transcripts", "target": "$HOME/.claude/projects/$slug"},
+        {"kind": "path", "source": ".cursor", "target": ".claude"},
+        {"kind": "host", "source": "Cursor", "target": "Claude Code"},
+        {"kind": "path", "source": "/tmp/verify-this/", "target": "$TMPDIR/verify-this/"}
+      ],
+      "forbidden": ["generalPurpose", ".cursor", "grok-4.6-fast-xhigh", "gpt-5.6-sol-max", "claude-opus-5-thinking-xhigh"]
+    },
+    "door-authored": {
+      "text_extensions": [".md", ".ts", ".sh", ".json"],
+      "replacements": [
+        {"kind": "frontmatter", "field": "disable-model-invocation", "action": "remove"}
+      ],
       "forbidden": []
     }
   }

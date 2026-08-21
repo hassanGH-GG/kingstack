@@ -2,7 +2,7 @@
   "schema_version": 1,
   "upstreams": {
     "pstack": {
-      "revision": "63d938c",
+      "revision": "4612556",
       "source": "pstack"
     }
   },
@@ -213,6 +213,18 @@
       "transform": "cursor-host"
     },
     {
+      "name": "handoff-to-codex",
+      "owner": "kingstack",
+      "source": "core/skills/authored/handoff-to-codex",
+      "targets": [
+        "claude",
+        "codex",
+        "cursor"
+      ],
+      "dependencies": [],
+      "transform": "authored-host"
+    },
+    {
       "name": "how",
       "owner": "pstack",
       "source": "pstack/skills/how",
@@ -248,7 +260,7 @@
       "dependencies": [
         "poteto-mode"
       ],
-      "transform": "authored-host"
+      "transform": "door-authored"
     },
     {
       "name": "maintain-verification-skill",
@@ -308,7 +320,7 @@
         "cursor"
       ],
       "dependencies": [],
-      "transform": "cursor-host",
+      "transform": "door-host",
       "frontmatter_name": "Poteto Mode"
     },
     {

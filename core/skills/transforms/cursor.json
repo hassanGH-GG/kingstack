@@ -6,6 +6,7 @@
     "cursor-host": {
       "text_extensions": [".md", ".ts", ".sh", ".json"],
       "replacements": [
+        {"kind": "frontmatter", "field": "is-background", "action": "remove"},
         {"kind": "path", "source": ".claude", "target": ".cursor"},
         {"kind": "path", "source": "CLAUDE.md", "target": "AGENTS.md"},
         {"kind": "host", "source": "Claude Code", "target": "Cursor"},
@@ -16,6 +17,29 @@
     "authored-host": {
       "text_extensions": [".md", ".ts", ".sh", ".json"],
       "replacements": [
+        {"kind": "path", "source": ".claude", "target": ".cursor"},
+        {"kind": "path", "source": "CLAUDE.md", "target": "AGENTS.md"},
+        {"kind": "host", "source": "Claude Code", "target": "Cursor"},
+        {"kind": "host", "source": "Claude", "target": "Cursor"}
+      ],
+      "forbidden": [".claude", "CLAUDE.md", "Claude Code"]
+    },
+    "door-host": {
+      "text_extensions": [".md", ".ts", ".sh", ".json"],
+      "replacements": [
+        {"kind": "frontmatter", "field": "disable-model-invocation", "action": "remove"},
+        {"kind": "frontmatter", "field": "is-background", "action": "remove"},
+        {"kind": "path", "source": ".claude", "target": ".cursor"},
+        {"kind": "path", "source": "CLAUDE.md", "target": "AGENTS.md"},
+        {"kind": "host", "source": "Claude Code", "target": "Cursor"},
+        {"kind": "host", "source": "Claude", "target": "Cursor"}
+      ],
+      "forbidden": [".claude", "CLAUDE.md", "Claude Code"]
+    },
+    "door-authored": {
+      "text_extensions": [".md", ".ts", ".sh", ".json"],
+      "replacements": [
+        {"kind": "frontmatter", "field": "disable-model-invocation", "action": "remove"},
         {"kind": "path", "source": ".claude", "target": ".cursor"},
         {"kind": "path", "source": "CLAUDE.md", "target": "AGENTS.md"},
         {"kind": "host", "source": "Claude Code", "target": "Cursor"},

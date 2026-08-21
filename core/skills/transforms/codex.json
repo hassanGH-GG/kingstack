@@ -36,7 +36,6 @@
     "cursor-host": {
       "text_extensions": [".md", ".ts", ".sh", ".json"],
       "replacements": [
-        {"kind": "frontmatter", "field": "disable-model-invocation", "action": "remove"},
         {"kind": "frontmatter", "field": "is-background", "action": "remove"},
         {"kind": "model", "source": "claude-fable-5-thinking-max", "target": "gpt-5.6-sol"},
         {"kind": "model", "source": "grok-4.6-fast-xhigh", "target": "gpt-5.6-luna"},
@@ -62,6 +61,48 @@
     "authored-host": {
       "text_extensions": [".md", ".ts", ".sh", ".json"],
       "replacements": [
+        {"kind": "tool", "source": "AskUserQuestion", "target": "request_user_input"},
+        {"kind": "path", "source": ".claude", "target": ".codex"},
+        {"kind": "path", "source": "CLAUDE.md", "target": "AGENTS.md"},
+        {"kind": "host", "source": "Claude Code", "target": "Codex"},
+        {"kind": "host", "source": "Claude", "target": "Codex"},
+        {"kind": "model", "source": "fable", "target": "gpt-5.6-terra"},
+        {"kind": "model", "source": "haiku", "target": "gpt-5.6-terra"},
+        {"kind": "model", "source": "sonnet", "target": "gpt-5.6-terra"},
+        {"kind": "model", "source": "opus", "target": "gpt-5.6-terra"}
+      ],
+      "forbidden": [".claude", "Claude", "CLAUDE.md"]
+    },
+    "door-host": {
+      "text_extensions": [".md", ".ts", ".sh", ".json"],
+      "replacements": [
+        {"kind": "frontmatter", "field": "disable-model-invocation", "action": "remove"},
+        {"kind": "frontmatter", "field": "is-background", "action": "remove"},
+        {"kind": "model", "source": "claude-fable-5-thinking-max", "target": "gpt-5.6-sol"},
+        {"kind": "model", "source": "grok-4.6-fast-xhigh", "target": "gpt-5.6-luna"},
+        {"kind": "model", "source": "gpt-5.6-sol-max", "target": "gpt-5.6-sol"},
+        {"kind": "model", "source": "claude-opus-5-thinking-xhigh", "target": "gpt-5.6-sol"},
+        {"kind": "model", "source": "fable", "target": "gpt-5.6-terra"},
+        {"kind": "model", "source": "haiku", "target": "gpt-5.6-terra"},
+        {"kind": "model", "source": "sonnet", "target": "gpt-5.6-terra"},
+        {"kind": "model", "source": "opus", "target": "gpt-5.6-terra"},
+        {"kind": "tool", "source": "generalPurpose", "target": "general-purpose"},
+        {"kind": "tool", "source": "AskUserQuestion", "target": "request_user_input"},
+        {"kind": "path", "source": "~/.cursor/rules/pstack-models.mdc", "target": "~/.codex/model-routing.md"},
+        {"kind": "path", "source": "$HOME/.cursor/projects/$slug/agent-transcripts", "target": "$HOME/.codex/sessions"},
+        {"kind": "path", "source": ".cursor", "target": ".codex"},
+        {"kind": "host", "source": "Cursor", "target": "Codex"},
+        {"kind": "host", "source": "Claude Code", "target": "Codex"},
+        {"kind": "host", "source": "Claude", "target": "Codex"},
+        {"kind": "path", "source": "CLAUDE.md", "target": "AGENTS.md"},
+        {"kind": "path", "source": "/tmp/verify-this/", "target": "$TMPDIR/verify-this/"}
+      ],
+      "forbidden": ["generalPurpose", ".cursor", ".claude", "Claude", "CLAUDE.md"]
+    },
+    "door-authored": {
+      "text_extensions": [".md", ".ts", ".sh", ".json"],
+      "replacements": [
+        {"kind": "frontmatter", "field": "disable-model-invocation", "action": "remove"},
         {"kind": "tool", "source": "AskUserQuestion", "target": "request_user_input"},
         {"kind": "path", "source": ".claude", "target": ".codex"},
         {"kind": "path", "source": "CLAUDE.md", "target": "AGENTS.md"},

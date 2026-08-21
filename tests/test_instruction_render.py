@@ -16,7 +16,7 @@ from kingstack.render import RenderError, render_bundle, render_instructions
 
 ROOT = Path(__file__).parents[1]
 FIXTURES = ROOT / "tests/fixtures"
-GOLDEN_SHA256 = "7a6f34e0ff3777279053bb63713dfc109761d508f18fef0316279e9a74fdab2e"
+GOLDEN_SHA256 = "5215ea2fcb40374150ce3f0081a55b72f389fe5484b57717ed9a0d9bdb8b7a10"
 
 
 class InstructionRenderTest(TestCase):
@@ -321,7 +321,7 @@ class InstructionRenderTest(TestCase):
         document = json.loads(manifest.stdout)
         self.assertEqual(document["schema_version"], 1)
         self.assertEqual(document["adapter"], "claude")
-        self.assertEqual(len(document["skills"]), 65)
+        self.assertEqual(len(document["skills"]), 66)
         self.assertEqual(
             document["files"],
             [

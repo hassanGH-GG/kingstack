@@ -39,7 +39,7 @@ class ClaudeParityTest(TestCase):
                 "hook:subagent_start",
                 "policy:compaction-200k",
                 "policy:effort-medium",
-                "policy:pstack-63d938c",
+                "policy:pstack-4612556",
                 "skill:king-mode",
                 "skill:memory-review",
             }
@@ -48,7 +48,7 @@ class ClaudeParityTest(TestCase):
         required.update("schedule:{}".format(name) for name in report["schedules"])
         required.update("sweep:{}".format(name) for name in report["sweeps"])
         required.update("instruction:{}".format(name) for name in report["instructions"])
-        self.assertEqual(len(catalog.available_names("claude")), 65)
+        self.assertEqual(len(catalog.available_names("claude")), 66)
         self.assertEqual(len(report["commands"]), 16)
         self.assertEqual(len(report["schedules"]), 3)
         self.assertEqual(len(report["sweeps"]), 4)

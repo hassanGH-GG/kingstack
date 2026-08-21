@@ -1,21 +1,25 @@
 ---
 name: memory-review
-description: Distil the session-memory inbox into real memory files. Use for /memory-review, "review my memory inbox", "promote memory candidates", "what's waiting in memory review", or when ~/.claude/memory-review.md has pending lines.
+description: Distil the shared memory inbox into real memory files. Use for /memory-review, "review my memory inbox", "promote memory candidates", or "what's waiting in memory review".
 ---
 
 # Memory review
 
-The Stop hook (`~/.claude/hooks/session-memory-distiller.py`) parks one candidate
-line per session in `~/.claude/memory-review.md`. This pass turns approved
-candidates into memory files in the right project's memory bank and clears them
-from the inbox. Hassan approves or rejects every candidate; never write a memory
-file from a draft he has not seen.
+The portable Stop hook parks one candidate per session in
+`~/.kingstack/memory`. This pass turns approved candidates into memory files
+in the right project's bank. Hassan approves or rejects every candidate;
+never write a memory file from a draft he has not seen.
 
 **Every inbox and memory-bank write goes through the CLI.** Never hand-edit
-`memory-review.md` or a `MEMORY.md`. Live sessions write that inbox from their
-own Stop hooks, and the CLI is what holds the lock they share.
+`inbox.jsonl` or a `MEMORY.md`.
 
     kingstack memory list
+    kingstack memory harvest --inbox <memory-review.md>
+    kingstack memory consolidate
+
+`harvest` turns inbox corrections into candidates. `consolidate` proposes
+merges for near-duplicate promoted files. Both write candidates only.
+Hassan still promotes or rejects.
 
 ## 1. Read the inbox
 
@@ -24,8 +28,8 @@ own Stop hooks, and the CLI is what holds the lock they share.
 Each candidate gives you `session` (the id every other command keys on), `kind`
 (`correction` or `goal`), the truncated prompt, `prompts` (how long the session
 ran), `transcript`, and the `memory_dir` derived from that path. The bank follows
-the transcript, so a candidate captured under `~/.claude-personal` promotes into
-that profile's bank, not the current session's.
+the project identity, so a candidate promotes into the shared bank for that
+project, not a host-specific tree.
 
 No pending candidates means the pass is done. Say so and stop.
 

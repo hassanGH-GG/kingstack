@@ -85,9 +85,9 @@ def rendered_parity(adapter: str, root: Path) -> MappingProxyType:
         if '"effortLevel": "medium"' in settings_text
         else _row("missing", str(settings))
     )
-    ids["policy:pstack-63d938c"] = (
+    ids["policy:pstack-4612556"] = (
         _row("in_bundle", "core/skills/catalog.json")
-        if catalog.upstream_revision("pstack") == "63d938c"
+        if catalog.upstream_revision("pstack") == "4612556"
         else _row("missing", "pstack revision")
     )
 

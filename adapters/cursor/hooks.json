@@ -1,9 +1,30 @@
 {
+  "version": 1,
   "hooks": {
-    "SessionStart": "hooks/run.py SessionStart",
-    "Stop": "hooks/run.py Stop",
-    "PreCompact": "hooks/run.py PreCompact",
-    "PostToolUse": "hooks/run.py PostToolUse",
-    "SubagentStart": "hooks/run.py SubagentStart"
+    "sessionStart": [
+      {
+        "command": "python3 hooks/run.py sessionStart"
+      }
+    ],
+    "stop": [
+      {
+        "command": "python3 hooks/run.py stop"
+      }
+    ],
+    "preCompact": [
+      {
+        "command": "python3 hooks/run.py preCompact"
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": "python3 hooks/run.py postToolUse"
+      }
+    ],
+    "subagentStart": [
+      {
+        "command": "python3 hooks/run.py subagentStart"
+      }
+    ]
   }
 }

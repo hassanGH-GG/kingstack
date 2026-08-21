@@ -48,6 +48,7 @@ BASELINE_65_NAMES = frozenset(
         "deslop",
         "durable-objects",
         "figure-it-out",
+        "handoff-to-codex",
         "how",
         "interrogate",
         "king-mode",
@@ -150,13 +151,13 @@ class SkillCatalogTest(TestCase):
         catalog = load_catalog(ROOT, upstream_root=PLUGINS)
 
         self.assertEqual(set(catalog.available_names("claude")), BASELINE_65_NAMES)
-        self.assertEqual(len(catalog.available_names("claude")), 65)
+        self.assertEqual(len(catalog.available_names("claude")), 66)
 
     def test_catalog_preserves_frozen_pstack_revision_and_ownership(self):
         """Revision drift or ownership reassignment must fail visibly."""
         catalog = load_catalog(ROOT, upstream_root=PLUGINS)
 
-        self.assertEqual(catalog.upstream_revision("pstack"), "63d938c")
+        self.assertEqual(catalog.upstream_revision("pstack"), "4612556")
         self.assertEqual(catalog.owner("king-mode"), "kingstack")
         self.assertEqual(catalog.owner("cloudflare"), "plugin-manager")
 
@@ -168,7 +169,7 @@ class SkillCatalogTest(TestCase):
             {owner: sum(entry.owner == owner for entry in catalog.entries) for owner in (
                 "kingstack", "pstack", "adopted", "plugin-manager"
             )},
-            {"kingstack": 2, "pstack": 43, "adopted": 8, "plugin-manager": 12},
+            {"kingstack": 3, "pstack": 43, "adopted": 8, "plugin-manager": 12},
         )
         self.assertIsInstance(catalog.upstreams, MappingProxyType)
         self.assertEqual(catalog.owner("memory-review"), "kingstack")
@@ -555,7 +556,7 @@ class SkillCatalogTest(TestCase):
 
     def test_adapter_ownership_never_claims_plugin_or_unsupported_skill_paths(self):
         """Adapter ownership enumerates generated paths instead of broad mixed trees."""
-        for adapter in ("claude", "codex"):
+        for adapter in ("claude", "codex", "cursor"):
             from kingstack.ownership import load_ownership, render_paths
             owned = set(render_paths(load_ownership(ROOT, adapter)))
             self.assertNotIn("skills", owned)
@@ -575,9 +576,9 @@ class SkillCatalogTest(TestCase):
         files = render_skill_files("claude", ROOT, upstream_root=PLUGINS)
 
         self.assertIsInstance(files, MappingProxyType)
-        self.assertEqual(len({path.split("/", 1)[0] for path in files}), 53)
+        self.assertEqual(len({path.split("/", 1)[0] for path in files}), 54)
         self.assertFalse(any(path.startswith("cloudflare/") for path in files))
-        self.assertEqual(len(claude["skills"]), 65)
+        self.assertEqual(len(claude["skills"]), 66)
         self.assertEqual(
             sum(record["status"] == "plugin-managed" for record in claude["skills"]),
             12,
@@ -585,7 +586,7 @@ class SkillCatalogTest(TestCase):
         service = next(record for record in codex["skills"] if record["name"] == "service-migration-handover")
         self.assertEqual(service["status"], "unsupported")
         cursor = bundle_manifest("cursor", ROOT, upstream_root=PLUGINS)
-        self.assertEqual(sum(record["status"] == "bundled" for record in cursor["skills"]), 53)
+        self.assertEqual(sum(record["status"] == "bundled" for record in cursor["skills"]), 54)
         self.assertEqual(sum(record["status"] == "unsupported" for record in cursor["skills"]), 12)
         with self.assertRaises(TypeError):
             files["new/SKILL.md"] = b"bad"
@@ -623,8 +624,12 @@ class SkillCatalogTest(TestCase):
 
     def test_upstream_revision_cli_manifests_and_full_render_are_skill_aware(self):
         """Revision drift or a manifest omitting catalog accounting must fail."""
-        self.assertEqual(check_upstream("pstack", ROOT, PLUGINS)["revision"], "63d938c")
-        for adapter, guidance in (("claude", "CLAUDE.md"), ("codex", "AGENTS.md")):
+        self.assertEqual(check_upstream("pstack", ROOT, PLUGINS)["revision"], "4612556")
+        for adapter, guidance in (
+            ("claude", "CLAUDE.md"),
+            ("codex", "AGENTS.md"),
+            ("cursor", "rules/kingstack/00-identity.mdc"),
+        ):
             stdout = io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                 self.assertEqual(
@@ -632,14 +637,26 @@ class SkillCatalogTest(TestCase):
                     0,
                 )
             document = json.loads(stdout.getvalue())
-            self.assertEqual(len(document["skills"]), 65)
+            self.assertEqual(len(document["skills"]), 66)
             bundle = render_bundle(adapter, ROOT)
             self.assertIn(guidance, bundle)
             if adapter == "claude":
                 self.assertIn("skills/king-mode/SKILL.md", bundle)
+            elif adapter == "cursor":
+                self.assertIn("skills/king-mode/SKILL.md", bundle)
+                self.assertNotIn("AGENTS.md", bundle)
             else:
                 self.assertNotIn("skills/king-mode/SKILL.md", bundle)
             self.assertNotIn("skills/cloudflare/SKILL.md", bundle)
+            if adapter in ("claude", "cursor"):
+                self.assertNotIn(
+                    "disable-model-invocation",
+                    bundle["skills/poteto-mode/SKILL.md"].decode("utf-8"),
+                )
+                self.assertIn(
+                    "disable-model-invocation: true",
+                    bundle["skills/tdd/SKILL.md"].decode("utf-8"),
+                )
 
     def test_sync_pstack_wrapper_is_a_pure_adapter_aware_entry_point(self):
         """The compatibility command must return a manifest without native writes."""
@@ -659,6 +676,6 @@ class SkillCatalogTest(TestCase):
         )
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(len(json.loads(result.stdout)["skills"]), 65)
+        self.assertEqual(len(json.loads(result.stdout)["skills"]), 66)
         for native_name in (".claude", ".codex", ".kingstack"):
             self.assertFalse((Path(temporary.name) / native_name).exists())

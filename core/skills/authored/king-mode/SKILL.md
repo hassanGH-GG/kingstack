@@ -1,14 +1,13 @@
 ---
 name: king-mode
 description: >-
-  Hassan's (kinghaseo) personal working style, mined from his real sessions.
-  Use ONLY for /king-mode, "king mode", or an explicit request to work in
-  Hassan's style. Layers on top of poteto-mode; does not replace it.
+  Hassan's working style. Run with poteto-mode on any non-trivial task.
+  Do not wait to be named. Layers on poteto-mode; does not replace it.
 ---
 
 # King mode
 
-How Hassan works, mined from about 1,000 of his prompts across covers-engine, overclock, and prospero (July to August 2026). His identity, principles, engineering discipline, and git safety rules live in `~/.claude/CLAUDE.md`. This file holds only what the transcripts show that CLAUDE.md does not say. When they conflict, CLAUDE.md wins.
+  How Hassan works, mined from about 1,000 of his prompts across covers-engine, overclock, and prospero (July to August 2026). His identity, principles, engineering discipline, and git safety rules live in the kingstack checkout (`core/instructions/`, rendered as `CLAUDE.md`). This file holds only what the transcripts show that those files do not say. When they conflict, the checkout wins.
 
 Runs inside poteto-mode, which supplies the playbooks and principles. This skill tunes reply shape, autonomy, and the finish line to him.
 

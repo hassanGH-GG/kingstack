@@ -1,13 +1,21 @@
 
 # kingstack is a repo
 
-`~/.claude` is the git repo `hassanGH-GG/kingstack` (public, MIT). An allowlist
-`.gitignore` tracks only authored files: CLAUDE.md, the rulers, hooks/, scripts/,
-launchd/, king-mode, memory-review. Everything else (generated skills, transcripts,
-credentials, caches, ledgers) is untracked by construction; never force-add. After any
-change to a tracked file in this session, commit it with a one-line conventional message
-(`git -C ~/.claude add <paths> && git -C ~/.claude commit -m "..."`) so the history
-accumulates; push when I say. Read `~/.claude/README.md` for the map.
+The canonical checkout is `~/Desktop/Work/kingstack` (public, MIT,
+`hassanGH-GG/kingstack`). `~/.claude` is a live Claude home, not the source
+repo. An allowlist `.gitignore` tracks only authored files. After any change
+to a tracked file in this session, commit it in the checkout
+(`git -C ~/Desktop/Work/kingstack add <paths> && git -C ~/Desktop/Work/kingstack commit -m "..."`)
+and push when Hassan says. Read `~/Desktop/Work/kingstack/README.md` for the map.
+Shared curated memory lives under `~/.kingstack/memory`. Native homes stay
+unlinked until Hassan approves `docs/migration/pre-link-briefing.md`.
+A teammate follows `docs/SETUP.md`. Checkout is `KINGSTACK_ROOT` or the
+clone. `kingstack memory harvest` and `kingstack memory consolidate` write
+candidates only. Hassan still promotes. Fat tool text is
+`~/.kingstack/headroom`. Retrieve with `kingstack headroom retrieve <id>`.
+The working-set index is `~/.kingstack/sessions`. List with
+`kingstack session list`. Continue with `kingstack session continue <id>`.
+Pointers only. Do not open another host's transcript.
 
 # Document to preserve context
 

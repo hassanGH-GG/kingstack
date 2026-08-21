@@ -420,7 +420,11 @@ def _load_render_context(adapter: str, root: Path):
         )
         adapter_files = {}
         for relative in declaration.owned_paths:
-            if relative in ("CLAUDE.md", "AGENTS.md") or relative.startswith("skills/"):
+            if (
+                relative in ("CLAUDE.md", "AGENTS.md")
+                or relative.startswith("skills/")
+                or relative.startswith("rules/")
+            ):
                 continue
             parts = relative.split("/")
             parent = adapter_fd
@@ -466,6 +470,7 @@ def _load_render_context(adapter: str, root: Path):
             {
                 "instructions": "".join(fragments).encode("utf-8"),
                 "appendix": appendix.encode("utf-8"),
+                "instruction_fragments": MappingProxyType(OrderedDict(zip(order, fragments))),
                 "adapter_files": MappingProxyType(adapter_files),
             }
         )

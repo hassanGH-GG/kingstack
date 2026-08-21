@@ -14,12 +14,18 @@ def _lib_path() -> Path:
     for candidate in (here.parents[2] / "lib", here.parents[3] / "lib"):
         if (candidate / "kingstack").is_dir():
             return candidate
+    default = Path.home() / "Desktop/Work/kingstack/lib"
+    if (default / "kingstack").is_dir():
+        return default
     raise SystemExit("kingstack hook runner cannot locate lib/")
 
 
 sys.path.insert(0, str(_lib_path()))
 
 from kingstack.hooks.claude import run_event  # noqa: E402
+from kingstack.profile import apply_hook_env  # noqa: E402
+
+apply_hook_env()
 
 
 def main(argv=None) -> int:

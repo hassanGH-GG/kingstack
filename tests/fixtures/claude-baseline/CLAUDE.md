@@ -90,6 +90,29 @@ instead of asking "should we do this?", build it with the agent and share the PR
   lines for decomposition. If the UI cannot revert without the backend, one PR
   couples them too tightly.
 
+# Constraints live in the code
+
+The best rules are types, folders, and compiler errors. A markdown line is for
+what the compiler cannot say. Refactor the tree and pick a stack with real
+diagnostics before writing another skill. Files have a place. This kind of
+code goes there. If the weakest agent can still drop a file in the wrong
+layer, the architecture is unfinished.
+
+# Delete, then simplify, then speed, then automate
+
+Question the requirement first, especially if a smart person wrote it. Then
+delete the part or the process. If nothing ever comes back, you are not
+deleting enough. Simplify only after delete. Speed up only after simplify.
+Automate last. Do not skip to a hook, a skill, or a script while the extra
+file is still there.
+
+# You are the gardener
+
+A smell that shows up twice is a design defect, not a chat note. The third
+`isRecord` this week, a lint suppression, a helper that should have been a
+type. Pull it, then encode the constraint in the repo so it cannot grow
+back. Without that job the checkout is just whatever landed.
+
 # Parallel sessions and git safety
 
 Parallel Claude and Cursor sessions share one checkout; uncommitted work has a
@@ -114,8 +137,9 @@ short half-life.
 
 # Process framework: pstack
 
-Lauren Tan's pstack (adapted from cursor/plugins, 2026-08-18) is the process
-framework, in `~/.claude/skills/` for both profiles.
+Lauren Tan's pstack (adapted from cursor/plugins) is the process framework.
+Bundled skills come from the kingstack catalog, not from editing
+`~/.claude/skills/` by hand.
 
 **Default-on.** For any non-trivial task (bug, feature, refactor, investigation,
 migration, anything past a quick question or one-line edit), invoke `poteto-mode`
@@ -124,50 +148,65 @@ Restate the goal as a checkable finish condition, deriving one if the request ha
 none. Skip only for trivial lookups, pure conversation, or when Hassan says to
 work outside it.
 
-Model roles live in `~/.claude/pstack-models.md`. The superpowers plugin is
-disabled in favor of pstack. One front door.
+Model roles live in `~/Desktop/Work/kingstack/pstack-models.md`. Superpowers
+stays enabled until Hassan disables it after cutover. One front door is still
+pstack.
 
 **Absorbing pstack whole, kept current.** The install is a scripted port of the
 upstream checkout at `~/Desktop/Work/plugins/pstack`, never a hand-edited fork.
-`~/.claude/scripts/sync-pstack.sh` pulls upstream and re-applies every
-Cursor-to-Claude adaptation; run it whenever Lauren ships (she commits every
-1-2 days; last synced commit is in `~/.claude/pstack-upstream.txt`). Never edit
-a pstack skill in place, the next sync overwrites it. Anything of mine goes in
-`king-mode` (my layer, mined from my transcripts, refreshed with
-`/automate-me update king-mode`) or in this file. Her guide is the manual:
-`plugins/pstack/docs/guide/`, read it in order once.
-Stack iteration is a standing thread, not a standing session: ideas and open items live
-in `~/.claude/docs/BACKLOG.md` (tracked). When Hassan shares an idea for the stack in any
-session, append it to the backlog's Ideas section (dated) so no session has to stay alive
-to remember it. A "stack session" starts by reading the backlog.
-`~/.claude/scripts/check-setup.sh` (alias `claude-check`) verifies the whole setup in
-2 s: run it after any hook, skill, or profile change, or when a session behaves oddly.
-`~/.claude/scripts/usage-report.py` (alias `claude-usage`, `--today`, `--days N`, `--by
-model|project`) reports real token usage and estimated cost from the transcripts;
-`~/.claude/usage.db` stopped recording in April 2026 and is not the source of truth.
-A nightly launchd job (`com.hassan.claude-usage-snapshot`, 00:23) rolls each day into
-`~/.claude/usage-ledger.csv` (permanent; transcripts expire in ~30 days) and rewrites
-`~/.claude/usage-summary.md` (last 30 days, ctx/turn, by project, week-over-week trend).
+`~/Desktop/Work/kingstack/scripts/sync-pstack.sh` pulls upstream and re-applies
+every adapter transform; run it whenever Lauren ships. Last synced commit is in
+`~/Desktop/Work/kingstack/pstack-upstream.txt`. Never edit a pstack skill in
+place; the next sync overwrites it. Anything of Hassan's goes in `king-mode`
+or in this file. Her guide is the manual: `plugins/pstack/docs/guide/`.
+Stack iteration is a standing thread: ideas live in
+`~/Desktop/Work/kingstack/docs/ROADMAP.md`. When Hassan shares an idea for the
+stack in any session, append it to Ideas (dated). A "stack session" starts by
+reading that file.
+`~/Desktop/Work/kingstack/scripts/kingstack setup` prepares `~/.kingstack`
+and never writes a native home. `~/Desktop/Work/kingstack/scripts/kingstack check --all --mode staged` verifies
+the checkout. Live health stays unhealthy until a native home is linked.
+`~/Desktop/Work/kingstack/scripts/kingstack effort --file` scans spawn lines.
+`~/Desktop/Work/kingstack/scripts/kingstack handoff --finish` writes a Codex
+packet. `~/Desktop/Work/kingstack/scripts/kingstack session list` shows the
+working-set index. CI runs unit tests and staged health.
+`~/Desktop/Work/kingstack/scripts/usage-report.py` reports token usage from
+transcripts. A nightly launchd job (`com.hassan.claude-usage-snapshot`, 00:23)
+rolls each day into the usage ledger. Transcripts expire in about 30 days.
 
 # Model and effort routing
 
-`~/.claude/model-routing.md` is the global ruler, injected into every session. Main
-thread: Fable or Opus at effort medium, set once by me. Every subagent is routed by
-class of work, cheapest tier first (mechanical → haiku, precise → sonnet/opus,
-judgment → fable/opus), escalated on evidence, pick named in one clause. Polling
-and waiting are never LLM turns (Monitor / until-loop / hook). Bulk over ~200 lines
-never enters the main thread; a haiku subagent returns a summary. Past ~150k tokens
-of context, propose `/clear`.
+The shared routing policy classifies work by portable capability tier. The main
+thread model remains user-controlled at effort medium, set once by the user. Every
+subagent sets its adapter model and effort explicitly, reports both to the parent
+or user, and starts with the cheapest suitable tier (mechanical → economical,
+precise → balanced, judgment → frontier). Escalate only on evidence and name the
+choice in one clause. If a selected model is unavailable, fall back exactly one
+adjacent tier for that spawn, report the reason, and never apply a blanket
+override. Polling and waiting are never model turns (monitor, until-loop, or
+hook). Bulk over ~200 lines never enters the main thread; an economical-tier
+subagent returns a summary. Past ~150k tokens of context, propose the adapter's
+fresh-context command. Context and compaction ceilings otherwise remain native
+to the adapter. `kingstack effort --file` scans `↳ spawn` lines. Inherit is
+fail. Named model and effort pass.
 
 # kingstack is a repo
 
-`~/.claude` is the git repo `hassanGH-GG/kingstack` (public, MIT). An allowlist
-`.gitignore` tracks only authored files: CLAUDE.md, the rulers, hooks/, scripts/,
-launchd/, king-mode, memory-review. Everything else (generated skills, transcripts,
-credentials, caches, ledgers) is untracked by construction; never force-add. After any
-change to a tracked file in this session, commit it with a one-line conventional message
-(`git -C ~/.claude add <paths> && git -C ~/.claude commit -m "..."`) so the history
-accumulates; push when I say. Read `~/.claude/README.md` for the map.
+The canonical checkout is `~/Desktop/Work/kingstack` (public, MIT,
+`hassanGH-GG/kingstack`). `~/.claude` is a live Claude home, not the source
+repo. An allowlist `.gitignore` tracks only authored files. After any change
+to a tracked file in this session, commit it in the checkout
+(`git -C ~/Desktop/Work/kingstack add <paths> && git -C ~/Desktop/Work/kingstack commit -m "..."`)
+and push when Hassan says. Read `~/Desktop/Work/kingstack/README.md` for the map.
+Shared curated memory lives under `~/.kingstack/memory`. Native homes stay
+unlinked until Hassan approves `docs/migration/pre-link-briefing.md`.
+A teammate follows `docs/SETUP.md`. Checkout is `KINGSTACK_ROOT` or the
+clone. `kingstack memory harvest` and `kingstack memory consolidate` write
+candidates only. Hassan still promotes. Fat tool text is
+`~/.kingstack/headroom`. Retrieve with `kingstack headroom retrieve <id>`.
+The working-set index is `~/.kingstack/sessions`. List with
+`kingstack session list`. Continue with `kingstack session continue <id>`.
+Pointers only. Do not open another host's transcript.
 
 # Document to preserve context
 

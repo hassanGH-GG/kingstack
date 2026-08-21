@@ -1,9 +1,10 @@
 {
   "adapter": "cursor",
   "fully_owned": [
-    "AGENTS.md",
+    "rules/kingstack",
     "hooks.json",
     "hooks/run.py",
+    "hooks/poteto-mode-context.md",
     "skills/architect",
     "skills/arena",
     "skills/automate-me",
@@ -15,6 +16,7 @@
     "skills/create-verification-skill",
     "skills/deslop",
     "skills/figure-it-out",
+    "skills/handoff-to-codex",
     "skills/how",
     "skills/interrogate",
     "skills/king-mode",
@@ -66,6 +68,9 @@
     "projects",
     "ai-tracking",
     "extensions",
-    "argv.json"
+    "argv.json",
+    "skills-cursor",
+    "chats",
+    "cli-config.json"
   ]
 }

@@ -12,4 +12,5 @@ override. Polling and waiting are never model turns (monitor, until-loop, or
 hook). Bulk over ~200 lines never enters the main thread; an economical-tier
 subagent returns a summary. Past ~150k tokens of context, propose the adapter's
 fresh-context command. Context and compaction ceilings otherwise remain native
-to the adapter.
+to the adapter. `kingstack effort --file` scans `↳ spawn` lines. Inherit is
+fail. Named model and effort pass.

@@ -12,8 +12,8 @@
       {
         "capability": "global_guidance",
         "status": "emulated",
-        "evidence": "Kingstack renders AGENTS.md for Cursor Agent from the shared instruction fragments.",
-        "impact": "Cursor has no Claude-style CLAUDE.md; guidance is supplied as AGENTS.md.",
+        "evidence": "Kingstack renders always-on rules under rules/kingstack from the shared instruction fragments.",
+        "impact": "Cursor user guidance is ~/.cursor/rules/kingstack, not a home-root AGENTS.md.",
         "strict_parity": true
       },
       {
@@ -26,7 +26,7 @@
       {
         "capability": "session_start",
         "status": "emulated",
-        "evidence": "The Cursor bundle includes hooks/run.py over the portable handlers and the shared memory store.",
+        "evidence": "hooks.json uses Cursor schema version 1 and camelCase events. sessionStart injects the poteto-mode contract as additional_context.",
         "impact": "The bundle is proven. Live Cursor home is not linked.",
         "strict_parity": true
       },
