@@ -2,8 +2,13 @@
 # Run every enabled sweep in ~/.claude/sweeps/*.md, one headless session each, isolated.
 # Usage: run-sweeps.sh [--only <name>] [--dry-run]
 set -uo pipefail
-. "$HOME/.claude/scripts/lib-headless.sh"
-S="$HOME/.claude/sweeps"; LOG="$HOME/.claude/logs/sweeps.log"; mkdir -p "$HOME/.claude/logs"
+KINGSTACK_ROOT="${KINGSTACK_ROOT:-$HOME/Desktop/Work/kingstack}"
+if ! PYTHONPATH="$KINGSTACK_ROOT/lib" python3 -c "from kingstack.schedule_lock import claim; claim('com.hassan.kingstack-sweeps', 'launchd')"; then
+  echo "duplicate prevented"
+  exit 0
+fi
+. "$KINGSTACK_ROOT/scripts/lib-headless.sh"
+S="$KINGSTACK_ROOT/sweeps"; LOG="$HOME/.claude/logs/sweeps.log"; mkdir -p "$HOME/.claude/logs"
 only=""; dry=0
 while [ $# -gt 0 ]; do case "$1" in --only) only="$2"; shift 2;; --dry-run) dry=1; shift;; *) shift;; esac; done
 fm(){ awk -v k="$2" 'NR==1&&$0!="---"{exit} NR>1&&$0=="---"{exit} NR>1{split($0,a,": "); if(a[1]==k){sub(/^[^:]*: */,""); print; exit}}' "$1"; }

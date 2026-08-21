@@ -4,7 +4,7 @@
 <dict>
   <key>Label</key><string>com.hassan.king-mode-refresh</string>
   <key>ProgramArguments</key>
-  <array><string>/bin/bash</string><string>/Users/mac/.claude/scripts/refresh-king-mode.sh</string></array>
+  <array><string>/bin/bash</string><string>/Users/mac/Desktop/Work/kingstack/scripts/refresh-king-mode.sh</string></array>
   <key>StartCalendarInterval</key>
   <array>
     <dict><key>Day</key><integer>1</integer><key>Hour</key><integer>7</integer><key>Minute</key><integer>17</integer></dict>

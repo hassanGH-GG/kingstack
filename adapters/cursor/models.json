@@ -1,0 +1,20 @@
+{
+  "adapter": "cursor",
+  "model_tiers": {
+    "economical": "composer-2.5-fast",
+    "balanced": "grok-4.6",
+    "frontier": "claude-opus-5-thinking-high"
+  },
+  "fallbacks": [
+    {
+      "from": "balanced",
+      "to": "economical",
+      "reason": "balanced model unavailable; use one adjacent lower tier"
+    },
+    {
+      "from": "frontier",
+      "to": "balanced",
+      "reason": "frontier model unavailable; use one adjacent lower tier"
+    }
+  ]
+}

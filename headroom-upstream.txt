@@ -1,0 +1,3 @@
+5e0ce24
+https://github.com/headroomlabs-ai/headroom
+CCR retrieve and large-tool crush only. No wrap, no image router, no learn.

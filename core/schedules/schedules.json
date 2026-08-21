@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "schedules": [
+    {
+      "id": "com.hassan.claude-usage-snapshot",
+      "surface": "local",
+      "owner": "launchd",
+      "adapter_id": null,
+      "cadence": {"hour": 0, "minute": 23},
+      "command": "$CLAUDE_HOME/scripts/nightly.sh",
+      "timeout": null,
+      "model_tier": null,
+      "output": "$CLAUDE_HOME/logs/usage-snapshot.log",
+      "idempotency_key": "com.hassan.claude-usage-snapshot",
+      "enabled": true
+    },
+    {
+      "id": "com.hassan.king-mode-refresh",
+      "surface": "local",
+      "owner": "launchd",
+      "adapter_id": null,
+      "cadence": [
+        {"day": 1, "hour": 7, "minute": 17},
+        {"day": 15, "hour": 7, "minute": 17}
+      ],
+      "command": "$CLAUDE_HOME/scripts/refresh-king-mode.sh",
+      "timeout": null,
+      "model_tier": null,
+      "output": "$CLAUDE_HOME/logs/king-mode-refresh.launchd.log",
+      "idempotency_key": "com.hassan.king-mode-refresh",
+      "enabled": true
+    },
+    {
+      "id": "com.hassan.kingstack-sweeps",
+      "surface": "local",
+      "owner": "launchd",
+      "adapter_id": null,
+      "cadence": {"hour": 7, "minute": 41},
+      "command": "$CLAUDE_HOME/scripts/run-sweeps.sh",
+      "timeout": null,
+      "model_tier": null,
+      "output": "$CLAUDE_HOME/logs/sweeps.launchd.log",
+      "idempotency_key": "com.hassan.kingstack-sweeps",
+      "enabled": true
+    }
+  ]
+}

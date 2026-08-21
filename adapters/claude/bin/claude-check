@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+ROOT="${KINGSTACK_ROOT:-$HOME/Desktop/Work/kingstack}"
+exec "$ROOT/scripts/kingstack" check --adapter claude --all --mode staged

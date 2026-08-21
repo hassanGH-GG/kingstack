@@ -1,0 +1,3 @@
+#!/bin/sh
+set -eu
+printf '%s\n' "${KINGSTACK_ROOT:-$HOME/Desktop/Work/kingstack}"

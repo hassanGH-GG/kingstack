@@ -1,146 +1,124 @@
 # kingstack
 
-Hassan Ghandour's operating system for Claude Code: Lauren Tan's [pstack](https://github.com/cursor/plugins/tree/main/pstack) absorbed whole as the process engine, with a personal layer, persistent memory, cost routing, and the mechanisms that make all of it fire on every session, unprompted, across two subscriptions.
+Kingstack is how Hassan runs Claude, Codex, and Cursor as one operating
+system. Lauren Tan's [pstack](https://github.com/cursor/plugins/tree/main/pstack)
+is the process engine. This repo is the source. The live folders those
+agents already use are not.
 
-This repository *is* `~/.claude`. It tracks only what is authored here, through an allowlist `.gitignore`; everything generated, cached, or secret stays untracked by construction.
+Work here:
 
-## Why kingstack, if pstack exists
-
-pstack answers one question extremely well: how should rigorous agent work run? kingstack does not compete with that. pstack *is* its engine, absorbed whole and kept current from upstream. kingstack answers everything around that question that a plugin structurally cannot: how the work starts, what it remembers, what it costs, how it stays current, and how it fits one specific person.
-
-The thesis in one line: **pstack tells the agent what to do; kingstack makes it happen and checks that it did.**
-
-| pstack, by design a plugin | kingstack adds |
-|---|---|
-| Opt-in. You type `/poteto-mode` or nothing happens. | Ignition. A SessionStart hook injects the contract into every session, both profiles. Verified to fire on a bare prompt with no slash command. |
-| No memory. Every session starts as a stranger; `recall` and `reflect` are helpers, not a store. | Persistent, gated memory. A Stop hook captures a candidate every turn; `/memory-review` promotes what the human approves into per-project banks with provenance, an index, and tests. |
-| Generic. The same behavior for every user. | A personal layer mined from evidence. `king-mode` was distilled from about 1,000 real prompts, is refreshed biweekly, and is kept apart from the engine so neither clobbers the other. |
-| A model table. Roles map to models, statically. | A cost policy that runs. Every subagent is routed by class of work, cheapest tier first; polling is never an LLM turn; bulk never enters the main thread; two nightly ledgers survive transcript expiry. |
-| The port is maintained by hand. | Scripted absorption. `sync-pstack.sh` pulls upstream, re-applies every Cursor-to-Claude adaptation, installs pstack's declared cross-plugin dependencies, refuses to overwrite anything hand-edited, and refuses to finish if a Cursor-ism survives. |
-| Prose the model reads. | Mechanisms that verify. A 24-check health script, a test suite for the memory pipeline, three launchd schedules, and a git history of the framework itself. |
-
-What a person gains, in practice: the same rigor pstack promises, but on every session without remembering to ask for it; an agent that starts each session already knowing the project; a working style encoded from how they actually work rather than how they describe it; and a token bill that is routed and measured instead of inherited. Fork it, run `/automate-me` for your own `-mode`, and the engine plus mechanisms are yours. Only `king-mode` and the identity section of `CLAUDE.md` are specific to me.
-
-## The layers
-
-| Layer | Answers | Lives in | Changed by |
-|---|---|---|---|
-| Identity and standing rules | who am I, what always holds | `CLAUDE.md` | hand |
-| Process | how rigorous work runs | pstack (43 skills, 23 playbooks, 2 agents) plus 3 team-kit dependencies and 5 adopted extras | `scripts/sync-pstack.sh` from upstream; **never hand-edited** |
-| Taste | how it should feel to me | `skills/king-mode/` | `/automate-me update king-mode`, biweekly via launchd |
-| Memory | what persists across sessions | `hooks/session-memory-distiller.py` writes `memory-review.md`; `skills/memory-review/` promotes into per-project banks | every turn to capture, me to approve |
-| Cost | how tokens get spent | `model-routing.md`, `pstack-models.md`, `scripts/usage-*.py` | the ruler per subagent; nightly ledger |
-| Evidence | is any of this working | `usage-ledger.csv`, `rework-ledger.csv`, `usage-summary.md` | `scripts/nightly.sh` |
-| Ignition | how it all fires | `hooks/session-start-poteto.sh` | SessionStart hook |
-| Health | is it still wired | `scripts/check-setup.sh` | run after any change |
-
-## What happens when a session starts
-
-1. `CLAUDE.md` loads: identity, team, the standing rule, engineering discipline, git safety, routing policy.
-2. The SessionStart hook injects the contract: invoke `poteto-mode` then `king-mode` for any non-trivial task; restate the goal as a checkable finish condition; route subagents by class of work; polling is never an LLM turn; bulk never enters the main thread. If memory candidates are waiting it says so once.
-3. At every turn end the Stop hook distills a candidate memory line into the inbox. `/memory-review` promotes what I approve into the right project's bank.
-
-Both profiles, `claude` and `claude-personal`, read this same tree through symlinks. Only the login differs.
-
-## Repository map
-
-```
-CLAUDE.md              identity, standing rule, team, discipline, git safety, routing policy
-model-routing.md       the cost ruler: classify each unit of work, cheapest tier that can succeed
-pstack-models.md       pstack's own per-role model defaults; defers to the ruler for everything else
-pstack-upstream.txt    last synced upstream commit, then every skill the sync installed
-hooks/
-  session-start-poteto.sh    SessionStart: emits the contract, plus the memory-inbox nudge
-  poteto-mode-context.md     the contract text, edited here rather than in the script
-  session-memory-distiller.py  Stop: appends one candidate per session to the inbox
-  memory_inbox.py            the inbox format and CLI: list, show, promote, reject
-  test_memory_inbox.py       9 cases; run after touching either memory file
-scripts/
-  check-setup.sh       claude-check: 24 checks, exit 1 on drift
-  sync-pstack.sh       upstream to installed, with adaptations and the clobber guard
-  refresh-king-mode.sh biweekly personal-layer refresh, with backup and rollback
-  usage-report.py      claude-usage: tokens and cost, ad hoc
-  usage-snapshot.py    nightly usage rollup into the permanent ledger and summary
-  rework-report.py     how often the agent needs correcting, with an auditable sample list
-  nightly.sh           runs both rollups; the target of the nightly launchd job
-  run-sweeps.sh        runs each enabled sweep in its own headless session
-  beam.sh              move a live session to another directory or machine and resume it
-  box-task.sh          fire-and-forget unattended runs; an exit file is the completion truth
-  measure.ts           rerun a subagent's quantitative claims on its real branch
-  install-launchd.sh   load the schedules from launchd/, and name any stray job
-  lib-headless.sh      shared PATH and claude_retry for every unattended run
-  link-node.sh         point ~/.claude/bin at the current node so plugin hooks can find it
-skills/king-mode/      my layer: reply shape, autonomy, finish line, review lenses, voice
-skills/memory-review/  the promote-or-reject pass over the inbox
-sweeps/                one markdown file per unattended check; frontmatter is machine-read
-launchd/               the three schedules, tracked so only known jobs get loaded
-docs/                  proposals and design notes
+```text
+~/Desktop/Work/kingstack
 ```
 
-Everything else under `~/.claude` (the other 63 skills, `projects/`, transcripts, caches, credentials, both ledgers) is generated or private, and untracked on purpose.
+`~/.claude`, `~/.codex`, and `~/.cursor` are the native homes. Claude,
+Codex, and Cursor already load files from them. This repo is the source.
+A live link writes only the paths in each adapter's `owned-paths.json`.
 
-## Commands
+If you are new, read [docs/SETUP.md](docs/SETUP.md). Then
+[docs/README.md](docs/README.md) for the map.
 
-| Command | Does |
-|---|---|
-| `claude-check` (`scripts/check-setup.sh`) | 24 checks in about two seconds: profile symlinks, both hooks, contract emission, the routing ruler, effort setting, critical skills, hand-edited skills, agents, pstack sync stamp, Cursor-ism leak, memory tests, three launchd jobs, both ledgers, repo hygiene. Exit 1 on drift. |
-| `scripts/sync-pstack.sh` | Pull the cursor/plugins checkout, mirror pstack plus dependencies plus extras into `skills/`, reapply every Cursor-to-Claude adaptation, skip anything hand-edited, refuse to finish if a Cursor-ism survives. Idempotent. `--no-pull`, `--force`. |
-| `claude-usage` (`scripts/usage-report.py`) | Tokens and estimated cost from transcripts: `--today`, `--days N`, `--by model\|project`. |
-| `scripts/rework-report.py` | Correction-shaped prompts per 10 typed, by week or project. `--samples` to audit what matched, `--snapshot` to write the ledger. |
-| `scripts/nightly.sh` | Both rollups; runs at 00:23 via launchd. |
-| `scripts/refresh-king-mode.sh` | Biweekly `/automate-me update king-mode` over recent transcripts; backs up first, rolls back a malformed result. |
-| `scripts/run-sweeps.sh` | Every enabled sweep in `sweeps/`, one isolated headless session each, scoped permissions, never `bypassPermissions`. `--only`, `--dry-run`. |
-| `scripts/beam.sh` | Move a live session elsewhere and resume it with memory intact; the transcript is the transfer. `list`, `to-dir`, `to-host`, `fetch`. |
-| `echo "brief" \| scripts/box-task.sh run <name>` | Fire-and-forget an unattended run; completion is an exit file, never process presence. `status`, `wait`, `result`, `list`. |
-| `bun scripts/measure.ts check ...` | Rerun a subagent's quantitative claims on its real branch and flag drift. |
-| `scripts/install-launchd.sh` | Load the three schedules from `launchd/` and name any stray `com.hassan.*` job that the repo does not track. |
-| `scripts/link-node.sh` | Point `~/.claude/bin` at the current node. Plugin hooks are spawned with a minimal PATH that has no nvm, so without this they fail on every scheduled run. Re-run after switching node versions. |
-| `/memory-review` | Promote or reject inbox candidates. |
+## What the repo does
 
-## Schedules
+Each adapter is a small folder under `adapters/`. The shared policy lives
+under `core/`. `./scripts/kingstack render` builds a bundle in memory, a
+map of relative paths to bytes. Render itself does not write a native home.
 
-| When | Job | Does |
-|---|---|---|
-| 00:23 daily | `com.hassan.claude-usage-snapshot` | `nightly.sh`: usage and rework rollups into the permanent ledgers |
-| 07:41 daily | `com.hassan.kingstack-sweeps` | every enabled sweep, one headless session each |
-| 07:17 on the 1st and 15th | `com.hassan.king-mode-refresh` | re-mine recent transcripts and revise `king-mode` |
+`release` writes that bundle under a runtime directory you pass in.
+`activate --dry-run` prints which live files a link would touch.
+`activate --apply --approved-briefing docs/migration/pre-link-briefing.md`
+writes those files.
 
-## Knowing whether it works
+pstack skills come from upstream. Do not edit a generated pstack skill.
+Put personal rules in `king-mode` or in `core/instructions/`.
 
-Two numbers, both recorded nightly so they outlive the 30-day transcript window.
-
-- **Context per turn**, in `usage-summary.md`. Almost all spend is context re-read, so this is the cost lever. It was averaging about 420k in August. Lower is both cheaper and sharper.
-- **Rework rate**, from `rework-report.py`: how many of every 10 typed prompts are correction-shaped. The baseline over the 60 days before the framework existed was 0.4. It is a proxy rather than truth, which is why `--samples` exists; audit it whenever a number looks wrong.
-
-## Rules that keep it alive
-
-- **Never hand-edit a pstack skill.** The sync refuses to overwrite one and exits 3, but the file then drifts from upstream forever. `claude-check` reports hand edits and `sync-pstack.sh --force` discards them. Anything of mine goes in `king-mode` or `CLAUDE.md`.
-- **Every correction is a design defect.** Eliminate it structurally, else a test, else a rule. Human review is the floor, not a plan.
-- **One home per fact.** Facts in memory, identity in `CLAUDE.md`, process in pstack, taste in `king-mode`. Nothing lives twice.
-- **Cheapest tier that can succeed.** Main thread on Fable or Opus at effort medium, set once by hand; everything below it routed by `model-routing.md` and escalated only on evidence.
-- **Run `claude-check` after touching anything here**, and commit what it flags.
-
-## Fresh machine
+## Run these
 
 ```bash
-git clone https://github.com/hassanGH-GG/kingstack ~/.claude
-git clone https://github.com/cursor/plugins ~/Desktop/Work/plugins   # the pstack source
-~/.claude/scripts/sync-pstack.sh --no-pull        # generates the 51 skills and the manifest
-~/.claude/scripts/install-launchd.sh              # loads the three schedules
-python3 ~/.claude/hooks/test_memory_inbox.py      # 9 cases
-~/.claude/scripts/link-node.sh                    # node for plugin hooks
-~/.claude/scripts/rework-report.py --snapshot     # seeds the rework ledger
-~/.claude/scripts/check-setup.sh                  # expect SETUP HEALTHY
+cd ~/Desktop/Work/kingstack
+./scripts/kingstack setup
+./scripts/kingstack check --all --mode staged
+./scripts/kingstack render --adapter claude --manifest
+./scripts/kingstack status --model opus --effort medium
+./scripts/kingstack effort --file transcript.txt
+./scripts/kingstack memory list
+./scripts/kingstack memory harvest --inbox memory-review.md
+./scripts/kingstack memory consolidate
+./scripts/kingstack session list
+./scripts/kingstack session close <id>
+./scripts/kingstack session sweep
+./scripts/kingstack handoff --finish "<done means>"
+./scripts/kingstack release --adapter cursor --runtime /tmp/ks --build
+./scripts/kingstack activate --adapter cursor --runtime /tmp/ks --release <id> --native-home /tmp/home --dry-run
+./scripts/kingstack sync-upstream headroom --check
 ```
 
-Then set `/model` to Fable or Opus and `/effort` to medium. For a second profile, symlink `CLAUDE.md skills agents settings.json projects plugins history.jsonl` from its config directory into this one, so both logins share one brain.
+`check --all --mode staged` must print `healthy`.
+`check --all --mode live` prints `healthy` after each native home that
+exists on the machine is linked. Homes you do not have are skipped.
 
-## Codex
+`status` prints one line: folder, model, effort, context size, cost, and
+which models subagents used. After a Claude link, that line also becomes
+the Claude status bar. Codex has its own footer fields plus this command.
+Cursor has only this command.
 
-Claude Code is the primary agent. Codex is used as an executor for well-specified work: Claude writes the brief, Codex runs it in waves, Claude verifies the result. The `codex` plugin is installed, and kingstack adds no Codex-specific machinery yet; this section says so rather than implying otherwise.
+Memory lives in `~/.kingstack/memory`, not in a native home. Hassan
+approves every promote. `memory harvest` and `memory consolidate` write
+candidates only. A rejected fact stays rejected until the body
+changes. Live jobs across Claude, Codex, and Cursor live in
+`~/.kingstack/sessions`. That index holds pointers, not transcripts.
+CI runs unit tests and staged health
+(`.github/workflows/staged.yml`).
 
-What kingstack already governs about that loop: the routing ruler forbids spending LLM turns on polling, so watching a Codex run is a Monitor or a hook that wakes the session on change rather than a Claude turn every five minutes, and `king-mode` writes hand-off briefs so the receiving agent reviews and improves rather than copies. If Codex stays in the loop, the roadmap is a `handoff-to-codex` skill with a brief template and a verify gate per wave, plus a watcher on Codex's branch.
+## Adapters
+
+| | Claude | Codex | Cursor |
+| --- | --- | --- | --- |
+| Guidance file | `CLAUDE.md` | `AGENTS.md` | `rules/kingstack/*.mdc` |
+| Bundled skills | 54 | 37 | 54 |
+| File it merges, not replaces | `settings.json` (`statusLine` only) | `config.toml` | none |
+
+Codex cannot run 18 skills that need Task, `subagent_type`, or `/loop`.
+The catalog lists them as unsupported. That is the honest count, not a
+half-built adapter. Cursor does not get Cloudflare plugins it does not
+install.
+
+Headroom is pinned like pstack. The pin is `headroom-upstream.txt`.
+Large tool output is archived under `~/.kingstack/headroom`. Retrieve with
+`kingstack headroom retrieve <id>`. No wrap, no image crush.
+
+The only ownership list is `adapters/<id>/owned-paths.json`. If render,
+release, and activation disagree, staged health fails.
+
+## New machine
+
+A teammate follows [docs/SETUP.md](docs/SETUP.md). Hassan's default
+checkout is still `~/Desktop/Work/kingstack`.
+
+```bash
+git clone https://github.com/hassanGH-GG/kingstack
+cd kingstack
+./scripts/kingstack setup
+```
+
+Setup writes `~/.local/bin/kingstack`. Put `~/.local/bin` on `PATH`,
+then run `kingstack check --all --mode staged`. That must print
+`healthy`. Do not clone this repo into `~/.claude`.
+
+## Rules that keep it honest
+
+- Do not edit a pstack skill by hand. The next sync overwrites it.
+- A correction is a design defect. Fix the structure, or add a test, or
+  add a rule. Do not paper over it.
+- One place per fact. Shared memory is `~/.kingstack/memory`. Identity
+  is `core/instructions/`. Process is pstack. Taste is `king-mode`.
+- Use the cheapest model that can do the work. Keep the main thread on
+  medium effort unless Hassan says otherwise.
+- After you change this checkout, run
+  `./scripts/kingstack check --all --mode staged`.
 
 ## Provenance
 
-pstack is Lauren Tan's, MIT, vendored by script from `cursor/plugins`; the last synced commit is the first line of `pstack-upstream.txt`. `deslop`, `control-cli`, `control-ui`, `verify-this` and `make-pr-easy-to-review` come from `cursor-team-kit`, the two `thermo-nuclear-*` rubrics from `thermos`, and `cli-for-agents` from `cli-for-agent`. `measure.ts` is a compacted port of `orchestrate/measurements.ts`; the clobber guard, the sweeps registry and the tracked-only schedule install are ports of ideas from `heysadie/minions`. All MIT, all Cursor 2026 except minions. Everything else here is mine.
+pstack is Lauren Tan's, MIT, copied from `cursor/plugins`. The last synced
+commit is the first line of `pstack-upstream.txt`. The rest is Hassan's
+unless a file says otherwise.

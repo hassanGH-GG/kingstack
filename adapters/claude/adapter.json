@@ -1,0 +1,105 @@
+{
+  "id": "claude",
+  "contract_version": 1,
+  "render_module": "kingstack.adapters.claude",
+  "native_home": ".claude",
+  "owned_paths": "owned-paths.json",
+  "model_tiers": "models.json",
+  "capability_matrix": {
+    "contract_version": 1,
+    "adapter_id": "claude",
+    "capabilities": [
+      {
+        "capability": "global_guidance",
+        "status": "native",
+        "evidence": "Claude Code loads generated global guidance from CLAUDE.md.",
+        "impact": "",
+        "strict_parity": true
+      },
+      {
+        "capability": "skill_catalog",
+        "status": "native",
+        "evidence": "Claude Code loads skills through its native skill catalog.",
+        "impact": "",
+        "strict_parity": true
+      },
+      {
+        "capability": "session_start",
+        "status": "native",
+        "evidence": "Claude Code exposes a native SessionStart lifecycle hook.",
+        "impact": "",
+        "strict_parity": true
+      },
+      {
+        "capability": "stop_capture",
+        "status": "native",
+        "evidence": "Claude Code exposes a native Stop lifecycle hook.",
+        "impact": "",
+        "strict_parity": true
+      },
+      {
+        "capability": "before_compaction",
+        "status": "native",
+        "evidence": "Claude Code exposes a PreCompact lifecycle hook.",
+        "impact": "",
+        "strict_parity": true
+      },
+      {
+        "capability": "post_tool_use",
+        "status": "native",
+        "evidence": "Claude Code exposes a native PostToolUse lifecycle hook.",
+        "impact": "",
+        "strict_parity": true
+      },
+      {
+        "capability": "subagent_start",
+        "status": "native",
+        "evidence": "Claude Code exposes a native SubagentStart lifecycle hook.",
+        "impact": "",
+        "strict_parity": true
+      },
+      {
+        "capability": "model_routing",
+        "status": "emulated",
+        "evidence": "Kingstack maps portable tiers to Claude models and requires explicit model and effort on each spawn.",
+        "impact": "Claude has no native portable-tier primitive; generated policy supplies behaviorally equivalent routing.",
+        "strict_parity": true
+      },
+      {
+        "capability": "shared_memory",
+        "status": "emulated",
+        "evidence": "Shared memory is the private ~/.kingstack/memory store, written by portable Stop and reviewed by kingstack memory.",
+        "impact": "The store is proven. Live Claude home is not linked.",
+        "strict_parity": true
+      },
+      {
+        "capability": "schedules",
+        "status": "emulated",
+        "evidence": "Kingstack runs Claude unattended workflows through tracked launchd jobs.",
+        "impact": "Scheduling is local rather than Claude-native, while cadence and behavior remain equivalent.",
+        "strict_parity": true
+      },
+      {
+        "capability": "health",
+        "status": "emulated",
+        "evidence": "The tracked check-setup command verifies the current Claude stack.",
+        "impact": "Health is supplied by kingstack rather than a native Claude health surface.",
+        "strict_parity": true
+      },
+      {
+        "capability": "activation",
+        "status": "emulated",
+        "evidence": "Private-runtime select and throwaway apply exist and refuse ~/.claude.",
+        "impact": "No live Claude home may be linked until Hassan approves.",
+        "strict_parity": false
+      },
+      {
+        "capability": "rollback",
+        "status": "emulated",
+        "evidence": "Private-runtime and throwaway rollback exist and refuse ~/.claude.",
+        "impact": "There is no live Claude link to roll back.",
+        "strict_parity": false
+      }
+    ]
+  }
+}

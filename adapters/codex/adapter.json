@@ -1,0 +1,105 @@
+{
+  "id": "codex",
+  "contract_version": 1,
+  "render_module": "kingstack.adapters.codex",
+  "native_home": ".codex",
+  "owned_paths": "owned-paths.json",
+  "model_tiers": "models.json",
+  "capability_matrix": {
+    "contract_version": 1,
+    "adapter_id": "codex",
+    "capabilities": [
+      {
+        "capability": "global_guidance",
+        "status": "emulated",
+        "evidence": "Kingstack renders AGENTS.md from shared instruction fragments plus the Codex appendix.",
+        "impact": "The bundle is proven. Live Codex home is not linked.",
+        "strict_parity": true
+      },
+      {
+        "capability": "skill_catalog",
+        "status": "emulated",
+        "evidence": "The Codex portable subset is rendered into the immutable bundle from the shared catalog.",
+        "impact": "The bundle is proven. Live Codex home is not linked.",
+        "strict_parity": true
+      },
+      {
+        "capability": "session_start",
+        "status": "emulated",
+        "evidence": "The Codex bundle includes hooks/run.py SessionStart over the portable handler.",
+        "impact": "The bundle is proven. Live Codex home is not linked.",
+        "strict_parity": true
+      },
+      {
+        "capability": "stop_capture",
+        "status": "emulated",
+        "evidence": "The Codex bundle includes hooks/run.py Stop over the portable capture handler.",
+        "impact": "The bundle is proven. Live Codex home is not linked.",
+        "strict_parity": true
+      },
+      {
+        "capability": "before_compaction",
+        "status": "emulated",
+        "evidence": "The Codex bundle includes hooks/run.py PreCompact over the portable handler.",
+        "impact": "The bundle is proven. Live Codex home is not linked.",
+        "strict_parity": true
+      },
+      {
+        "capability": "post_tool_use",
+        "status": "emulated",
+        "evidence": "The Codex bundle includes hooks/run.py PostToolUse over the portable handler.",
+        "impact": "The bundle is proven. Live Codex home is not linked.",
+        "strict_parity": true
+      },
+      {
+        "capability": "subagent_start",
+        "status": "emulated",
+        "evidence": "The Codex bundle includes hooks/run.py SubagentStart over the portable handler.",
+        "impact": "The bundle is proven. Live Codex home is not linked.",
+        "strict_parity": true
+      },
+      {
+        "capability": "model_routing",
+        "status": "emulated",
+        "evidence": "Kingstack resolves portable work classes through the Codex-owned model map with explicit model and effort plus one adjacent availability fallback.",
+        "impact": "Codex has no native portable-tier primitive; generated policy supplies behaviorally equivalent routing.",
+        "strict_parity": true
+      },
+      {
+        "capability": "shared_memory",
+        "status": "emulated",
+        "evidence": "Shared memory is the private ~/.kingstack/memory store, written by portable Stop and reviewed by kingstack memory.",
+        "impact": "The store is proven. Live Codex home is not linked.",
+        "strict_parity": true
+      },
+      {
+        "capability": "schedules",
+        "status": "unsupported",
+        "evidence": "Codex exposes Scheduled tasks, but a kingstack schedule has not been staged with a proven Codex handler.",
+        "impact": "Kingstack unattended workflows do not yet run through Codex.",
+        "strict_parity": false
+      },
+      {
+        "capability": "health",
+        "status": "emulated",
+        "evidence": "kingstack check --contract --adapter codex and staged health cover the Codex bundle.",
+        "impact": "There is no Codex-native health surface.",
+        "strict_parity": true
+      },
+      {
+        "capability": "activation",
+        "status": "emulated",
+        "evidence": "Private-runtime activate exists and refuses ~/.codex.",
+        "impact": "No live Codex home may be linked until Hassan approves.",
+        "strict_parity": false
+      },
+      {
+        "capability": "rollback",
+        "status": "emulated",
+        "evidence": "Private-runtime rollback retargets current and refuses ~/.codex.",
+        "impact": "There is no live Codex link to roll back.",
+        "strict_parity": false
+      }
+    ]
+  }
+}

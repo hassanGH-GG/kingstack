@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "python3 \"$HOME/.cursor/hooks/run.py\" sessionStart"
+      }
+    ],
+    "stop": [
+      {
+        "command": "python3 \"$HOME/.cursor/hooks/run.py\" stop"
+      }
+    ],
+    "preCompact": [
+      {
+        "command": "python3 \"$HOME/.cursor/hooks/run.py\" preCompact"
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": "python3 \"$HOME/.cursor/hooks/run.py\" postToolUse"
+      }
+    ],
+    "subagentStart": [
+      {
+        "command": "python3 \"$HOME/.cursor/hooks/run.py\" subagentStart"
+      }
+    ]
+  }
+}

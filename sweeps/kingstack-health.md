@@ -2,14 +2,15 @@
 name: kingstack-health
 enabled: true
 schedule: daily
-cwd: ~
+cwd: ~/Desktop/Work/kingstack
 model: haiku
 max_turns: 8
 report: log
 owner: hassan
-allow: Bash(~/.claude/scripts/check-setup.sh*), Bash(/Users/mac/.claude/scripts/check-setup.sh*)
+allow: Bash(./scripts/kingstack check --all --mode staged*), Bash(~/Desktop/Work/kingstack/scripts/kingstack*)
 ---
-You are an unattended sweep. Run `~/.claude/scripts/check-setup.sh` with Bash and read its
-output. If the last line is `SETUP HEALTHY`, reply exactly `OK: setup healthy, N checks`.
-Otherwise reply `ATTENTION:` followed by every line starting with ✗, verbatim, one per line.
-Do not attempt to fix anything.
+You are an unattended sweep. From the kingstack checkout (KINGSTACK_ROOT or
+~/Desktop/Work/kingstack), run `./scripts/kingstack check --all --mode staged`
+and read its output. If the last line is `healthy`, reply exactly
+`OK: staged healthy`. Otherwise reply `ATTENTION:` and the check output.
+Do not attempt to fix anything. Do not write a native home.

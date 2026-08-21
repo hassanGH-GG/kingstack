@@ -1,0 +1,20 @@
+{
+  "adapter": "claude",
+  "model_tiers": {
+    "economical": "haiku",
+    "balanced": "sonnet",
+    "frontier": "opus"
+  },
+  "fallbacks": [
+    {
+      "from": "balanced",
+      "to": "economical",
+      "reason": "balanced model unavailable; use one adjacent lower tier"
+    },
+    {
+      "from": "frontier",
+      "to": "balanced",
+      "reason": "frontier model unavailable; use one adjacent lower tier"
+    }
+  ]
+}
