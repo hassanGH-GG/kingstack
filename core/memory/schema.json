@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "candidate_types": ["user", "feedback", "project", "reference"],
+  "prompt_provenance": ["typed", "suggestion_accepted", "unknown"]
+}

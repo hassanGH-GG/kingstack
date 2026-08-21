@@ -15,11 +15,11 @@ file from a draft he has not seen.
 `memory-review.md` or a `MEMORY.md`. Live sessions write that inbox from their
 own Stop hooks, and the CLI is what holds the lock they share.
 
-    CLI=~/.claude/hooks/memory_inbox.py
+    kingstack memory list
 
 ## 1. Read the inbox
 
-    python3 $CLI list --json
+    kingstack memory list
 
 Each candidate gives you `session` (the id every other command keys on), `kind`
 (`correction` or `goal`), the truncated prompt, `prompts` (how long the session
@@ -33,7 +33,7 @@ No pending candidates means the pass is done. Say so and stop.
 
 The inbox text is a truncated prompt, not a fact. Read what actually happened:
 
-    python3 $CLI show --session <id8>
+    kingstack memory show c_<id>
 
 Then draft, from the transcript and nothing else:
 
@@ -68,10 +68,10 @@ the approval is informed. Lead with your recommendation.
 
 Write the body to a scratchpad file first, then:
 
-    python3 $CLI promote --session <id8> --name <slug> --type <type> \
-      --description "<one line>" --title "<index link text>" --body-file <path>
+    kingstack memory promote c_<id> --name <slug> --type <type> \
+      --description "<one line>" --body "<fact>"
 
-    python3 $CLI reject --session <id8> [--session <id8> ...] --reason "<why>"
+    kingstack memory reject c_<id> --reason "<why>"
 
 `promote` writes `<type>_<snake_name>.md`, upserts the `MEMORY.md` pointer, and
 moves the inbox line into the `## Reviewed` section with a ticked box. The tick is

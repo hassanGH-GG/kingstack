@@ -1,6 +1,7 @@
 """SessionStart: inject the operating contract, pending inbox, and usage line."""
 
 from datetime import datetime, timedelta
+import os
 from pathlib import Path
 
 
@@ -40,4 +41,14 @@ def handle(event, runtime: Path) -> dict:
                 "past ~150k context, propose /clear; bulk to subagents; "
                 "polling is never an LLM turn.</usage>"
             ).format(turns, int(tokens / turns / 1000), usd)
+    memory_root = Path(os.environ["KINGSTACK_MEMORY_ROOT"]) if os.environ.get("KINGSTACK_MEMORY_ROOT") else None
+    if memory_root is not None:
+        try:
+            from kingstack.memory_context import session_index
+            from kingstack.memory_store import MemoryStore
+            shared = session_index(MemoryStore.open(memory_root), event["project"])
+            if shared:
+                context += "\n\n" + shared
+        except Exception:
+            pass
     return {"additionalContext": context}

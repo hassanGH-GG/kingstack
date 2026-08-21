@@ -32,4 +32,24 @@ def handle(event, runtime: Path) -> dict:
             transcript=transcript,
         ),
     )
+    memory_root = os.environ.get("KINGSTACK_MEMORY_ROOT")
+    if memory_root:
+        try:
+            from kingstack.memory_candidate import make_candidate
+            from kingstack.memory_store import MemoryStore
+            from kingstack.project_id import project_id
+            store = MemoryStore.open(Path(memory_root))
+            store.append_candidate(
+                make_candidate(
+                    event["agent"],
+                    project_id(Path(event["project"])),
+                    session_id,
+                    kind,
+                    one_line(text),
+                    one_line(text),
+                    "feedback" if kind == "correction" else "project",
+                )
+            )
+        except Exception:
+            pass
     return {"blocked": False}
