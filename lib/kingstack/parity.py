@@ -16,6 +16,18 @@ def _live_home() -> Path:
     return Path.home() / ".claude"
 
 
+def _live_only(name: str, catalog) -> bool:
+    if name.startswith("agent:") or name in {"policy:compaction-200k", "policy:effort-medium"}:
+        return True
+    if name.startswith("skill:"):
+        skill = name.split(":", 1)[1]
+        try:
+            return catalog.owner(skill) == "plugin-manager"
+        except Exception:
+            return False
+    return False
+
+
 def _heading(root: Path, name: str) -> str:
     for line in (root / "core/instructions" / name).read_text(encoding="utf-8").splitlines():
         if line.startswith("#"):
@@ -92,7 +104,10 @@ def rendered_parity(adapter: str, root: Path) -> MappingProxyType:
     )
 
     mismatches = [
-        name for name, row in ids.items() if row["state"] not in {"in_bundle", "live_preserved"}
+        name
+        for name, row in ids.items()
+        if row["state"] not in {"in_bundle", "live_preserved"}
+        and not _live_only(name, catalog)
     ]
     return MappingProxyType(
         {

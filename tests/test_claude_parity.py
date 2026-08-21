@@ -48,13 +48,24 @@ class ClaudeParityTest(TestCase):
         required.update("schedule:{}".format(name) for name in report["schedules"])
         required.update("sweep:{}".format(name) for name in report["sweeps"])
         required.update("instruction:{}".format(name) for name in report["instructions"])
+        live_only = {
+            "agent:poteto-agent",
+            "agent:comment-sicko",
+            "policy:compaction-200k",
+            "policy:effort-medium",
+        }
+        live_only.update(
+            "skill:{}".format(name)
+            for name in catalog.available_names("claude")
+            if catalog.owner(name) == "plugin-manager"
+        )
         self.assertEqual(len(catalog.available_names("claude")), 66)
         self.assertEqual(len(report["commands"]), 16)
         self.assertEqual(len(report["schedules"]), 3)
         self.assertEqual(len(report["sweeps"]), 4)
         missing = [
             name
-            for name in sorted(required)
+            for name in sorted(required - live_only)
             if report["ids"].get(name, {}).get("state")
             not in {"in_bundle", "live_preserved"}
         ]

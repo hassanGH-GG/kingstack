@@ -32,7 +32,7 @@ class HeadroomTest(TestCase):
 
     def test_pin_matches_sibling_checkout(self):
         report = check_pin(ROOT, ROOT.parent / "headroom")
-        self.assertEqual(report["revision"], "5e0ce24")
+        self.assertTrue(report["revision"].startswith("5e0ce24"))
         self.assertEqual(report["status"], "clean")
 
     def test_crush_keeps_fatal_and_retrieve_is_exact(self):

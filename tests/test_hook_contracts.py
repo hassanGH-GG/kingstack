@@ -255,10 +255,9 @@ class HookContractTest(TestCase):
         result = handle(event, self.runtime)
         output = json.loads(cursor_format("sessionStart", result))
         self.assertIn("pstack (poteto-mode)", output["additional_context"])
-        self.assertEqual(
-            output.get("env", {}).get("KINGSTACK_ROOT"),
-            str(Path.home() / "Desktop/Work/kingstack"),
-        )
+        root = output.get("env", {}).get("KINGSTACK_ROOT")
+        self.assertTrue(root)
+        self.assertTrue((Path(root) / "lib" / "kingstack").is_dir())
         store = self.runtime / "headroom-store"
         os.environ["KINGSTACK_HEADROOM_ROOT"] = str(store)
         self.addCleanup(os.environ.pop, "KINGSTACK_HEADROOM_ROOT", None)

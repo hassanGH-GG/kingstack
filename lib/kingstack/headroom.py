@@ -54,11 +54,34 @@ def check_pin(root: Path, checkout: Optional[Path] = None) -> Mapping[str, str]:
     expected = pin_revision(root)
     source = Path(checkout) if checkout is not None else Path(root).resolve().parent / "headroom"
     actual = checkout_revision(source)
-    if actual != expected:
+    if not _same_revision(source, expected, actual):
         raise HeadroomError(
             "headroom revision drift: pin {} != checkout {}".format(expected, actual)
         )
     return {"upstream": "headroom", "revision": actual, "status": "clean"}
+
+
+def _same_revision(checkout: Path, expected: str, actual: str) -> bool:
+    if expected == actual or actual.startswith(expected) or expected.startswith(actual):
+        return True
+    try:
+        want = subprocess.run(
+            ["git", "-C", str(checkout), "rev-parse", expected],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        ).stdout.strip()
+        have = subprocess.run(
+            ["git", "-C", str(checkout), "rev-parse", "HEAD"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return False
+    return bool(want) and want == have
 
 
 def estimate_tokens(text: str) -> int:

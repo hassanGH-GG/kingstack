@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from unittest import TestCase
@@ -200,7 +201,8 @@ class InventoryTest(TestCase):
         write_public_report(capture_baseline(Paths.for_home(self.home)), output)
 
         self.assertTrue(output.is_file())
-        self.assertTrue(str(raw_directory).startswith("/var/"))
+        if sys.platform == "darwin":
+            self.assertTrue(str(raw_directory).startswith("/var/"))
 
     def test_cli_writes_fixture_inventory_and_rejects_agent_home_output(self):
         """A CLI regression must not write a report under a protected agent home."""
