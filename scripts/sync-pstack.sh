@@ -110,6 +110,35 @@ is_protected verify-this || perl -pi -e 's{/tmp/verify-this/}{\$TMPDIR/verify-th
 is_protected thermo-nuclear-code-quality-review || perl -pi -e 's/\b1k lines\b/500 lines/g; s/\b1,?000 lines\b/500 lines/g; s/past 1k lines/past 500 lines/g; s/from under 1k/from under 500/g; s/over 1k lines/over 500 lines/g; s/below 1000 lines to above 1000 lines/below 500 lines to above 500 lines/g' "$DST/thermo-nuclear-code-quality-review/SKILL.md"
 is_protected automate-me || perl -pi -e 's/- Frontmatter `disable-model-invocation: true` by default\. Mode skills are heavy and opinionated; they should only apply when the user explicitly invokes them \(by name or slash command\), not auto-trigger on description matching\./- Mode skills are heavy and opinionated; write the description so they only apply when the user explicitly invokes them (by name or slash command), e.g. "Use only for \/<name>-mode", not on loose description matching./' "$DST/automate-me/SKILL.md" 2>/dev/null || true
 
+# --- Local edits (mine, never upstream's). Two kinds, both idempotent by a grep guard.
+# 1. Section appends: one snippet per file in scripts/pstack-local-edits/, named
+#    <target-key>--<slug>.md, whose FIRST line is an HTML comment marker. The case statement
+#    below maps <target-key> to the file it lands in. Appended only when the marker is absent,
+#    so a second sync is a no-op. New local edit = new snippet + new case arm.
+# 2. Description tunes: guarded perl rewrites of a `description:` frontmatter line, so the
+#    skill also fires on triggers upstream's wording misses.
+LOCAL_EDITS="$HOME/.claude/scripts/pstack-local-edits"
+for snip in "$LOCAL_EDITS"/*.md; do
+  [ -f "$snip" ] || continue
+  key=${snip##*/}; key=${key%%--*}
+  case "$key" in
+    control-cli)              skill=control-cli;              target="$DST/control-cli/SKILL.md";;
+    principle-prove-it-works) skill=principle-prove-it-works; target="$DST/principle-prove-it-works/SKILL.md";;
+    runtime-forensics)        skill=poteto-mode;              target="$DST/poteto-mode/playbooks/runtime-forensics.md";;
+    *) echo "local edit snippet has no target mapping: $snip" >&2; exit 1;;
+  esac
+  is_protected "$skill" && continue
+  [ -f "$target" ] || { echo "local edit target missing: $target" >&2; exit 1; }
+  marker=$(head -1 "$snip")
+  grep -qF "$marker" "$target" || { printf '\n'; cat "$snip"; } >> "$target"
+done
+
+# Description tunes, one per line, each a no-op once its distinctive phrase is present.
+is_protected control-cli || grep -q 'feels laggy or clunky' "$DST/control-cli/SKILL.md" || perl -pi -e 's/(terminal demos\.)/$1 Also use when a TUI feels laggy or clunky, when a key does not work in the user\x27s terminal, when something works in tests but not in their terminal, or when asked to UI test the terminal./ if /^description:/' "$DST/control-cli/SKILL.md"
+is_protected create-verification-skill || grep -q 'hand-rolled a PTY or browser harness twice' "$DST/create-verification-skill/SKILL.md" || perl -pi -e 's/(behavior\.)"/$1 Also use when the session has already hand-rolled a PTY or browser harness twice for the same app."/ if /^description:/' "$DST/create-verification-skill/SKILL.md"
+is_protected blast-radius || grep -q 'shared namespace' "$DST/blast-radius/SKILL.md" || perl -pi -e 's/(trust\.)"/$1 Also use when adding a name to a shared namespace (slash command, keybinding, route, CLI flag), where the check is prefix, abbreviation, and ranking collisions against existing siblings rather than the new entry in isolation."/ if /^description:/' "$DST/blast-radius/SKILL.md"
+is_protected reflect || grep -q 'not able to nail this down' "$DST/reflect/SKILL.md" || perl -pi -e 's/(says reflect\.)/$1 Also fires on "we need to reflect", "let\x27s reflect on why we keep missing this", or "we\x27re not able to nail this down" after repeated fix waves, not only the bare \/reflect command./ if /^description:/' "$DST/reflect/SKILL.md"
+
 # --- verify no Cursor-isms survive
 left=0
 [ ${#targets[@]} -gt 0 ] && left=$(grep -rl "disable-model-invocation: true\|~/\.cursor\|generalPurpose\|sol-max\|grok-4\.[0-9]-fast" "${targets[@]}" 2>/dev/null | wc -l | tr -d ' ' || true)
