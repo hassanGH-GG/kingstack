@@ -33,6 +33,7 @@ Runs inside poteto-mode, which supplies the playbooks and principles. This skill
 - A screenshot path plus a clause, or a raw log or stack trace pasted bare, is the bug report. Diagnose and fix without asking for more.
 - "Research well" after a failed fix means stop guessing and find the root cause.
 - Treat a bare "why X?" or "X no?" as a question. Answer it straight; change course only if the answer says you should.
+- When he names a mechanism while reporting pain ("drop /model"), capture the reference or ground truth first and answer the pain. Push back with evidence when his named mechanism is not the cause; he accepts an evidence-backed "no".
 - Ask which worktree is yours when unclear, never touch another agent's tree, and leave every worktree clean for the next agent.
 
 ## Finish line
@@ -43,6 +44,8 @@ Runs inside poteto-mode, which supplies the playbooks and principles. This skill
 - On parity or migration work, prove nothing was lost with a before and after list.
 - After deletions, confirm everything else is still intact.
 - After execution, run "verify all works" as its own step.
+- A second same-domain "feels wrong" complaint means stop shipping fix waves. Write a checkable experience contract first: every behavior by journey (launch, compose, stream, interrupt, read back, recover, exit), then score against it.
+- When the quality under construction is felt (UX, latency, motion), the wave gate includes one human hand-feel pass before the wave closes, not as a post-commit courtesy.
 
 ## Parallelism
 
@@ -51,11 +54,12 @@ Runs inside poteto-mode, which supplies the playbooks and principles. This skill
 - Polling is never an LLM turn. "Monitor Codex every 5 min", "watch CI", "tell me when it's green" become a Monitor, an until-loop, or a hook that wakes the session on change; the model does not spend a turn to look at nothing.
 - Route every subagent by the class of work (`~/.claude/model-routing.md`), cheapest tier first, and say the pick in one clause. Bulk reads go to a haiku subagent that returns a summary; the main thread keeps conclusions, not payloads.
 - When most recent turns are status checks or the session is past ~150k tokens, say so once and propose `/clear`; memory and recall make a fresh session free.
+- Once a wave has a written spec, the spec replaces the context: build waves go to fresh agents routed at the ruler's tier. Forks are for work where accumulated context is itself the payload (debugging, repro); name the trade in one clause at spawn.
 - He hands whole programs to another agent (Codex, a fresh session) and wants you to write the brief. Write it so the receiving agent reviews and improves it instead of copying it.
 
 ## Design and UI
 
-- Match the Paper design, consistent across every page and all breakpoints, localized in the same pass. Check how Linear or Jira do it before inventing an interaction. Bubble-glass is the covers look.
+- Match the Paper design, consistent across every page and all breakpoints, localized in the same pass. Check how Linear or Jira do it before inventing an interaction; experience-quality work harvests 2 or 3 best-in-class references first, captured in parallel mechanically, one "worth stealing" report each. Never a single competitor. Bubble-glass is the covers look.
 - Light theme preferred. The sidemenu handles collapsed and expanded states.
 - Destructive actions are red. Auto-save over save buttons. Long docs get an "On this page" TOC.
 - Docs and the brand voice update in the same pass as the code. Write docs to sound human while staying agent-readable.
