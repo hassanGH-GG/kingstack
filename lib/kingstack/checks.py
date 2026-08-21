@@ -166,6 +166,22 @@ def live_checks(root: Path, home: Optional[Path] = None) -> List[Mapping[str, ob
         str(shim) if linked else "missing {}".format(shim),
         "run kingstack setup",
     ))
+    settings = home / ".claude" / "settings.json"
+    if settings.is_file():
+        try:
+            plugins = json.loads(settings.read_text(encoding="utf-8")).get("enabledPlugins") or {}
+            off = plugins.get("superpowers@claude-plugins-official") is False
+            evidence = "disabled" if off else "enabled"
+        except (OSError, ValueError) as error:
+            off = False
+            evidence = str(error)
+        rows.append(_row(
+            "superpowers-disabled",
+            "claude",
+            off,
+            evidence,
+            "set enabledPlugins.superpowers@claude-plugins-official to false",
+        ))
     return rows
 
 

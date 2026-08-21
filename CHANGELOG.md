@@ -16,7 +16,8 @@ private working-set index under `~/.kingstack/sessions`. Pointers only.
 The pstack checkout defaults to the sibling `plugins` repo, not a
 hardcoded home path. Session prompts drop secret-like lines. Inbox and compaction
 checkpoints do the same and write those files `0o600`. Hook session
-writes refuse a store inside the checkout. An empty
+writes refuse a store inside the checkout. Superpowers stays off in
+owned Claude settings. Missing Codex TOML keys reuse one table header. An empty
 handoff packet no longer erases a stored packet path. Images are not
 crushed.
 CI runs unit tests and staged health. `kingstack effort` scans spawn
