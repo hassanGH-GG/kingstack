@@ -48,8 +48,6 @@ def merge_json(original: str, owned: Mapping[str, Any]) -> Tuple[str, Mapping[st
     for key, value in owned.items():
         current = _get(data, key)
         snapshot[key] = current
-        if current is not None and current != value:
-            raise JsonPatchError("conflicting owned key {}".format(key))
         _set(data, key, value)
     return json.dumps(data, indent=2, sort_keys=True) + "\n", snapshot
 

@@ -15,6 +15,9 @@ def _lib() -> Path:
         candidate = parent / "lib"
         if (candidate / "kingstack" / "statusline.py").is_file():
             return candidate
+    default = Path.home() / "Desktop/Work/kingstack/lib"
+    if (default / "kingstack" / "statusline.py").is_file():
+        return default
     raise SystemExit("ctx-status cannot locate kingstack lib/")
 
 

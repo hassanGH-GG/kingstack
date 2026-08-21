@@ -208,12 +208,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     status_command.add_argument("--transcript", dest="transcript_path")
     status_command.add_argument("--model", dest="status_model")
     status_command.add_argument("--effort", dest="status_effort")
-    activate_command = commands.add_parser("activate", help="plan a native-home link; live apply is refused")
+    activate_command = commands.add_parser("activate", help="plan or apply a native-home link")
     activate_command.add_argument("--adapter", type=_adapter_id, required=True)
     activate_command.add_argument("--release", required=True)
     activate_command.add_argument("--runtime", type=Path, required=True)
     activate_command.add_argument("--native-home", type=Path, required=True)
     activate_command.add_argument("--dry-run", action="store_true")
+    activate_command.add_argument("--apply", action="store_true")
+    activate_command.add_argument("--approved-briefing", type=Path)
     headroom_command = commands.add_parser("headroom", help="archive and retrieve large tool output")
     headroom_action = headroom_command.add_subparsers(dest="headroom_command", required=True)
     crush_command = headroom_action.add_parser("crush")
@@ -246,8 +248,13 @@ def main(argv: Optional[List[str]] = None) -> int:
             check_command.error("--contract and --rendered require --adapter or --adapter-path")
         if arguments.check_all and arguments.mode is None:
             check_command.error("--all requires --mode staged or --mode live")
-    if arguments.command == "activate" and not arguments.dry_run:
-        activate_command.error("live apply is forbidden; pass --dry-run")
+    if arguments.command == "activate":
+        if arguments.dry_run == arguments.apply:
+            activate_command.error("pass exactly one of --dry-run or --apply")
+        if arguments.apply:
+            briefing = arguments.approved_briefing
+            if briefing is None or briefing.name != "pre-link-briefing.md" or not briefing.is_file():
+                activate_command.error("--apply requires --approved-briefing pre-link-briefing.md")
 
     if arguments.command == "effort":
         from kingstack.effort import failed, scan_file, scan_stream
@@ -529,15 +536,20 @@ def main(argv: Optional[List[str]] = None) -> int:
             print("kingstack release: {}".format(error), file=sys.stderr)
             return 2
     if arguments.command == "activate":
-        from kingstack.activation import ActivationError, plan_activation
+        from kingstack.activation import ActivationError, apply_activation, plan_activation
+        root = Path(__file__).resolve().parents[2]
         try:
             plan = plan_activation(
                 arguments.adapter,
-                Path(__file__).resolve().parents[2],
+                root,
                 arguments.native_home,
                 arguments.release,
                 runtime=arguments.runtime,
             )
+            if arguments.apply:
+                result = apply_activation(plan, root, allow_live=True)
+                print(json.dumps(_plain(result), indent=2, sort_keys=True))
+                return 0
             print(json.dumps(plan, indent=2, sort_keys=True))
             return 0
         except ActivationError as error:

@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from kingstack.json_patch import JsonPatchError, inverse_json, merge_json
+from kingstack.json_patch import inverse_json, merge_json
 
 
 class JsonPatchTest(TestCase):
@@ -12,5 +12,7 @@ class JsonPatchTest(TestCase):
         restored = inverse_json(patched, snapshot)
         self.assertNotIn("owned", restored)
         self.assertIn('"keep": true', restored)
-        with self.assertRaises(JsonPatchError):
-            merge_json('{"owned": "other"}', {"owned": "kingstack"})
+        overwritten, old = merge_json('{"owned": "other", "keep": true}', {"owned": "kingstack"})
+        self.assertIn('"owned": "kingstack"', overwritten)
+        self.assertEqual(old["owned"], "other")
+        self.assertIn('"owned": "other"', inverse_json(overwritten, old))

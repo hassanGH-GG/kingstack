@@ -93,7 +93,8 @@ class InstructionRenderTest(TestCase):
         expected = (FIXTURES / "claude-baseline/CLAUDE.md").read_text(
             encoding="utf-8"
         )
-        live = (Path.home() / ".claude/CLAUDE.md").read_bytes()
+        live_path = Path.home() / ".claude/CLAUDE.md"
+        live = live_path.read_bytes() if live_path.is_file() else b""
         actual = bundle["CLAUDE.md"].decode("utf-8")
 
         baseline_prefix, marker, baseline_tail = expected.partition(
@@ -112,7 +113,11 @@ class InstructionRenderTest(TestCase):
         self.assertTrue(appendix_marker)
         self.assertEqual(actual_prefix, baseline_prefix)
         self.assertEqual(actual_memory, baseline_suffix)
-        self.assertNotEqual(bundle["CLAUDE.md"], live)
+        linked = (Path.home() / ".claude/.kingstack-current").exists()
+        if linked:
+            self.assertEqual(bundle["CLAUDE.md"], live)
+        else:
+            self.assertNotEqual(bundle["CLAUDE.md"], live)
         self.assertEqual(render_instructions("claude", ROOT), actual)
 
     def test_order_lists_every_fragment_once(self):

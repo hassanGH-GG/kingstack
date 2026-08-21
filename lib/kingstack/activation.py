@@ -7,9 +7,9 @@ from pathlib import Path
 import shutil
 from typing import Any, Mapping, Optional
 
-from kingstack.json_patch import inverse_json, merge_json
+from kingstack.json_patch import JsonPatchError, inverse_json, merge_json
 from kingstack.ownership import load_ownership, native_homes
-from kingstack.toml_patch import inverse_spans, owned_spans
+from kingstack.toml_patch import TomlPatchError, inverse_spans, owned_spans
 
 
 class ActivationError(ValueError):
@@ -62,9 +62,14 @@ def plan_activation(adapter: str, root: Path, native_home: Path, release_id: str
     }
 
 
-def apply_activation(plan: Mapping[str, Any], root: Path, fail_after: Optional[str] = None) -> Mapping[str, Any]:
+def apply_activation(
+    plan: Mapping[str, Any],
+    root: Path,
+    fail_after: Optional[str] = None,
+    allow_live: bool = False,
+) -> Mapping[str, Any]:
     home = Path(plan["native_home"])
-    if _is_native_home(home, root):
+    if _is_native_home(home, root) and not allow_live:
         raise ActivationError("live apply is forbidden until Hassan approves the pre-link briefing")
     if home.exists() and home.is_symlink():
         raise ActivationError("native home may not be a symbolic link")
@@ -87,6 +92,9 @@ def apply_activation(plan: Mapping[str, Any], root: Path, fail_after: Optional[s
 
     try:
         _apply_body(plan, home, release_dir, stamp, preserved, merged, _fail)
+    except (JsonPatchError, TomlPatchError) as error:
+        rollback_activation({"native_home": str(home), "preserved": preserved, "merged": merged})
+        raise ActivationError(str(error)) from error
     except Exception:
         rollback_activation({"native_home": str(home), "preserved": preserved, "merged": merged})
         raise

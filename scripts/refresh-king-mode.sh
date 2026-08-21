@@ -18,7 +18,7 @@ if ! PYTHONPATH="$KINGSTACK_ROOT/lib" python3 -c "from kingstack.schedule_lock i
 fi
 # PATH (including node for plugin hooks) and claude_retry come from the shared library.
 # Do NOT set CLAUDE_CONFIG_DIR: the login lives in ~/.claude.json and the default resolves it.
-. "$HOME/.claude/scripts/lib-headless.sh"
+. "$KINGSTACK_ROOT/scripts/lib-headless.sh"
 
 SKILL="$HOME/.claude/skills/king-mode/SKILL.md"
 STAMP="$HOME/.claude/king-mode-last-refresh.txt"

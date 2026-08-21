@@ -1,11 +1,11 @@
-"""Independent staged health rows. Live mode stays unhealthy on real homes."""
+"""Independent staged health rows. Live mode passes when native homes are linked."""
 
 from pathlib import Path
 from typing import List, Mapping
 
 from kingstack.adapter_contract import load_adapter, load_capability_catalog, validate_adapter
 from kingstack.docs_hygiene import hygiene_errors
-from kingstack.ownership import discover_adapters, load_ownership, ownership_matches_bundle
+from kingstack.ownership import discover_adapters, load_ownership, native_homes, ownership_matches_bundle
 from kingstack.render import render_bundle
 from kingstack.schedules import load_schedules
 from kingstack.skills import _UNSUPPORTED_CONSTRUCT_TOKENS, load_catalog
@@ -66,13 +66,13 @@ def staged_checks(root: Path) -> List[Mapping[str, object]]:
         rows.append(_row("schedules", "core", not mismatches, "portable templates" if not mismatches else mismatches[0], "align schedules.json with launchd"))
     except Exception as error:
         rows.append(_row("schedules", "core", False, str(error), "fix schedule schema"))
-    missing_plans = [path for path in PLAN_FILES if not (root / path).is_file()]
+    leftover_plans = [path for path in PLAN_FILES if (root / path).is_file()]
     rows.append(_row(
-        "plan-files-still-present",
+        "plan-files-removed",
         "core",
-        not missing_plans,
-        "six plan files remain" if not missing_plans else "missing {}".format(missing_plans),
-        "do not delete plan files before cutover",
+        not leftover_plans,
+        "six plan files gone" if not leftover_plans else leftover_plans[0],
+        "delete cutover plan files after live link",
     ))
     for adapter in discover_adapters(root):
         try:
@@ -110,14 +110,21 @@ def staged_checks(root: Path) -> List[Mapping[str, object]]:
     return rows
 
 
+def _home_linked(name: str) -> bool:
+    home = Path.home() / name
+    return (home / ".kingstack-activation.json").is_file() and (home / ".kingstack-current").exists()
+
+
 def live_checks(root: Path) -> List[Mapping[str, object]]:
     rows = list(staged_checks(root))
+    homes = native_homes(root)
+    missing = [name for name in homes if not _home_linked(name)]
     rows.append(_row(
         "live-activation",
         "core",
-        False,
-        "no native home is linked",
-        "wait for Hassan to approve live link",
+        not missing,
+        "linked {}".format(",".join(homes)) if not missing else "unlinked {}".format(",".join(missing)),
+        "ok" if not missing else "activate each adapter",
     ))
     return rows
 

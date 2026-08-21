@@ -1,10 +1,10 @@
 # Pre-link briefing
 
-Status: waiting for Hassan
+Status: approved by Hassan on 2026-08-21 (setup, migrate, make all 3 work, clean ~/.claude)
 
-This is the last stop before anyone writes `~/.claude`, `~/.codex`, or
-`~/.cursor`. The checkout can build a release, plan a link, and prove
-apply and rollback on a temp folder. It still refuses the real homes.
+This was the last stop before anyone wrote `~/.claude`, `~/.codex`, or
+`~/.cursor`. Live apply now takes `--apply --approved-briefing` pointing
+at this file.
 
 ## What kingstack would own
 
@@ -12,7 +12,7 @@ The only list is `adapters/<id>/owned-paths.json`.
 
 | Adapter | Files it would replace | Files it would merge | Extra file used for the merge |
 | --- | --- | --- | --- |
-| Claude | `CLAUDE.md`, hooks including `ctx-status.py`, `bin/claude-check`, `bin/kingstack-path`, 54 skill directories | `settings.json`, and only the `statusLine` key | `settings-owned.json` |
+| Claude | `CLAUDE.md`, hooks including `ctx-status.py`, `bin/claude-check`, `bin/kingstack-path`, 54 skill directories | `settings.json`: `statusLine` and `hooks` | `settings-owned.json` |
 | Codex | `AGENTS.md`, hooks including `ctx-status.py`, `bin/kingstack-path`, 37 skill directories | `config.toml`, owned keys plus the footer field list | `config-owned.json` |
 | Cursor | `rules/kingstack/*.mdc`, hooks including `ctx-status.py` and a Cursor-native `hooks.json`, `bin/kingstack-path`, 54 skill directories | none | none |
 
@@ -73,5 +73,5 @@ once this branch is pushed.
    holds, never before.
 4. Push and merge of `feat/agent-neutral-kingstack`.
 
-Say `approve live link` if you want the real homes written. Until then
-they stay ordinary directories.
+Hassan approved the live link on 2026-08-21. Activate with
+`--apply --approved-briefing docs/migration/pre-link-briefing.md`.

@@ -70,7 +70,8 @@ be any directory. Set `KINGSTACK_ROOT` if hooks cannot see the clone.
 
 That turns king-mode on as an overlay for this machine only.
 
-A live link is a later approve. Do not copy this repo into `~/.claude`.
+Do not copy this repo into `~/.claude`. Hassan's machine is already linked.
+A teammate stays unlinked until they run activate themselves.
 
 ## Another machine
 

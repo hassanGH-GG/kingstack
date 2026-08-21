@@ -1,6 +1,5 @@
 #!/bin/bash
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
-export KINGSTACK_ROOT="${KINGSTACK_ROOT:-$(cd "$here/../.." && pwd)}"
 export KINGSTACK_RUNTIME="${KINGSTACK_RUNTIME:-$HOME/.claude}"
 python3 "$here/run.py" Stop

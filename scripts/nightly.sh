@@ -8,6 +8,6 @@ if ! PYTHONPATH="$KINGSTACK_ROOT/lib" python3 -c "from kingstack.schedule_lock i
   echo "duplicate prevented"
   exit 0
 fi
-. "$HOME/.claude/scripts/lib-headless.sh"
-python3 "$HOME/.claude/scripts/usage-snapshot.py"
-python3 "$HOME/.claude/scripts/rework-report.py" --days 14 --snapshot | tail -1
+. "$KINGSTACK_ROOT/scripts/lib-headless.sh"
+python3 "$KINGSTACK_ROOT/scripts/usage-snapshot.py"
+python3 "$KINGSTACK_ROOT/scripts/rework-report.py" --days 14 --snapshot | tail -1

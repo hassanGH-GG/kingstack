@@ -48,7 +48,7 @@ class CursorInstructionsTest(TestCase):
         self.assertNotIn("SessionStart", hooks["hooks"])
         self.assertEqual(
             hooks["hooks"]["sessionStart"][0]["command"],
-            "python3 hooks/run.py sessionStart",
+            "python3 \"$HOME/.cursor/hooks/run.py\" sessionStart",
         )
         self.assertIn("hooks/run.py", bundle)
         self.assertIn("hooks/poteto-mode-context.md", bundle)

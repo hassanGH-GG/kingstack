@@ -16,6 +16,9 @@ crushed.
 CI runs unit tests and staged health. `kingstack effort` scans spawn
 lines; inherit is fail. Copy `~/.kingstack` to move machines. Standing
 docs, sweeps, and adapter notes match this checkout.
+`activate --apply --approved-briefing` writes native homes. Claude
+`settings.json` owns `statusLine` and `hooks`. The six dated Superpowers
+plan files are gone. The design spec stays.
 
 ## 0.3.0
 

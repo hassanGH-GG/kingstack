@@ -3,7 +3,7 @@
 # com.hassan.* plist in ~/Library/LaunchAgents that the repo does NOT track (a stray job
 # that came back to life is a real incident; only tracked units get loaded).
 set -euo pipefail
-REPO="$HOME/.claude/launchd"; LA="$HOME/Library/LaunchAgents"
+REPO="${KINGSTACK_ROOT:-$HOME/Desktop/Work/kingstack}/launchd"; LA="$HOME/Library/LaunchAgents"
 for p in "$REPO"/*.plist; do
   label=$(basename "$p" .plist)
   cp "$p" "$LA/$label.plist"
