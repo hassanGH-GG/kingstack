@@ -103,6 +103,45 @@ def main(argv: Optional[List[str]] = None) -> int:
     sync_command.add_argument("--upstream-root", type=Path)
     sync_command.add_argument("--installed-root", type=Path)
     sync_command.add_argument("--installed-manifest", type=Path)
+    memory_command = commands.add_parser("memory")
+    memory_action = memory_command.add_subparsers(dest="memory_command", required=True)
+    memory_list = memory_action.add_parser("list")
+    memory_list.add_argument("--project")
+    memory_list.add_argument("--root", type=Path)
+    memory_show = memory_action.add_parser("show")
+    memory_show.add_argument("candidate_id")
+    memory_show.add_argument("--root", type=Path)
+    memory_migrate = memory_action.add_parser("migrate-claude")
+    memory_migrate.add_argument("--dry-run", action="store_true")
+    memory_migrate.add_argument("--apply", action="store_true")
+    memory_migrate.add_argument("--claude-home", type=Path)
+    memory_migrate.add_argument("--root", type=Path)
+    memory_promote = memory_action.add_parser("promote")
+    memory_promote.add_argument("candidate_id")
+    memory_promote.add_argument("--name", required=True)
+    memory_promote.add_argument("--type", dest="memory_type", required=True)
+    memory_promote.add_argument("--description", required=True)
+    memory_promote.add_argument("--body", required=True)
+    memory_promote.add_argument("--actor", default="hassan")
+    memory_promote.add_argument("--root", type=Path)
+    memory_reject = memory_action.add_parser("reject")
+    memory_reject.add_argument("candidate_id")
+    memory_reject.add_argument("--reason", required=True)
+    memory_reject.add_argument("--actor", default="hassan")
+    memory_reject.add_argument("--root", type=Path)
+    memory_recall = memory_action.add_parser("recall")
+    memory_recall.add_argument("names", nargs="+")
+    memory_recall.add_argument("--cwd", type=Path)
+    memory_recall.add_argument("--root", type=Path)
+    release_command = commands.add_parser("release")
+    release_command.add_argument("--adapter", type=_adapter_id, required=True)
+    release_command.add_argument("--runtime", type=Path, required=True)
+    release_mode = release_command.add_mutually_exclusive_group(required=True)
+    release_mode.add_argument("--build", action="store_true")
+    release_mode.add_argument("--list", action="store_true")
+    release_mode.add_argument("--activate", action="store_true")
+    release_mode.add_argument("--rollback", action="store_true")
+    release_command.add_argument("--to")
     arguments = parser.parse_args(argv)
 
     if arguments.command == "render":
@@ -117,6 +156,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             sync_command.error("--installed-root and --installed-manifest are required together")
         if arguments.installed_root is not None and arguments.adapter is None:
             sync_command.error("installed clobber checking requires --adapter")
+    if arguments.command == "release" and (arguments.activate or arguments.rollback) and not arguments.to:
+        release_command.error("--activate and --rollback require --to")
 
     if arguments.command == "inventory":
         write_public_report(
@@ -232,6 +273,74 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 0
         except (OSError, SkillCatalogError) as error:
             print("kingstack sync-upstream: {}".format(error), file=sys.stderr)
+            return 2
+    if arguments.command == "memory":
+        from kingstack.memory_migrate import migrate_claude
+        from kingstack.memory_review import list_pending, promote, reject
+        from kingstack.memory_store import MemoryStore
+        memory_root = arguments.root if getattr(arguments, "root", None) else (Path.home() / ".kingstack" / "memory")
+        try:
+            if arguments.memory_command == "migrate-claude" and arguments.dry_run:
+                from kingstack.memory_migrate import inventory_banks
+                report = inventory_banks(arguments.claude_home or (Path.home() / ".claude"))
+                print(json.dumps(_plain(report), indent=2, sort_keys=True))
+                return 0
+            store = MemoryStore.open(memory_root, repo_root=Path(__file__).resolve().parents[2])
+            if arguments.memory_command == "list":
+                print(json.dumps(list_pending(store, arguments.project), indent=2, sort_keys=True))
+                return 0
+            if arguments.memory_command == "show":
+                match = next((item for item in list_pending(store) if item["id"] == arguments.candidate_id), None)
+                if match is None:
+                    raise ValueError("unknown pending candidate")
+                print(json.dumps(match, indent=2, sort_keys=True))
+                return 0
+            if arguments.memory_command == "migrate-claude":
+                report = migrate_claude(
+                    arguments.claude_home or (Path.home() / ".claude"),
+                    store,
+                    apply=bool(arguments.apply),
+                )
+                print(json.dumps(_plain(report), indent=2, sort_keys=True))
+                return 0
+            if arguments.memory_command == "promote":
+                path = promote(
+                    store, arguments.candidate_id, arguments.name, arguments.memory_type,
+                    arguments.description, arguments.body, arguments.actor,
+                )
+                print(str(path))
+                return 0
+            if arguments.memory_command == "recall":
+                from kingstack.memory_context import recall
+                print(recall(store, arguments.cwd or Path.cwd(), arguments.names))
+                return 0
+            reject(store, arguments.candidate_id, arguments.reason, arguments.actor)
+            return 0
+        except Exception as error:
+            print("kingstack memory: {}".format(error), file=sys.stderr)
+            return 2
+    if arguments.command == "release":
+        from kingstack.release import (
+            ReleaseError,
+            activate_release,
+            build_release,
+            list_releases,
+            rollback_release,
+        )
+        root = Path(__file__).resolve().parents[2]
+        try:
+            if arguments.build:
+                result = build_release(arguments.adapter, root, arguments.runtime)
+            elif arguments.list:
+                result = list_releases(arguments.adapter, arguments.runtime)
+            elif arguments.activate:
+                result = activate_release(arguments.adapter, arguments.runtime, arguments.to)
+            else:
+                result = rollback_release(arguments.adapter, arguments.runtime, arguments.to)
+            print(json.dumps(result, indent=2, sort_keys=True))
+            return 0
+        except (OSError, ReleaseError) as error:
+            print("kingstack release: {}".format(error), file=sys.stderr)
             return 2
     return 1
 
