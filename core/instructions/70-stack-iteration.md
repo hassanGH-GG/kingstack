@@ -13,8 +13,7 @@ none. Skip only for trivial lookups, pure conversation, or when Hassan says to
 work outside it.
 
 Model roles live in `~/Desktop/Work/kingstack/pstack-models.md`. Superpowers
-stays enabled until Hassan disables it after cutover. One front door is still
-pstack.
+is disabled. One front door is pstack.
 
 **Absorbing pstack whole, kept current.** The install is a scripted port of the
 upstream checkout at `~/Desktop/Work/plugins/pstack`, never a hand-edited fork.

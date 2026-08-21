@@ -16,7 +16,7 @@ from kingstack.render import RenderError, render_bundle, render_instructions
 
 ROOT = Path(__file__).parents[1]
 FIXTURES = ROOT / "tests/fixtures"
-GOLDEN_SHA256 = "5215ea2fcb40374150ce3f0081a55b72f389fe5484b57717ed9a0d9bdb8b7a10"
+GOLDEN_SHA256 = "736d65b93c4048096ae43399b67b2bf2b62adf1cf5e297704bebabc768eacecd"
 
 
 class InstructionRenderTest(TestCase):

@@ -16,3 +16,9 @@ class JsonPatchTest(TestCase):
         self.assertIn('"owned": "kingstack"', overwritten)
         self.assertEqual(old["owned"], "other")
         self.assertIn('"owned": "other"', inverse_json(overwritten, old))
+        plugins, _ = merge_json(
+            '{"enabledPlugins": {"cloudflare@cloudflare": true, "superpowers@claude-plugins-official": true}}',
+            {"enabledPlugins.superpowers@claude-plugins-official": False},
+        )
+        self.assertIn('"cloudflare@cloudflare": true', plugins)
+        self.assertIn('"superpowers@claude-plugins-official": false', plugins)
