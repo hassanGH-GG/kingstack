@@ -1,13 +1,13 @@
 # Agent-neutral kingstack: architecture, migration status, and handoff
 
-Status date: 2026-08-20
+Status date: 2026-08-21
 
 Repository: `https://github.com/hassanGH-GG/kingstack`
 
 Branch: `feat/agent-neutral-kingstack`
 
-Implementation status: unfinished; Core Tasks 1–6 implemented, Phase A review pending
-Live status: not activated; Claude and Codex native homes remain unchanged
+Implementation status: Phases A–E plus Cursor adapter implemented and committed; Phase F briefing written; Phase G live cutover not started
+Live status: not activated; Claude, Codex, and Cursor native homes remain unchanged
 
 This is the canonical continuation document for a new Claude or Codex session.
 It explains what kingstack was, why the architecture changed, what has been
@@ -46,9 +46,9 @@ The first four core tasks are implemented:
 - a single-source, pstack-safe skill catalog with honest Claude/Codex
   capability accounting.
 
-Nothing has been activated. Shared memory, the full Codex adapter, the
-deferred Cursor Agent adapter, immutable releases, rollback, schedules,
-documentation versioning, and live cutover remain.
+Nothing has been activated. Shared memory, the Codex bundle, the Cursor
+adapter, and the release builder exist on this branch. Live cutover remains
+blocked on `docs/migration/pre-link-briefing.md`.
 
 ## Start here when continuing
 
@@ -65,9 +65,9 @@ On the original machine the canonical checkout is:
 /Users/mac/Desktop/Work/kingstack
 ```
 
-Task 4 closure review returned `APPROVE` on 2026-08-21. Phase A (Tasks 5–6)
-is implemented on this branch. Independently review it before starting
-Phase B. The Cursor Agent adapter is deferred to Phase H.
+Task 4 closure review returned `APPROVE` on 2026-08-21. Phases A–E plus the
+Cursor adapter are implemented on this branch. Live cutover is still stopped
+on the pre-link briefing. Do not activate a native home.
 
 ## Why this architecture exists
 

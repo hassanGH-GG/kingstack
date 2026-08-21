@@ -1,0 +1,14 @@
+ts	phase	decision	why	evidence	result
+2026-08-21T15:30:00Z	frame	done means B-E plus Cursor adapter implemented and proven, no live link	live cutover is irreversible and stays Hassan's gate	docs/migration/agent-neutral-kingstack-handoff.md	open
+2026-08-21T15:31:00Z	design	sequence memory then Codex then Cursor then release then docs then briefing	memory is the shared type every later adapter consumes	docs/superpowers/plans/2026-08-20-kingstack-shared-memory-plan.md	open
+2026-08-21T16:10:00Z	memory	private store, candidates, copy-only migrate, human review, bounded inject	shared type every adapter consumes	tests/test_memory_*.py	open
+2026-08-21T16:20:00Z	codex	bundle now includes AGENTS.md, hooks, owned TOML keys	Codex adapter was guidance-only	adapters/codex/	open
+2026-08-21T16:25:00Z	cursor	first-party adapter with honest degraded skill surface	user asked to complete including Cursor	adapters/cursor/	open
+2026-08-21T16:30:00Z	release	content-addressed build that refuses current	activation is Hassan's one-way door	lib/kingstack/release.py	open
+2026-08-21T16:35:00Z	briefing	wrote pre-link briefing and stopped	live link is irreversible	docs/migration/pre-link-briefing.md	WAITING FOR HASSAN
+2026-08-21T15:40:00Z	verify	full suite 128/128 after four test fixes	predicate is tests green plus no live writes	python3 -m unittest discover -s tests	tests green
+2026-08-21T15:41:00Z	verify	protected live hashes unchanged	must not mutate native homes	~/.claude/CLAUDE.md 7a6f34e0; settings.json d68a1b36; ~/.codex/config.toml ef83efb8	VERIFIED
+2026-08-21T15:42:00Z	verify	cursor release built under /tmp with activated=false and no current	release must refuse activation	kingstack release --adapter cursor --build	VERIFIED
+2026-08-21T15:43:00Z	verify	trail review found back-filled timestamps and missing rollback	fresh eyes on a different model	reviewed by claude-opus-5-thinking-high	flags recorded
+2026-08-21T15:52:00Z	release	private activate and rollback refuse native homes	live link stays Hassan's gate	tests/test_release.py	VERIFIED
+2026-08-21T15:53:00Z	verify	~/.codex/config.toml hash moved at 18:43 without a kingstack write	toml_patch is not wired to any live path	stat 2026-08-21 18:43:23 92b1f274	INCONCLUSIVE live drift

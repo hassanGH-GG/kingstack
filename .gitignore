@@ -38,6 +38,11 @@ bin/
 # docs (proposals, design notes)
 !docs/
 !docs/**
+!VERSION
+!CHANGELOG.md
+!ROADMAP.md
+!.audit/
+!.audit/**
 
 # sweeps registry (one md per unattended check)
 !sweeps/
