@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 from unittest import TestCase
 
-from kingstack.ownership import discover_adapters, native_homes
+from kingstack.ownership import OwnershipError, discover_adapters, native_homes
 
 
 class OwnershipTest(TestCase):
@@ -27,3 +27,6 @@ class OwnershipTest(TestCase):
         )
         self.assertIn("example", discover_adapters(scratch))
         self.assertIn(".example", native_homes(scratch))
+        empty = Path(tempfile.mkdtemp())
+        with self.assertRaises(OwnershipError):
+            native_homes(empty)

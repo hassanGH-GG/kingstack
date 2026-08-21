@@ -586,14 +586,25 @@ def _validate_dependencies(entries: Sequence[SkillEntry]) -> None:
         visit(name)
 
 
+def default_upstream_root(root: Path, env: Optional[Mapping[str, str]] = None) -> Path:
+    environment = env if env is not None else os.environ
+    override = environment.get("KINGSTACK_UPSTREAM_ROOT")
+    if override:
+        return Path(override).expanduser()
+    sibling = Path(root).resolve().parent / "plugins"
+    if sibling.is_dir():
+        return sibling
+    fallback = Path.home() / "Desktop/Work/plugins"
+    if fallback.is_dir():
+        return fallback
+    return sibling
+
+
 def load_catalog(root: Path, upstream_root: Optional[Path] = None) -> SkillCatalog:
     """Load the catalog while owning each root descriptor from acquisition."""
     root = Path(os.path.abspath(str(root)))
     upstream_root = Path(os.path.abspath(str(
-        upstream_root
-        or os.environ.get(
-            "KINGSTACK_UPSTREAM_ROOT", Path.home() / "Desktop/Work/plugins"
-        )
+        upstream_root or default_upstream_root(root)
     )))
     root_fd = _open_absolute_dir(root, "kingstack root")
     try:

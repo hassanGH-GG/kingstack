@@ -7,6 +7,9 @@ from pathlib import Path
 from unittest import TestCase
 
 from kingstack.hooks.claude import normalize, run_event
+from kingstack.hooks.cursor import format_output as cursor_format
+from kingstack.hooks.cursor import normalize as cursor_normalize
+from kingstack.hooks.cursor import run_event as cursor_run_event
 from kingstack.hooks.dispatch import HookError, handle
 
 
@@ -18,7 +21,8 @@ PRESERVE = (
     "(3) open decisions and anything Hassan corrected, in his words; (4) any "
     "command or step that was about to run next; (5) unpushed or uncommitted "
     "state named in the transcript. Drop pleasantries and process narration "
-    "first, never these."
+    "first, never these. (6) headroom archive ids and "
+    "`kingstack headroom retrieve <id>`; drop raw tool blobs, keep the digest."
 )
 CONTRACT = (ROOT / "adapters/claude/hooks/poteto-mode-context.md").read_text(
     encoding="utf-8"
@@ -82,6 +86,23 @@ class HookContractTest(TestCase):
         self.assertIn("<memory_inbox>1 memory candidate(s) are waiting", context)
         self.assertIn("<usage>yesterday:", context)
         self.assertIn("4 turns", context)
+        self.assertNotIn("<identity>", context)
+        self.assertNotIn("<headroom>", context)
+
+    def test_session_start_personal_identity_and_live_headroom_ids(self):
+        os.environ["KINGSTACK_IDENTITY"] = "personal"
+        store = self.runtime / "headroom-store"
+        store.mkdir()
+        (store / "live.json").write_text(
+            json.dumps({"ids": ["abcdabcdabcdabcd"]}) + "\n", encoding="utf-8"
+        )
+        os.environ["KINGSTACK_HEADROOM_ROOT"] = str(store)
+        self.addCleanup(os.environ.pop, "KINGSTACK_IDENTITY", None)
+        self.addCleanup(os.environ.pop, "KINGSTACK_HEADROOM_ROOT", None)
+        context = handle(self.envelope("SessionStart", {}), self.runtime)["additionalContext"]
+        self.assertIn("personal identity", context)
+        self.assertIn("Do not run king-mode", context)
+        self.assertIn("abcdabcdabcdabcd", context)
 
     def test_stop_captures_latest_correction_and_never_blocks(self):
         transcript = self.runtime / "transcript.jsonl"
@@ -125,6 +146,7 @@ class HookContractTest(TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("session 12345678", checkpoint)
         self.assertIn("finish the hook core", checkpoint)
+        self.assertIn("headroom archive ids", result["additionalContext"])
 
     def test_post_tool_use_warns_only_above_the_frozen_threshold(self):
         small = handle(
@@ -134,6 +156,9 @@ class HookContractTest(TestCase):
             ),
             self.runtime,
         )
+        store = self.runtime / "headroom-store"
+        os.environ["KINGSTACK_HEADROOM_ROOT"] = str(store)
+        self.addCleanup(os.environ.pop, "KINGSTACK_HEADROOM_ROOT", None)
         large = handle(
             self.envelope(
                 "PostToolUse",
@@ -142,8 +167,8 @@ class HookContractTest(TestCase):
             self.runtime,
         )
         self.assertEqual(small, {})
-        self.assertIn("Read result ~29KB", large["systemMessage"])
-        self.assertIn("haiku subagent", large["systemMessage"])
+        self.assertIn("headroom archived Read", large["systemMessage"])
+        self.assertIn("tokens ", large["systemMessage"])
 
     def test_subagent_start_reports_model_effort_role_and_inherit_smell(self):
         named = handle(
@@ -217,3 +242,35 @@ class HookContractTest(TestCase):
             )
         self.assertFalse((self.runtime / "memory-review.md").exists())
         self.assertTrue((self.runtime / "memory-review.error.log").exists())
+
+    def test_cursor_normalizer_maps_native_events_and_outputs(self):
+        event = cursor_normalize(
+            "sessionStart",
+            {"session_id": "conv-1", "cwd": "/work/plugins", "composer_mode": "agent"},
+        )
+        self.assertEqual(event["event"], "SessionStart")
+        self.assertEqual(event["agent"], "cursor")
+        self.assertEqual(event["session_id"], "conv-1")
+        self.assertEqual(event["project"], "/work/plugins")
+        result = handle(event, self.runtime)
+        output = json.loads(cursor_format("sessionStart", result))
+        self.assertIn("pstack (poteto-mode)", output["additional_context"])
+        self.assertEqual(
+            output.get("env", {}).get("KINGSTACK_ROOT"),
+            str(Path.home() / "Desktop/Work/kingstack"),
+        )
+        store = self.runtime / "headroom-store"
+        os.environ["KINGSTACK_HEADROOM_ROOT"] = str(store)
+        self.addCleanup(os.environ.pop, "KINGSTACK_HEADROOM_ROOT", None)
+        post = cursor_normalize(
+            "postToolUse",
+            {"tool_name": "Read", "tool_output": "x" * 30000, "cwd": "/work/plugins"},
+        )
+        large = handle(post, self.runtime)
+        post_out = json.loads(cursor_format("postToolUse", large))
+        self.assertIn("headroom archived Read", post_out["additional_context"])
+        code, stop_out = cursor_run_event("stop", "{", self.runtime)
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(stop_out), {})
+        with self.assertRaises(HookError):
+            cursor_normalize("SessionStartX", {})

@@ -15,7 +15,8 @@ PRESERVE = (
     "(3) open decisions and anything Hassan corrected, in his words; (4) any "
     "command or step that was about to run next; (5) unpushed or uncommitted "
     "state named in the transcript. Drop pleasantries and process narration "
-    "first, never these."
+    "first, never these. (6) headroom archive ids and "
+    "`kingstack headroom retrieve <id>`; drop raw tool blobs, keep the digest."
 )
 
 
@@ -43,8 +44,36 @@ def handle(event, runtime: Path) -> dict:
         lines.append("## last human prompts before compaction")
         for text in human_prompts(transcript)[-6:]:
             lines.append("- {}".format(text.replace("\n", " ")[:200]))
-    (directory / "{}.md".format(session)).write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return {"additionalContext": PRESERVE}
+    checkpoint = directory / "{}.md".format(session)
+    checkpoint.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    try:
+        from kingstack.session_store import record_from_hook
+        record_from_hook(
+            event,
+            status="compacted",
+            transcript=transcript,
+            checkpoint=str(checkpoint),
+        )
+    except Exception:
+        pass
+    extra = PRESERVE
+    store = os.environ.get("KINGSTACK_HEADROOM_ROOT")
+    if store:
+        from kingstack.headroom import live_ids
+        ids = live_ids(Path(store))
+        if ids:
+            extra += " Live ids: {}.".format(", ".join(ids))
+    memory_root = os.environ.get("KINGSTACK_MEMORY_ROOT")
+    if memory_root:
+        try:
+            from kingstack.memory_context import session_index
+            from kingstack.memory_store import MemoryStore
+            index = session_index(MemoryStore.open(Path(memory_root)), event["project"])
+            if index:
+                extra += "\n\n" + index
+        except Exception:
+            pass
+    return {"additionalContext": extra}
 
 
 def _is_git(project: str) -> bool:

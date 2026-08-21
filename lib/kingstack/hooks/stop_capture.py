@@ -52,4 +52,9 @@ def handle(event, runtime: Path) -> dict:
             )
         except Exception:
             pass
+    try:
+        from kingstack.session_store import record_from_hook
+        record_from_hook(event, transcript=transcript)
+    except Exception:
+        pass
     return {"blocked": False}

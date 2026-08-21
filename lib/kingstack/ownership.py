@@ -48,12 +48,17 @@ def discover_adapters(root: Path) -> List[str]:
 
 
 def native_homes(root: Path) -> Tuple[str, ...]:
+    base = Path(root) / "adapters"
+    if not base.is_dir():
+        raise OwnershipError("cannot refuse native homes without adapters/")
     homes = []
     for adapter in discover_adapters(root):
         raw = json.loads((Path(root) / "adapters" / adapter / "adapter.json").read_text())
         home = raw.get("native_home")
         if isinstance(home, str) and home:
             homes.append(home)
+    if not homes:
+        raise OwnershipError("no adapter native_home declarations")
     return tuple(homes)
 
 

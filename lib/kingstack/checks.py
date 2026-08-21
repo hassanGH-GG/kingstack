@@ -32,7 +32,10 @@ def _row(identity: str, adapter: str, ok: bool, evidence: str, fix: str) -> Mapp
 
 
 def _undeclared_constructs(root: Path, adapter: str) -> List[str]:
-    catalog = load_catalog(root)
+    try:
+        catalog = load_catalog(root)
+    except Exception:
+        return []
     declared = catalog.unsupported.get(adapter) or {}
     if not declared:
         return []
@@ -94,6 +97,12 @@ def staged_checks(root: Path) -> List[Mapping[str, object]]:
             "ok" if not undeclared else undeclared[0],
             "declare the construct or drop the target",
         ))
+    try:
+        from kingstack.headroom import check_pin
+        pin = check_pin(root)
+        rows.append(_row("headroom-pin", "core", True, pin["revision"], "sync-upstream headroom --check"))
+    except Exception as error:
+        rows.append(_row("headroom-pin", "core", False, str(error), "pin headroom checkout"))
     hygiene = hygiene_errors(root)
     rows.append(_row("docs-hygiene", "core", not hygiene, "ok" if not hygiene else "; ".join(hygiene[:3]), "classify markdown"))
     briefing = root / "docs/migration/pre-link-briefing.md"

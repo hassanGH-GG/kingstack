@@ -64,10 +64,10 @@ def _load_selected_adapter(
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(prog="kingstack")
     commands = parser.add_subparsers(dest="command", required=True)
-    inventory = commands.add_parser("inventory")
+    inventory = commands.add_parser("inventory", help="write a redacted home inventory")
     inventory.add_argument("--home", type=Path, default=Path.home())
     inventory.add_argument("--output", type=Path, required=True)
-    bootstrap_command = commands.add_parser("bootstrap")
+    bootstrap_command = commands.add_parser("bootstrap", help="clone kingstack into a new checkout")
     bootstrap_command.add_argument("--source-repo", type=Path, required=True)
     bootstrap_command.add_argument(
         "--destination", type=Path, default=Paths.for_home(Path.home()).repo,
@@ -80,7 +80,19 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     bootstrap_command.add_argument("--allow-unpushed", action="store_true")
     bootstrap_command.add_argument("--dry-run", action="store_true")
-    check_command = commands.add_parser("check")
+    setup_command = commands.add_parser(
+        "setup",
+        help="prepare a private runtime; never writes a native home",
+        epilog="Examples:\n  kingstack setup\n  kingstack setup --identity personal --json\n  kingstack setup --root ~/src/kingstack --runtime ~/.kingstack",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    setup_command.add_argument("--root", type=Path, help="kingstack checkout")
+    setup_command.add_argument("--runtime", type=Path, help="private runtime, default ~/.kingstack")
+    setup_command.add_argument("--identity", choices=("personal", "hassan"), default="personal")
+    setup_command.add_argument("--headroom", type=Path, help="headroom checkout")
+    setup_command.add_argument("--home", type=Path, default=Path.home())
+    setup_command.add_argument("--json", action="store_true")
+    check_command = commands.add_parser("check", help="run staged or live health")
     check_mode = check_command.add_mutually_exclusive_group(required=True)
     check_mode.add_argument("--contract", action="store_true")
     check_mode.add_argument("--rendered", action="store_true")
@@ -93,15 +105,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     adapter_selector.add_argument("--adapter-path", type=Path)
     check_command.add_argument("--mode", choices=("staged", "live"))
     check_command.add_argument("--json", action="store_true")
-    render_command = commands.add_parser("render")
+    render_command = commands.add_parser("render", help="print an immutable adapter bundle")
     render_command.add_argument("--adapter", type=_adapter_id, required=True)
     render_selector = render_command.add_mutually_exclusive_group(required=True)
     render_selector.add_argument("--manifest", action="store_true")
     render_selector.add_argument("--print-file")
     render_selector.add_argument("--check-file")
     render_command.add_argument("--equals", type=Path)
-    sync_command = commands.add_parser("sync-upstream")
-    sync_command.add_argument("upstream", choices=("pstack",))
+    sync_command = commands.add_parser("sync-upstream", help="check or manifest a pinned upstream")
+    sync_command.add_argument("upstream", choices=("pstack", "headroom"))
     sync_mode = sync_command.add_mutually_exclusive_group(required=True)
     sync_mode.add_argument("--bundle-manifest", action="store_true")
     sync_mode.add_argument("--check", action="store_true")
@@ -109,7 +121,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     sync_command.add_argument("--upstream-root", type=Path)
     sync_command.add_argument("--installed-root", type=Path)
     sync_command.add_argument("--installed-manifest", type=Path)
-    memory_command = commands.add_parser("memory")
+    memory_command = commands.add_parser("memory", help="review the private shared memory store")
     memory_action = memory_command.add_subparsers(dest="memory_command", required=True)
     memory_list = memory_action.add_parser("list")
     memory_list.add_argument("--project")
@@ -139,7 +151,44 @@ def main(argv: Optional[List[str]] = None) -> int:
     memory_recall.add_argument("names", nargs="+")
     memory_recall.add_argument("--cwd", type=Path)
     memory_recall.add_argument("--root", type=Path)
-    release_command = commands.add_parser("release")
+    memory_consolidate = memory_action.add_parser("consolidate")
+    memory_consolidate.add_argument("--root", type=Path)
+    memory_harvest = memory_action.add_parser("harvest")
+    memory_harvest.add_argument("--inbox", type=Path, required=True)
+    memory_harvest.add_argument("--cwd", type=Path)
+    memory_harvest.add_argument("--adapter", default="claude")
+    memory_harvest.add_argument("--root", type=Path)
+    handoff_command = commands.add_parser("handoff", help="write a packet for another adapter")
+    handoff_command.add_argument("--finish", required=True)
+    handoff_command.add_argument("--out", type=Path)
+    handoff_command.add_argument("--cwd", type=Path)
+    handoff_command.add_argument("--store", type=Path)
+    handoff_command.add_argument("--memory-root", type=Path)
+    handoff_command.add_argument("--session")
+    handoff_command.add_argument("--sessions-root", type=Path)
+    session_command = commands.add_parser(
+        "session",
+        help="list or continue the private working-set index",
+        epilog="Examples:\n  kingstack session list\n  kingstack session show s_abc123\n  kingstack session continue s_abc123 --finish \"<done means>\"",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    session_action = session_command.add_subparsers(dest="session_command", required=True)
+    session_list = session_action.add_parser("list")
+    session_list.add_argument("--project")
+    session_list.add_argument("--cwd", type=Path)
+    session_list.add_argument("--root", type=Path)
+    session_show = session_action.add_parser("show")
+    session_show.add_argument("session_id")
+    session_show.add_argument("--root", type=Path)
+    session_continue = session_action.add_parser("continue")
+    session_continue.add_argument("session_id")
+    session_continue.add_argument("--finish")
+    session_continue.add_argument("--out", type=Path)
+    session_continue.add_argument("--cwd", type=Path)
+    session_continue.add_argument("--root", type=Path)
+    session_continue.add_argument("--store", type=Path)
+    session_continue.add_argument("--memory-root", type=Path)
+    release_command = commands.add_parser("release", help="build or select a private release")
     release_command.add_argument("--adapter", type=_adapter_id, required=True)
     release_command.add_argument("--runtime", type=Path, required=True)
     release_mode = release_command.add_mutually_exclusive_group(required=True)
@@ -148,15 +197,34 @@ def main(argv: Optional[List[str]] = None) -> int:
     release_mode.add_argument("--select", action="store_true")
     release_mode.add_argument("--rollback", action="store_true")
     release_command.add_argument("--to")
-    status_command = commands.add_parser("status")
+    effort_command = commands.add_parser(
+        "effort",
+        help="scan spawn lines; inherit is fail",
+        epilog="Examples:\n  kingstack effort --file transcript.jsonl\n  kingstack effort < transcript.txt",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    effort_command.add_argument("--file", type=Path)
+    status_command = commands.add_parser("status", help="print model, effort, context, and subagent models")
     status_command.add_argument("--transcript", dest="transcript_path")
     status_command.add_argument("--model", dest="status_model")
-    activate_command = commands.add_parser("activate")
+    status_command.add_argument("--effort", dest="status_effort")
+    activate_command = commands.add_parser("activate", help="plan a native-home link; live apply is refused")
     activate_command.add_argument("--adapter", type=_adapter_id, required=True)
     activate_command.add_argument("--release", required=True)
     activate_command.add_argument("--runtime", type=Path, required=True)
     activate_command.add_argument("--native-home", type=Path, required=True)
     activate_command.add_argument("--dry-run", action="store_true")
+    headroom_command = commands.add_parser("headroom", help="archive and retrieve large tool output")
+    headroom_action = headroom_command.add_subparsers(dest="headroom_command", required=True)
+    crush_command = headroom_action.add_parser("crush")
+    crush_command.add_argument("--file", type=Path)
+    crush_command.add_argument("--store", type=Path)
+    crush_command.add_argument("--tool", default="tool")
+    retrieve_command = headroom_action.add_parser("retrieve")
+    retrieve_command.add_argument("archive_id")
+    retrieve_command.add_argument("--store", type=Path)
+    stats_command = headroom_action.add_parser("stats")
+    stats_command.add_argument("--store", type=Path)
     arguments = parser.parse_args(argv)
 
     if arguments.command == "render":
@@ -181,12 +249,22 @@ def main(argv: Optional[List[str]] = None) -> int:
     if arguments.command == "activate" and not arguments.dry_run:
         activate_command.error("live apply is forbidden; pass --dry-run")
 
+    if arguments.command == "effort":
+        from kingstack.effort import failed, scan_file, scan_stream
+        try:
+            rows = scan_file(arguments.file) if arguments.file is not None else scan_stream(sys.stdin)
+        except OSError as error:
+            print("kingstack effort: {}".format(error), file=sys.stderr)
+            return 2
+        print(json.dumps(_plain({"schema_version": 1, "rows": rows, "failed": failed(rows)}), indent=2, sort_keys=True))
+        return 1 if failed(rows) else 0
     if arguments.command == "status":
         from kingstack.statusline import render_status
         payload = {
             "transcript_path": arguments.transcript_path or "",
             "workspace": {"current_dir": str(Path.cwd())},
             "model": {"display_name": arguments.status_model or ""},
+            "effort": {"level": arguments.status_effort or ""},
             "cost": {},
         }
         print(render_status(payload))
@@ -211,6 +289,38 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 2
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
+    if arguments.command == "setup":
+        from kingstack.setup import SetupError, setup
+        try:
+            report = setup(
+                checkout=arguments.root,
+                runtime=arguments.runtime,
+                identity=arguments.identity,
+                home=arguments.home,
+                headroom_checkout=arguments.headroom,
+            )
+        except SetupError as error:
+            print("kingstack setup: {}".format(error), file=sys.stderr)
+            return 2
+        if arguments.json:
+            print(json.dumps(_plain(report), indent=2, sort_keys=True))
+        else:
+            print("checkout: {}".format(report["checkout"]))
+            print("runtime: {}".format(report["runtime"]))
+            print("identity: {}".format(report["identity"]))
+            print("pstack: {status} {revision}".format(**report["pstack"]))
+            if report["pstack"].get("clone"):
+                print("clone: {}".format(report["pstack"]["clone"]))
+            print("headroom: {status} {revision}".format(**report["headroom"]))
+            if report["headroom"]["clone"]:
+                print("clone: {}".format(report["headroom"]["clone"]))
+            print("staged: {}".format(report["staged"]))
+            if report["failing"]:
+                print("failing: {}".format(", ".join(report["failing"])))
+            print("got: {}".format(", ".join(report["got"])))
+            print("not_got: {}".format(", ".join(report["not_got"])))
+            print("native homes: not written")
+        return 0 if report["staged"] == "healthy" else 1
     if arguments.command == "check":
         root = Path(__file__).resolve().parents[2]
         if arguments.rendered:
@@ -295,6 +405,17 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 2
     if arguments.command == "sync-upstream":
         root = Path(__file__).resolve().parents[2]
+        if arguments.upstream == "headroom":
+            from kingstack.headroom import HeadroomError, check_pin
+            if arguments.bundle_manifest:
+                sync_command.error("headroom has no skill bundle")
+            try:
+                report = check_pin(root, arguments.upstream_root or root.parent / "headroom")
+                print(json.dumps({"schema_version": 1, "upstream": _plain(report)}, indent=2, sort_keys=True))
+                return 0
+            except HeadroomError as error:
+                print("kingstack sync-upstream: {}".format(error), file=sys.stderr)
+                return 2
         upstream_root = arguments.upstream_root or root.parent / "plugins"
         try:
             if arguments.bundle_manifest:
@@ -365,6 +486,20 @@ def main(argv: Optional[List[str]] = None) -> int:
                 from kingstack.memory_context import recall
                 print(recall(store, arguments.cwd or Path.cwd(), arguments.names))
                 return 0
+            if arguments.memory_command == "consolidate":
+                from kingstack.memory_consolidate import consolidate
+                print(json.dumps(consolidate(store), indent=2, sort_keys=True))
+                return 0
+            if arguments.memory_command == "harvest":
+                from kingstack.memory_harvest import harvest
+                created = harvest(
+                    store,
+                    arguments.inbox,
+                    arguments.cwd or Path.cwd(),
+                    arguments.adapter,
+                )
+                print(json.dumps(created, indent=2, sort_keys=True))
+                return 0
             reject(store, arguments.candidate_id, arguments.reason, arguments.actor)
             return 0
         except Exception as error:
@@ -407,6 +542,119 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 0
         except ActivationError as error:
             print("kingstack activate: {}".format(error), file=sys.stderr)
+            return 2
+    if arguments.command == "session":
+        from kingstack.project_id import ProjectIdError, project_id
+        from kingstack.session_store import SessionStore, SessionStoreError, default_root
+        repo = Path(__file__).resolve().parents[2]
+        sessions_root = arguments.root if getattr(arguments, "root", None) else default_root()
+        try:
+            if arguments.root is None and arguments.session_command in ("list", "show"):
+                if not Path(sessions_root).exists():
+                    if arguments.session_command == "list":
+                        print("[]")
+                        return 0
+                    raise SessionStoreError("no session store; run kingstack setup")
+            store = SessionStore.open(sessions_root, repo_root=repo)
+            if arguments.session_command == "list":
+                project = arguments.project
+                if project is None and arguments.cwd is not None:
+                    project = project_id(arguments.cwd)
+                print(json.dumps(store.list_records(project), indent=2, sort_keys=True))
+                return 0
+            if arguments.session_command == "show":
+                print(json.dumps(dict(store.show(arguments.session_id)), indent=2, sort_keys=True))
+                return 0
+            from kingstack.handoff import attach_session, packet, render_packet, write_packet
+            record = store.show(arguments.session_id)
+            existing = record.get("packet_path") or ""
+            if existing and Path(existing).is_file() and not arguments.finish:
+                print(Path(existing).read_text(encoding="utf-8"), end="")
+                return 0
+            finish = arguments.finish or record.get("finish_condition") or ""
+            if not str(finish).strip():
+                raise SessionStoreError(
+                    "finish condition is required; pass --finish \"<done means>\""
+                )
+            cwd = arguments.cwd or Path.cwd()
+            document = packet(
+                str(finish),
+                cwd,
+                store=arguments.store,
+                memory_root=arguments.memory_root,
+            )
+            packet_path = ""
+            if arguments.out is None:
+                print(render_packet(document), end="")
+            else:
+                packet_path = str(write_packet(arguments.out, document))
+                print(packet_path)
+            attach_session(
+                document,
+                cwd,
+                packet_path=packet_path,
+                session_key=record["id"],
+                sessions_root=sessions_root,
+            )
+            return 0
+        except (OSError, SessionStoreError, ProjectIdError) as error:
+            print("kingstack session: {}".format(error), file=sys.stderr)
+            return 2
+    if arguments.command == "handoff":
+        from kingstack.handoff import (
+            HandoffError,
+            attach_session,
+            packet,
+            render_packet,
+            write_packet,
+        )
+        from kingstack.project_id import ProjectIdError
+        from kingstack.session_store import SessionStoreError
+        try:
+            cwd = arguments.cwd or Path.cwd()
+            document = packet(
+                arguments.finish,
+                cwd,
+                store=arguments.store,
+                memory_root=arguments.memory_root,
+            )
+            packet_path = ""
+            if arguments.out is None:
+                print(render_packet(document), end="")
+            else:
+                packet_path = str(write_packet(arguments.out, document))
+                print(packet_path)
+            attach_session(
+                document,
+                cwd,
+                packet_path=packet_path,
+                session_key=arguments.session,
+                sessions_root=arguments.sessions_root,
+            )
+            return 0
+        except (HandoffError, SessionStoreError, ProjectIdError) as error:
+            print("kingstack handoff: {}".format(error), file=sys.stderr)
+            return 2
+    if arguments.command == "headroom":
+        from kingstack.headroom import HeadroomError, crush, default_store, retrieve, stats
+        root = Path(__file__).resolve().parents[2]
+        store = arguments.store or default_store()
+        try:
+            if arguments.headroom_command == "crush":
+                if arguments.file is None:
+                    text = sys.stdin.read()
+                else:
+                    text = arguments.file.read_text(encoding="utf-8")
+                record = crush(text, store, root, tool=arguments.tool)
+                print(record["notice"], end="")
+                return 0
+            if arguments.headroom_command == "retrieve":
+                sys.stdout.write(retrieve(arguments.archive_id, store, root))
+                return 0
+            print(json.dumps(_plain(stats(store, root)), indent=2, sort_keys=True))
+            return 0
+        except (OSError, HeadroomError) as error:
+            print("kingstack headroom: {}".format(error), file=sys.stderr)
             return 2
     return 1
 

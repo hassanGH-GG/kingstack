@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "statuses": ["live", "compacted", "handed-off", "done"],
+  "window": 20,
+  "prompt_cap": 6
+}
