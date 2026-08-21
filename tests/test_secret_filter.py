@@ -1,6 +1,11 @@
 from unittest import TestCase
 
+from pathlib import Path
+
 from kingstack.secret_filter import SecretFilterError, inspect, reject_if_secret
+
+
+ROOT = Path(__file__).parents[1]
 
 
 class SecretFilterTest(TestCase):
@@ -16,3 +21,9 @@ class SecretFilterTest(TestCase):
         hits = inspect("token: ghp_abcdefghijklmnopqrstuvwxyz123456")
         self.assertTrue(hits)
         self.assertNotIn("ghp_abcdefghijklmnopqrstuvwxyz123456", str(hits))
+
+    def test_human_prompts_filters_at_the_read_boundary(self):
+        text = (ROOT / "lib" / "kingstack" / "hooks" / "inbox.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertTrue("keep_public(" in text or "inspect(" in text)

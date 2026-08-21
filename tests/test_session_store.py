@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import shutil
 import tempfile
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -235,6 +236,41 @@ class SessionStoreTest(TestCase):
         with redirect_stdout(sink), redirect_stderr(sink):
             code = main(["session", "list", "--root", str(leak)])
         self.assertEqual(code, 2)
+        self.assertFalse(leak.exists())
+
+    def test_hook_writes_refuse_a_store_inside_the_checkout(self):
+        leak = ROOT / "docs" / "hook-session-leak-probe"
+        self.addCleanup(shutil.rmtree, leak, True)
+        os.environ["KINGSTACK_SESSIONS_ROOT"] = str(leak)
+        os.environ["KINGSTACK_ROOT"] = str(ROOT)
+        self.addCleanup(os.environ.pop, "KINGSTACK_SESSIONS_ROOT", None)
+        self.addCleanup(os.environ.pop, "KINGSTACK_ROOT", None)
+        transcript = self.root / "ok.jsonl"
+        write_transcript(transcript, ["ship the leftover"])
+        row = record_from_hook(
+            {
+                "agent": "claude",
+                "session_id": "inside-repo",
+                "project": str(self.cwd),
+            },
+            transcript=str(transcript),
+        )
+        self.assertIsNone(row)
+        self.assertFalse(leak.exists())
+        (self.root / "hooks").mkdir()
+        (self.root / "hooks" / "poteto-mode-context.md").write_text(
+            CONTRACT, encoding="utf-8"
+        )
+        handle(
+            {
+                "event": "SessionStart",
+                "agent": "claude",
+                "session_id": "inside-repo-start",
+                "project": str(self.cwd),
+                "payload": {},
+            },
+            self.root,
+        )
         self.assertFalse(leak.exists())
 
     def test_close_and_sweep_drop_empty_live_rows(self):
