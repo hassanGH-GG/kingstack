@@ -24,7 +24,6 @@
     "docs/ROADMAP.md": "rewrite",
     "docs/SETUP.md": "rewrite",
     "core/skills/authored/handoff-to-codex/SKILL.md": "rewrite",
-    "docs/migration/agent-neutral-kingstack-handoff.md": "historical",
     "docs/migration/claude-rendered-parity.md": "historical",
     "docs/migration/foundation-verification.md": "historical",
     "docs/migration/legacy-claude-checkout.md": "rewrite",

@@ -21,6 +21,7 @@ PLAN_FILES = (
     "docs/superpowers/plans/2026-08-20-kingstack-cutover-plan.md",
     "docs/superpowers/specs/2026-08-20-agent-neutral-kingstack-design.md",
     "docs/migration/super-saiyan-3-plan.md",
+    "docs/migration/agent-neutral-kingstack-handoff.md",
 )
 LEFTOVER_TREES = (
     "docs/superpowers",

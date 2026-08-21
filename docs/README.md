@@ -18,5 +18,4 @@ index. `kingstack handoff` writes a Codex packet. Hassan's three native
 homes are linked. A teammate follows [SETUP.md](SETUP.md) and stays
 unlinked until they activate.
 
-The Superpowers plans, SDD tree, and design spec are gone. The
-checkout, [SETUP.md](SETUP.md), and the briefing are the current facts.
+The checkout, [SETUP.md](SETUP.md), and the briefing are the current facts.
