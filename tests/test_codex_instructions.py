@@ -1,4 +1,7 @@
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 from unittest import TestCase
 
@@ -40,3 +43,31 @@ class CodexInstructionsTest(TestCase):
         owned = json.loads((ROOT / "adapters/codex/config-owned.json").read_text())
         unknown = [item for item in owned["tui.status_line"] if item not in allowed]
         self.assertEqual(unknown, [])
+
+    def test_codex_run_py_emits_codex_hook_json(self):
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(ROOT / "lib")
+        env["KINGSTACK_RUNTIME"] = str(ROOT / "adapters/codex")
+        runner = ROOT / "adapters/codex/hooks/run.py"
+        started = subprocess.run(
+            [sys.executable, str(runner), "SessionStart"],
+            input=b"{}",
+            capture_output=True,
+            env=env,
+            check=False,
+        )
+        self.assertEqual(started.returncode, 0, started.stderr.decode())
+        payload = json.loads(started.stdout)
+        self.assertIn("hookSpecificOutput", payload)
+        self.assertNotIn("additionalContext", payload)
+        self.assertEqual(payload["hookSpecificOutput"]["hookEventName"], "SessionStart")
+        self.assertIn("Kingstack policy applies on Codex", payload["hookSpecificOutput"]["additionalContext"])
+        stopped = subprocess.run(
+            [sys.executable, str(runner), "Stop"],
+            input=b"{}",
+            capture_output=True,
+            env=env,
+            check=False,
+        )
+        self.assertEqual(stopped.returncode, 0, stopped.stderr.decode())
+        self.assertEqual(json.loads(stopped.stdout), {})

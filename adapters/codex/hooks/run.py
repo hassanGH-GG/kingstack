@@ -23,6 +23,7 @@ def _lib_path() -> Path:
 
 sys.path.insert(0, str(_lib_path()))
 
+from kingstack.hooks.codex import format_output  # noqa: E402
 from kingstack.hooks.dispatch import handle  # noqa: E402
 from kingstack.profile import apply_hook_env  # noqa: E402
 
@@ -44,14 +45,18 @@ def main(argv=None) -> int:
         "project": payload.get("cwd") or str(Path.cwd()),
         "payload": payload,
     }
+    if argv[0] == "Stop":
+        try:
+            handle(event, runtime)
+        except Exception:
+            pass
+        sys.stdout.write("{}\n")
+        return 0
     try:
         result = handle(event, runtime)
     except Exception:
-        if argv[0] == "Stop":
-            sys.stdout.write("{}\n")
-            return 0
         raise
-    sys.stdout.write(json.dumps(result) + "\n")
+    sys.stdout.write(format_output(argv[0], result) + "\n")
     return 0
 
 
